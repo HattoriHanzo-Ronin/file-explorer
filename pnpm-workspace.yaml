@@ -1,0 +1,2 @@
+# React Native native builds resolve dependencies directly from node_modules.
+nodeLinker: hoisted
