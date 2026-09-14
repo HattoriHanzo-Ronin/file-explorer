@@ -1,16 +1,10 @@
-import type { DrawerNavigationProp } from "@react-navigation/drawer";
 import { Menu } from "react-native-paper";
-import { ContextType } from "./AppContextProvider";
-import { cpmvPath, download, makeDir, makePathWithRoot, remove, rename, upload } from "../utils/FileUtils";
-import AppDialog from "./Dialog";
+import { cpmvPath, download, makeDir, makePathWithRoot, remove, rename, upload } from "../utils/file-utils";
+import AppDialog from "./dialog";
 import { useState } from "react";
-import { noElements, showToast } from "../utils/UI_Utils";
+import { noElements, showToast } from "../utils/ui-utils";
 
-type Navigation = DrawerNavigationProp<{ local: undefined; ftp: undefined }>;
-type SetVisible = (visible: boolean) => void;
-type MenuProps = { setVisible: SetVisible; context: ContextType };
-type TransferMenuProps = MenuProps & { navigation: Navigation };
-type CopyMoveMenuProps = MenuProps & { title: string; setTitle: (title: string) => void };
+import type { CopyMoveMenuProps, MenuProps, TransferMenuProps } from "../types/menu";
 
 export const UploadMenu = (props: TransferMenuProps) => {
     const { navigation, setVisible, context } = props;

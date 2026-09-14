@@ -1,13 +1,7 @@
 import * as Diag from "react-native-dialog";
+import type { DialogProps } from "../types/components";
 
-export default function AppDialog(props: {
-    show: boolean;
-    onCancel: () => void;
-    onOk: () => void;
-    description: string;
-    name: string;
-    setName: (name: string) => void;
-}) {
+export default function AppDialog(props: DialogProps) {
     const { show, onCancel, onOk, description, name, setName } = props;
     const NativeDialog = Diag.default;
 

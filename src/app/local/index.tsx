@@ -1,16 +1,17 @@
 import { useEffect, useState } from "react";
 import { View } from "react-native";
 import RNFS from "react-native-fs";
-import Background from "../components/Background";
-import { DirContent, useAppContext } from "../components/AppContextProvider";
-import List from "../components/List";
-import Breadcrumb from "../components/Breadcrumb";
-import { openFile } from "../utils/FileUtils";
-import Loading from "../components/Loading";
+import Background from "../../components/background";
+import { useAppContext } from "../../components/app-context-provider";
+import type { DirContent } from "../../types/files";
+import List from "../../components/list";
+import Breadcrumb from "../../components/breadcrumb";
+import { openFile } from "../../utils/file-utils";
+import Loading from "../../components/loading";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import React from "react";
-import { useBackButtonEvent, showToast } from "../utils/UI_Utils";
-import { ensureStoragePermission } from "../utils/PermissionUtils";
+import { useBackButtonEvent, showToast } from "../../utils/ui-utils";
+import { ensureStoragePermission } from "../../utils/permission-utils";
 
 export default function Local() {
     const context = useAppContext();
