@@ -13,6 +13,7 @@ module.exports = defineConfig([
             "prefer-const": "warn",
             "object-shorthand": ["error", "always"],
             "no-unused-vars": "warn",
+            "no-void": "off",
             "consistent-return": "warn",
             "arrow-body-style": ["warn", "as-needed"],
             complexity: ["warn", 10]

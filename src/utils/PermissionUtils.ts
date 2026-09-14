@@ -1,14 +1,14 @@
-import { NativeModules } from "react-native"
+import { NativeModules } from "react-native";
 
-const { StoragePermission } = NativeModules
+const { StoragePermission } = NativeModules;
 
-export const
-// pide acceso completo al sistema de archivos
- ensureStoragePermission = async () => {
-  const granted = await StoragePermission.isExternalStorageManager()
+export const ensureStoragePermission = async () => {
+    const granted = await StoragePermission.isExternalStorageManager();
 
-  if (granted) return true
+    if (granted) {
+        return true;
+    }
 
-  StoragePermission.openAllFilesAccess()
-  return false
-}
+    StoragePermission.openAllFilesAccess();
+    return false;
+};
