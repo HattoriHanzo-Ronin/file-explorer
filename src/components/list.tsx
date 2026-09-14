@@ -1,14 +1,9 @@
 import { FlatList } from "react-native";
-import { DirContent, useAppContext } from "./AppContextProvider";
-import ContentCard from "./ContentCard";
+import { useAppContext } from "./app-context-provider";
+import type { ListProps } from "../types/components";
+import ContentCard from "./content-card";
 
-export default function List(props: {
-    dirContent: DirContent[];
-    doubleTapAction: (name: string, type: DirContent["type"]) => void;
-    longPressAction: (name: string, type: DirContent["type"]) => void;
-    oneTapAction: (name: string, type: DirContent["type"]) => void;
-    notSelectable: boolean;
-}) {
+export default function List(props: ListProps) {
     const { dirContent, doubleTapAction, longPressAction, oneTapAction, notSelectable } = props;
     const ITEM_SIZE = 100;
     const context = useAppContext();

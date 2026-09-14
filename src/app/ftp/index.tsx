@@ -1,14 +1,15 @@
 import { useEffect, useState } from "react";
 import { Alert, View } from "react-native";
-import { DirContent, useAppContext } from "../components/AppContextProvider";
+import { useAppContext } from "../../components/app-context-provider";
+import type { DirContent } from "../../types/files";
 import axios from "axios";
-import Background from "../components/Background";
-import Breadcrumb from "../components/Breadcrumb";
-import List from "../components/List";
-import Loading from "../components/Loading";
+import Background from "../../components/background";
+import Breadcrumb from "../../components/breadcrumb";
+import List from "../../components/list";
+import Loading from "../../components/loading";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import React from "react";
-import { useBackButtonEvent, showToast } from "../utils/UI_Utils";
+import { useBackButtonEvent, showToast } from "../../utils/ui-utils";
 
 export default function Ftp() {
     const context = useAppContext();

@@ -1,11 +1,12 @@
 import { Alert } from "react-native";
-import { ContextType, ModifyElements } from "../components/AppContextProvider";
+import type { AppContextType } from "../types/context";
+import type { ModifyElement } from "../types/files";
 import RNFS from "react-native-fs";
 import { unzip, zip } from "react-native-zip-archive";
 import axios from "axios";
 import { NativeModules } from "react-native";
 import mime from "mime";
-import { noElements, showToast } from "./UI_Utils";
+import { noElements, showToast } from "./ui-utils";
 
 const { FileOpener } = NativeModules;
 const ROOT = RNFS.ExternalStorageDirectoryPath;
@@ -39,7 +40,7 @@ export const getFileName = async (destination: string, name: string): Promise<st
  * @param destination Directorio de destino
  * @param context Contexto de la aplicación
  */
-export const upload = async (toUpload: ModifyElements[], destination: string, context: ContextType) => {
+export const upload = async (toUpload: ModifyElement[], destination: string, context: AppContextType) => {
     const tempDir = `${CACHEDIR}/temp${Date.now()}`;
     const tempToZip = `${tempDir}/toZip`;
     const zipFile = `${tempDir}/${Date.now()}.zip`;
@@ -69,7 +70,7 @@ export const upload = async (toUpload: ModifyElements[], destination: string, co
  * @param destination Directorio de destino
  * @param context Contexto de la aplicación
  */
-export const download = async (toDownload: ModifyElements[], destination: string, context: ContextType) => {
+export const download = async (toDownload: ModifyElement[], destination: string, context: AppContextType) => {
     const last = context.lastFtpDir;
     const url = `${context.url}/download`;
     const dest = makePathWithRoot(destination);
@@ -134,7 +135,7 @@ export const copyDir = async (origin: string, destination: string, cp?: boolean,
  * @param cp Medirá si se copia o se mueve el archivo
  * @param name Nombre para el rename
  */
-export const cpmv = async (toCopy: ModifyElements[], destination: string, cp?: boolean, name?: string) => {
+export const cpmv = async (toCopy: ModifyElement[], destination: string, cp?: boolean, name?: string) => {
     for (const item of toCopy) {
         console.log(item.path);
         const currentItem = makePathWithRoot(item.path);
@@ -163,7 +164,7 @@ export const cpmv = async (toCopy: ModifyElements[], destination: string, cp?: b
  * @param cp Medirá si se copia o se mueve el archivo
  */
 export const cpmvPath = async (
-    context: ContextType,
+    context: AppContextType,
     setVisible: (visible: boolean) => void,
     title: string,
     setTitle: (title: string) => void,
@@ -210,7 +211,7 @@ export const cpmvPath = async (
  * @param name Nombre de la nueva carpeta
  * @param setVisible Función para ocultar o mostrar el menú
  */
-export const makeDir = async (context: ContextType, name: string, setVisible: (visible: boolean) => void) => {
+export const makeDir = async (context: AppContextType, name: string, setVisible: (visible: boolean) => void) => {
     try {
         let last;
 
@@ -240,10 +241,10 @@ export const makeDir = async (context: ContextType, name: string, setVisible: (v
  * @param setVisible Función para ocultar o mostrar el menú
  */
 export const rename = async (
-    toRename: ModifyElements[],
+    toRename: ModifyElement[],
     name: string,
     destination: string,
-    context: ContextType,
+    context: AppContextType,
     setVisible: (visible: boolean) => void
 ) => {
     try {
@@ -266,9 +267,9 @@ export const rename = async (
  * @param setVisible Función para ocultar o mostrar el menú
  */
 export const remove = async (
-    toRemove: ModifyElements[],
+    toRemove: ModifyElement[],
     origin: string,
-    context: ContextType,
+    context: AppContextType,
     setVisible: (visible: boolean) => void
 ) => {
     try {
@@ -407,7 +408,7 @@ export const getTypeFile = (file: string) => {
  * @param name Nombre del archivo
  * @param context Contexto de la aplicación
  */
-export const openFile = async (origin: string, name: string, context: ContextType) => {
+export const openFile = async (origin: string, name: string, context: AppContextType) => {
     const typeFile = getTypeFile(name);
     const originWithRoot = makePathWithRoot(origin);
     const file = `${originWithRoot}/${name}`;

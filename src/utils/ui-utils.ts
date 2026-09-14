@@ -1,6 +1,6 @@
 import { useFocusEffect } from "@react-navigation/native";
 import React from "react";
-import { ContextType } from "../components/AppContextProvider";
+import type { AppContextType } from "../types/context";
 import { BackHandler, ToastAndroid } from "react-native";
 
 /**
@@ -9,7 +9,7 @@ import { BackHandler, ToastAndroid } from "react-native";
  * @param context Contexto de la aplicación
  * @param storage En que tipo de almacenamiento se está trabajando local u otro
  */
-export const useBackButtonEvent = (context: ContextType, storage: string) => {
+export const useBackButtonEvent = (context: AppContextType, storage: string) => {
     useFocusEffect(
         React.useCallback(() => {
             const onBackPress = () => {

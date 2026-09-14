@@ -3,16 +3,11 @@ import { Image, Text, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { runOnJS } from "react-native-worklets";
 import { contentCard } from "../app/style";
-import { DirContent, useAppContext } from "./AppContextProvider";
-import { getTypeFile, icons } from "../utils/FileUtils";
+import { useAppContext } from "./app-context-provider";
+import type { ContentCardProps } from "../types/components";
+import { getTypeFile, icons } from "../utils/file-utils";
 
-export default function ContentCard(props: {
-    content: DirContent;
-    doubleTapAction: () => void;
-    longPressAction: () => void;
-    oneTapAction: () => void;
-    notSelectable: boolean;
-}) {
+export default function ContentCard(props: ContentCardProps) {
     const { content, doubleTapAction, longPressAction, oneTapAction, notSelectable } = props;
     const context = useAppContext();
     const [select, setSelect] = useState<boolean>(false);

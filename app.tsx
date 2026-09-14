@@ -3,19 +3,20 @@ import {
     createDrawerNavigator,
     DrawerContentScrollView,
     DrawerItem,
-    DrawerNavigationProp,
     DrawerContentComponentProps,
     DrawerHeaderProps
 } from "@react-navigation/drawer";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import React, { useEffect, useState } from "react";
 import { Menu, PaperProvider } from "react-native-paper";
-import AppContextProvider, { ContextType, useAppContext } from "./src/components/AppContextProvider";
-import Background from "./src/components/Background";
+import AppContextProvider, { useAppContext } from "./src/components/app-context-provider";
+import type { AppContextType } from "./src/types/context";
+import type { DrawerNavigation } from "./src/types/navigation";
+import Background from "./src/components/background";
 import { Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Local from "./src/app/local";
-import Ftp from "./src/app/ftp";
+import Local from "./src/app/local/index";
+import Ftp from "./src/app/ftp/index";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import {
     CopyMenu,
@@ -25,9 +26,7 @@ import {
     RemoveMenu,
     RenameMenu,
     UploadMenu
-} from "./src/components/MenuItems";
-
-type NavigationType = DrawerNavigationProp<{ local: undefined; ftp: undefined }>;
+} from "./src/components/menu-items";
 
 const Drawer = createDrawerNavigator();
 const AppDrawerContent = (props: DrawerContentComponentProps) => {
@@ -60,7 +59,7 @@ const OverflowMenu = () => {
     const [copyTitle, setCopyTitle] = useState<string>("Copiar");
     const [moveTitle, setMoveTitle] = useState<string>("Mover");
     const context = useAppContext();
-    const navigation = useNavigation<NavigationType>();
+    const navigation = useNavigation<DrawerNavigation>();
 
     useEffect(() => {
         if (copyTitle === "Pegar") {
@@ -127,7 +126,7 @@ const AppHeader = (props: DrawerHeaderProps) => {
         </Background>
     );
 };
-const handleNavigationPress = (context: ContextType, name: string) => {
+const handleNavigationPress = (context: AppContextType, name: string) => {
     context.setLastComponent(name);
     if (context.lastFtpDir !== " ") {
         context.setLastFtpDir(" ");
