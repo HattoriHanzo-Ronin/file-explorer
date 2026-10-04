@@ -14,10 +14,11 @@ const CACHEDIR = RNFS.CachesDirectoryPath;
 
 export const makePathWithRoot = (path: string) => (path === " " ? ROOT : `${ROOT}/${path}`);
 /**
+ * Returns an available name for an item in the destination
  *
- * Comprobara si el archivo o carpeta ya existe y renombrará si fuese necesario
- * @param destination Directorio de destino
- * @param name Nombre del archivo
+ * @param destination Destination directory
+ * @param name Requested item name
+ * @returns Available item name
  */
 export const getFileName = async (destination: string, name: string): Promise<string> => {
     const exist = await RNFS.exists(`${destination}/${name}`);
@@ -34,11 +35,11 @@ export const getFileName = async (destination: string, name: string): Promise<st
     return name;
 };
 /**
- * Subirá archivos o directorios a remoto
+ * Uploads local files and directories as an archive
  *
- * @param toUpload Lista de elementos que se quiere subir a remoto
- * @param destination Directorio de destino
- * @param context Contexto de la aplicación
+ * @param toUpload Local items to upload
+ * @param destination Remote destination directory
+ * @param context Application context
  */
 export const upload = async (toUpload: ModifyElement[], destination: string, context: AppContextType) => {
     const tempDir = `${CACHEDIR}/temp${Date.now()}`;
@@ -64,11 +65,11 @@ export const upload = async (toUpload: ModifyElement[], destination: string, con
     }
 };
 /**
- * Descargará archivos o directorios a remoto
+ * Downloads remote files and directories to local storage
  *
- * @param toDownload Lista de elementos que se quiere descargar del remoto
- * @param destination Directorio de destino
- * @param context Contexto de la aplicación
+ * @param toDownload Remote items to download
+ * @param destination Local destination directory
+ * @param context Application context
  */
 export const download = async (toDownload: ModifyElement[], destination: string, context: AppContextType) => {
     const last = context.lastFtpDir;
@@ -97,12 +98,12 @@ export const download = async (toDownload: ModifyElement[], destination: string,
     }
 };
 /**
- * Copiará o moverá directorios de forma recursiva
+ * Copies or moves a directory recursively
  *
- * @param origin Directorio de origen
- * @param destination Directorio de destino
- * @param cp Medirá si se copia o se mueve el archivo
- * @param name Nombre para el rename
+ * @param origin Source directory
+ * @param destination Destination directory
+ * @param cp Whether to keep the source directory
+ * @param name Optional destination name
  */
 export const copyDir = async (origin: string, destination: string, cp?: boolean, name?: string) => {
     const dirToSplit = origin.split("/");
@@ -128,12 +129,12 @@ export const copyDir = async (origin: string, destination: string, cp?: boolean,
     }
 };
 /**
- * Servirá para mover o copiar archivos y directorios, también servirá para renombrar
+ * Copies, moves, or renames local items
  *
- * @param toCopy Lista de elementos que se quieren mover o copiar
- * @param destination Directorio de destino
- * @param cp Medirá si se copia o se mueve el archivo
- * @param name Nombre para el rename
+ * @param toCopy Items to process
+ * @param destination Destination directory
+ * @param cp Whether to keep the source items
+ * @param name Optional destination name
  */
 export const cpmv = async (toCopy: ModifyElement[], destination: string, cp?: boolean, name?: string) => {
     for (const item of toCopy) {
@@ -155,13 +156,13 @@ export const cpmv = async (toCopy: ModifyElement[], destination: string, cp?: bo
     }
 };
 /**
- * Manejará el funcionamiento de los menú item copiar o mover
+ * Coordinates the copy or move menu workflow
  *
- * @param context Contexto de la aplicación
- * @param setVisible Función para ocultar o mostrar el menú
- * @param title Título del item en cuestión
- * @param setTitle Función para cambiar el título
- * @param cp Medirá si se copia o se mueve el archivo
+ * @param context Application context
+ * @param setVisible Updates menu visibility
+ * @param title Current menu item title
+ * @param setTitle Updates the menu item title
+ * @param cp Whether to copy instead of move
  */
 export const cpmvPath = async (
     context: AppContextType,
@@ -204,13 +205,6 @@ export const cpmvPath = async (
         }
     }
 };
-/**
- * Creará una nueva carpeta
- *
- * @param context Contexto de la aplicación
- * @param name Nombre de la nueva carpeta
- * @param setVisible Función para ocultar o mostrar el menú
- */
 export const makeDir = async (context: AppContextType, name: string, setVisible: (visible: boolean) => void) => {
     try {
         let last;
@@ -231,15 +225,6 @@ export const makeDir = async (context: AppContextType, name: string, setVisible:
         context.setRefresh(!context.refresh);
     }
 };
-/**
- * Renombra un directorio o archivo
- *
- * @param toRename Elemento que se quiere renombrar
- * @param context Contexto de la aplicación
- * @param destination Directorio de destino
- * @param context Contexto de la aplicación
- * @param setVisible Función para ocultar o mostrar el menú
- */
 export const rename = async (
     toRename: ModifyElement[],
     name: string,
@@ -258,13 +243,12 @@ export const rename = async (
     }
 };
 /**
- * Elimina de forma recursiva directorios o archivos
+ * Deletes local or remote items
  *
- * @param toRemove Elementos que se quiere eliminar
- * @param context Contexto de la aplicación
- * @param origin Directorio de origen
- * @param context Contexto de la aplicación
- * @param setVisible Función para ocultar o mostrar el menú
+ * @param toRemove Items to delete
+ * @param origin Storage containing the items
+ * @param context Application context
+ * @param setVisible Updates menu visibility
  */
 export const remove = async (
     toRemove: ModifyElement[],
@@ -402,11 +386,11 @@ export const getTypeFile = (file: string) => {
     }
 };
 /**
- * Se encargará de manejar cualquier intent sobre un archivo
+ * Opens a file or extracts an archive
  *
- * @param origin Ruta origen
- * @param name Nombre del archivo
- * @param context Contexto de la aplicación
+ * @param origin Source directory
+ * @param name File name
+ * @param context Application context
  */
 export const openFile = async (origin: string, name: string, context: AppContextType) => {
     const typeFile = getTypeFile(name);
