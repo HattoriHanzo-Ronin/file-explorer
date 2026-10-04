@@ -5,7 +5,7 @@ import { Ionicons } from "@react-native-vector-icons/ionicons";
 import { useAppContext } from "./app-context-provider";
 import { cpmvPath, download, makeDir, makePathWithRoot, remove, rename, upload } from "../utils/file-utils";
 import AppDialog from "./dialog";
-import { noElements, showToast } from "../utils/ui-utils";
+import UiUtils from "../utils/ui-utils";
 
 import type { CopyMoveMenuProps, MenuProps, TransferMenuProps } from "../types/menu";
 import type { DrawerNavigation } from "../types/navigation";
@@ -30,13 +30,13 @@ export const UploadMenu = (props: TransferMenuProps) => {
             title={"Subir"}
             onPress={async () => {
                 if (toUpload.length < 1) {
-                    return noElements(setVisible);
+                    return UiUtils.noElements(setVisible);
                 }
 
                 if (lastComponent === "local") {
                     navigation.navigate("ftp");
                     setLastComponent("ftp");
-                    showToast("Elija directorio donde desea subir los archivos");
+                    UiUtils.showMessage("Elija directorio donde desea subir los archivos");
                 } else {
                     await upload(toUpload, lastFtpDir, context);
                     setModifyLocalFile([]);
@@ -70,13 +70,13 @@ export const DownloadMenu = (props: TransferMenuProps) => {
             onPress={async () => {
                 setVisible(false);
                 if (toDownload.length < 1) {
-                    return noElements(setVisible);
+                    return UiUtils.noElements(setVisible);
                 }
 
                 if (lastComponent === "ftp") {
                     navigation.navigate("local");
                     setLastComponent("local");
-                    showToast("Elija directorio donde desea descargar los archivos");
+                    UiUtils.showMessage("Elija directorio donde desea descargar los archivos");
                 } else {
                     await download(toDownload, lastLocalDir, context);
                     setModifyFtpFile([]);
@@ -112,7 +112,7 @@ export const MakeDir = (props: MenuProps) => {
                 title="Crear carpeta"
                 onPress={async () => {
                     if (modifyFtpFile.length > 0 || modifyLocalFile.length > 0) {
-                        showToast("Acción no disponible");
+                        UiUtils.showMessage("Acción no disponible");
                     }
 
                     setShow(true);
@@ -154,16 +154,16 @@ export const RenameMenu = (props: MenuProps) => {
                 title="Renombrar"
                 onPress={async () => {
                     if (lastComponent === "ftp") {
-                        return showToast("Función no disponible");
+                        return UiUtils.showMessage("Función no disponible");
                     }
 
                     if (toRename.length < 1) {
-                        return noElements(setVisible);
+                        return UiUtils.noElements(setVisible);
                     }
 
                     if (toRename.length > 1) {
                         setVisible(false);
-                        return showToast("Solo se puede renombrar un elemento a la vez");
+                        return UiUtils.showMessage("Solo se puede renombrar un elemento a la vez");
                     }
 
                     setName(toRename[0].path.split("/").pop() ?? "");
@@ -194,7 +194,7 @@ export const RemoveMenu = (props: MenuProps) => {
         <Menu.Item
             onPress={async () => {
                 if (toRemove.length < 1) {
-                    return noElements(setVisible);
+                    return UiUtils.noElements(setVisible);
                 }
 
                 await remove(toRemove, last, context, setVisible);

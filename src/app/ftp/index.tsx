@@ -9,7 +9,8 @@ import List from "../../components/list";
 import Loading from "../../components/loading";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import React from "react";
-import { useBackButtonEvent, showToast } from "../../utils/ui-utils";
+import UiUtils from "../../utils/ui-utils";
+import useBackButtonEvent from "../../hooks/use-back-button-event";
 
 export default function Ftp() {
     const context = useAppContext();
@@ -64,7 +65,7 @@ export default function Ftp() {
                     }}
                     longPressAction={(name: string, type: DirContent["type"]) => {
                         if (context.modifyLocalFile.length > 0) {
-                            return showToast("Acción no disponible");
+                            return UiUtils.showMessage("Acción no disponible");
                         }
 
                         if (!context.modifyFtpFile.some((item) => item.path === name)) {

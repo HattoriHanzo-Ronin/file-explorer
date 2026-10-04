@@ -10,7 +10,8 @@ import { openFile } from "../../utils/file-utils";
 import Loading from "../../components/loading";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import React from "react";
-import { useBackButtonEvent, showToast } from "../../utils/ui-utils";
+import UiUtils from "../../utils/ui-utils";
+import useBackButtonEvent from "../../hooks/use-back-button-event";
 import { ensureStoragePermission } from "../../utils/permission-utils";
 
 export default function Local() {
@@ -25,13 +26,13 @@ export default function Local() {
             );
             setDirContent(dirContent);
         } catch {
-            showToast("Error al listar");
+            UiUtils.showMessage("Error al listar");
         } finally {
             context.setLoad(false);
         }
     };
 
-    useBackButtonEvent(context, "local");
+    useBackButtonEvent("local");
 
     useEffect(() => {
         void (async () => {
@@ -68,7 +69,7 @@ export default function Local() {
                         const path = `${context.lastLocalDir}/${name}`;
                         if (type === "dir") {
                             if (path.includes("Android/data") || path.includes("Android/obb")) {
-                                return showToast(`No se puede abrir la carpeta ${name}`);
+                                return UiUtils.showMessage(`No se puede abrir la carpeta ${name}`);
                             }
 
                             context.setLastLocalDir(
@@ -83,11 +84,11 @@ export default function Local() {
                     longPressAction={(name: string, type: DirContent["type"]) => {
                         const path = `${context.lastLocalDir}/${name}`;
                         if (path.includes("Android/data") || path.includes("Android/obb")) {
-                            return showToast(`No se puede seleccionar la carpeta ${name}`);
+                            return UiUtils.showMessage(`No se puede seleccionar la carpeta ${name}`);
                         }
 
                         if (context.modifyFtpFile.length > 0) {
-                            return showToast("Acción no disponible");
+                            return UiUtils.showMessage("Acción no disponible");
                         }
 
                         if (!context.modifyLocalFile.some((item) => item.path === path)) {
