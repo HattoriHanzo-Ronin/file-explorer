@@ -6,7 +6,7 @@ import { unzip, zip } from "react-native-zip-archive";
 import axios from "axios";
 import { NativeModules } from "react-native";
 import mime from "mime";
-import { noElements, showToast } from "./ui-utils";
+import UiUtils from "./ui-utils";
 
 const { FileOpener } = NativeModules;
 const ROOT = RNFS.ExternalStorageDirectoryPath;
@@ -58,7 +58,7 @@ export const upload = async (toUpload: ModifyElement[], destination: string, con
             { method: "POST", body: formData }
         );
     } catch {
-        showToast("Error al subir el archivo");
+        UiUtils.showMessage("Error al subir el archivo");
     } finally {
         context.setLoad(false);
         await RNFS.unlink(tempDir);
@@ -92,7 +92,7 @@ export const download = async (toDownload: ModifyElement[], destination: string,
             await RNFS.downloadFile({ fromUrl: `${url}/${data.id}`, toFile: `${dest}/${Date.now()}.zip` }).promise;
         }
     } catch {
-        showToast("Error al descargar el archivo");
+        UiUtils.showMessage("Error al descargar el archivo");
     } finally {
         context.setLoad(false);
     }
@@ -175,15 +175,15 @@ export const cpmvPath = async (
     const titleToShow = title.toLocaleLowerCase();
 
     if (toCopy.length < 1) {
-        return noElements(setVisible);
+        return UiUtils.noElements(setVisible);
     }
 
     if (title === "Copiar" || title === "Mover") {
         if (context.onCopy) {
-            return showToast("Acción no disponible");
+            return UiUtils.showMessage("Acción no disponible");
         }
 
-        showToast(`Elija el directorio donde ${titleToShow}`);
+        UiUtils.showMessage(`Elija el directorio donde ${titleToShow}`);
         setTitle("Pegar");
         setVisible(false);
         context.setOnCopy(true);
@@ -195,7 +195,7 @@ export const cpmvPath = async (
             await cpmv(toCopy, lastDir, cp);
             context.setRefresh(!context.refresh);
         } catch {
-            showToast(`Error al ${title}`);
+            UiUtils.showMessage(`Error al ${title}`);
         } finally {
             context.setLoad(false);
             context.setModifyLocalFile([]);
@@ -219,7 +219,7 @@ export const makeDir = async (context: AppContextType, name: string, setVisible:
             });
         }
     } catch {
-        showToast("Error al crear carpeta");
+        UiUtils.showMessage("Error al crear carpeta");
     } finally {
         setVisible(false);
         context.setRefresh(!context.refresh);
@@ -235,7 +235,7 @@ export const rename = async (
     try {
         await cpmv(toRename, destination, false, name);
     } catch {
-        showToast("Error al renombrar");
+        UiUtils.showMessage("Error al renombrar");
     } finally {
         setVisible(false);
         context.setModifyLocalFile([]);
@@ -273,7 +273,7 @@ export const remove = async (
             setVisible(false);
         }
     } catch {
-        showToast("Error al borrar");
+        UiUtils.showMessage("Error al borrar");
     } finally {
         context.setLoad(false);
         context.setRefresh(!context.refresh);
@@ -419,7 +419,7 @@ export const openFile = async (origin: string, name: string, context: AppContext
                             originWithRoot
                         );
                     } catch {
-                        showToast("Error al descomprimir");
+                        UiUtils.showMessage("Error al descomprimir");
                     } finally {
                         await RNFS.unlink(zipDir);
                         await RNFS.unlink(file);
@@ -433,7 +433,7 @@ export const openFile = async (origin: string, name: string, context: AppContext
         try {
             await FileOpener.openFile(file);
         } catch {
-            showToast(`Error al abrir el archivo ${name}`);
+            UiUtils.showMessage(`Error al abrir el archivo ${name}`);
         } finally {
             context.setLastLocalDir(" ");
             context.setRefresh(!context.refresh);
