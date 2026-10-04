@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigation } from "@react-navigation/native";
 import { Menu } from "react-native-paper";
-import Ionicons from "react-native-vector-icons/Ionicons";
+import { Ionicons } from "@react-native-vector-icons/ionicons";
 import { useAppContext } from "./app-context-provider";
 import { cpmvPath, download, makeDir, makePathWithRoot, remove, rename, upload } from "../utils/file-utils";
 import AppDialog from "./dialog";
