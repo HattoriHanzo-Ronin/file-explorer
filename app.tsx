@@ -16,6 +16,7 @@ import { Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Local from "./src/app/local/index";
 import Ftp from "./src/app/ftp/index";
+import { Ionicons } from "@react-native-vector-icons/ionicons";
 import OverflowMenu from "./src/components/overflow-menu";
 
 const Drawer = createDrawerNavigator();

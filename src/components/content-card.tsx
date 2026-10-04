@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import { Image, Text, View } from "react-native";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import { runOnJS } from "react-native-worklets";
+import {
+    GestureDetector,
+    useExclusiveGestures,
+    useLongPressGesture,
+    useTapGesture
+} from "react-native-gesture-handler";
 import { contentCard } from "../app/style";
 import { useAppContext } from "./app-context-provider";
 import type { ContentCardProps } from "../types/components";
@@ -25,16 +29,10 @@ export default function ContentCard(props: ContentCardProps) {
 
         longPressAction();
     };
-    const tap = Gesture.Tap()
-        .numberOfTaps(1)
-        .onStart(() => runOnJS(handleOnTap)());
-    const doubleTap = Gesture.Tap()
-        .numberOfTaps(2)
-        .onStart(() => runOnJS(doubleTapAction)());
-    const longPress = Gesture.LongPress()
-        .minDuration(400)
-        .onEnd(() => runOnJS(handleOnLongPress)());
-    const gestures = Gesture.Exclusive(doubleTap, tap, longPress);
+    const tap = useTapGesture({ numberOfTaps: 1, onActivate: handleOnTap, runOnJS: true });
+    const doubleTap = useTapGesture({ numberOfTaps: 2, onActivate: doubleTapAction, runOnJS: true });
+    const longPress = useLongPressGesture({ minDuration: 400, onDeactivate: handleOnLongPress, runOnJS: true });
+    const gestures = useExclusiveGestures(doubleTap, tap, longPress);
 
     useEffect(() => {
         setSelect(false);
