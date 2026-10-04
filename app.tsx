@@ -1,4 +1,4 @@
-import { DrawerActions, NavigationContainer, useNavigation } from "@react-navigation/native";
+import { DrawerActions, NavigationContainer } from "@react-navigation/native";
 import {
     createDrawerNavigator,
     DrawerContentScrollView,
@@ -7,26 +7,16 @@ import {
     DrawerHeaderProps
 } from "@react-navigation/drawer";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import React, { useEffect, useState } from "react";
-import { Menu, PaperProvider } from "react-native-paper";
+import React from "react";
+import { PaperProvider } from "react-native-paper";
 import AppContextProvider, { useAppContext } from "./src/components/app-context-provider";
 import type { AppContextType } from "./src/types/context";
-import type { DrawerNavigation } from "./src/types/navigation";
 import Background from "./src/components/background";
 import { Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Local from "./src/app/local/index";
 import Ftp from "./src/app/ftp/index";
-import Ionicons from "react-native-vector-icons/Ionicons";
-import {
-    CopyMenu,
-    DownloadMenu,
-    MakeDir,
-    MoveMenu,
-    RemoveMenu,
-    RenameMenu,
-    UploadMenu
-} from "./src/components/menu-items";
+import OverflowMenu from "./src/components/overflow-menu";
 
 const Drawer = createDrawerNavigator();
 const AppDrawerContent = (props: DrawerContentComponentProps) => {
@@ -52,61 +42,6 @@ const AppDrawerContent = (props: DrawerContentComponentProps) => {
                 />
             </DrawerContentScrollView>
         </Background>
-    );
-};
-const OverflowMenu = () => {
-    const [visible, setVisible] = useState<boolean>(false);
-    const [copyTitle, setCopyTitle] = useState<string>("Copiar");
-    const [moveTitle, setMoveTitle] = useState<string>("Mover");
-    const context = useAppContext();
-    const navigation = useNavigation<DrawerNavigation>();
-
-    useEffect(() => {
-        if (copyTitle === "Pegar") {
-            setCopyTitle("Copiar");
-        }
-
-        if (moveTitle === "Pegar") {
-            setMoveTitle("Mover");
-        }
-
-        context.setOnCopy(false);
-    }, [context.resetTitle]);
-
-    return (
-        <Menu
-            visible={visible}
-            onDismiss={() => setVisible(false)}
-            anchor={<Ionicons name="ellipsis-vertical-outline" size={25} onPress={() => setVisible(true)} />}
-        >
-            {(context.lastComponent === "local" || context.modifyLocalFile.length > 0) &&
-                context.modifyFtpFile.length < 1 && (
-                    <UploadMenu navigation={navigation} setVisible={setVisible} context={context} />
-                )}
-            {(context.lastComponent === "ftp" || context.modifyFtpFile.length > 0) &&
-                context.modifyLocalFile.length < 1 && (
-                    <DownloadMenu navigation={navigation} setVisible={setVisible} context={context} />
-                )}
-            {context.lastComponent === "local" && (
-                <>
-                    <CopyMenu
-                        setVisible={setVisible}
-                        title={copyTitle}
-                        setTitle={(title: string) => setCopyTitle(title)}
-                        context={context}
-                    />
-                    <MoveMenu
-                        setVisible={setVisible}
-                        title={moveTitle}
-                        setTitle={(title: string) => setMoveTitle(title)}
-                        context={context}
-                    />
-                </>
-            )}
-            <MakeDir setVisible={setVisible} context={context} />
-            <RenameMenu setVisible={setVisible} context={context} />
-            <RemoveMenu setVisible={setVisible} context={context} />
-        </Menu>
     );
 };
 const AppHeader = (props: DrawerHeaderProps) => {
