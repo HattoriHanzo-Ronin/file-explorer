@@ -4,10 +4,10 @@ import type { AppContextType } from "../types/context";
 import { BackHandler, ToastAndroid } from "react-native";
 
 /**
- * Cambiará la acción del botón hacia atrás y la usará para retroceder entre directorios
+ * Uses the Android back button to navigate to the parent directory
  *
- * @param context Contexto de la aplicación
- * @param storage En que tipo de almacenamiento se está trabajando local u otro
+ * @param context Application context
+ * @param storage Active storage
  */
 export const useBackButtonEvent = (context: AppContextType, storage: string) => {
     useFocusEffect(
