@@ -4,6 +4,7 @@ import type { AuthUser } from "./auth";
 import type { ModifyElement } from "./files";
 import type AuthUtils from "../utils/auth-utils";
 import type LoadingUtils from "../utils/loading-utils";
+import type TransferManager from "../utils/transfers/transfer-manager";
 
 export interface AppContextType {
     isAuthenticated: boolean;
@@ -11,6 +12,7 @@ export interface AppContextType {
     authUtils: AuthUtils;
     executeApiRequest: ExecuteApiRequest;
     loadingUtils: LoadingUtils;
+    transferManager: TransferManager;
     lastFtpDir: string;
     setLastFtpDir: Dispatch<SetStateAction<string>>;
     lastLocalDir: string;

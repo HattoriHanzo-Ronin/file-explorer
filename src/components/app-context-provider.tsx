@@ -1,5 +1,5 @@
-import { createContext, PropsWithChildren, useCallback, useContext, useState } from "react";
-import type { ApiResponse } from "../types/api-response";
+import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useState } from "react";
+import type { ApiRequestOptions, ApiResponse } from "../types/api-response";
 import type { AuthUser } from "../types/auth";
 import type { AppContextType } from "../types/context";
 import type { ModifyElement } from "../types/files";
@@ -8,6 +8,9 @@ import AuthUtils from "../utils/auth-utils";
 import LoadingUtils from "../utils/loading-utils";
 import KeychainStorage from "../utils/storage/impl/keychain-storage";
 import UiUtils from "../utils/ui-utils";
+import RNFSFileSystem from "../utils/files/impl/rnfs-file-system";
+import NativeFileTransfer from "../utils/files/impl/native-file-transfer";
+import TransferManager from "../utils/transfers/transfer-manager";
 
 const AppContext = createContext<AppContextType>({} as AppContextType);
 
@@ -28,23 +31,32 @@ export default function AppContextProvider(props: PropsWithChildren) {
     const url = "http://10.8.200.8:60001/ftp";
     const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
     const [user, setUser] = useState<AuthUser | null>(null);
-    const [apiUtils] = useState<ApiUtils>(() => new ApiUtils());
     const [storage] = useState<KeychainStorage>(() => new KeychainStorage());
+    const [fileSystem] = useState<RNFSFileSystem>(() => new RNFSFileSystem());
+    const [fileTransfer] = useState<NativeFileTransfer>(() => new NativeFileTransfer());
+    const [transferManager] = useState<TransferManager>(() => new TransferManager(fileSystem, fileTransfer, storage));
+    const [apiUtils] = useState<ApiUtils>(() => new ApiUtils(transferManager));
     const [authUtils] = useState<AuthUtils>(() => new AuthUtils(setIsAuthenticated, setUser, apiUtils, storage));
     const [loadingUtils] = useState<LoadingUtils>(() => new LoadingUtils(setIsLoading));
+
+    useEffect(() => {
+        void apiUtils.restoreTransfers();
+    }, [apiUtils]);
 
     /**
      * Executes an API request and retries it once after restoring the session
      *
      * @param request API request
-     * @param isBackground Whether to execute without changing the loading state
+     * @param options.isBackground Whether to execute without changing the loading state
+     * @param options.showError Whether to display returned error messages
      * @returns API response
      */
     const executeApiRequest = useCallback(
         async function executeApiRequest<T>(
             request: (apiUtils: ApiUtils) => Promise<ApiResponse<T>>,
-            isBackground = false
+            options: ApiRequestOptions = {}
         ): Promise<ApiResponse<T>> {
+            const { isBackground = false, showError = !isBackground } = options;
             return (async function execute(canRetry: boolean): Promise<ApiResponse<T>> {
                 const executeRequest = async (): Promise<ApiResponse<T>> => {
                     const result = await request(apiUtils);
@@ -54,7 +66,7 @@ export default function AppContextProvider(props: PropsWithChildren) {
                             return execute(false);
                         }
 
-                        if (!isBackground) {
+                        if (showError && message) {
                             UiUtils.showMessage(message);
                         }
                     }
@@ -72,6 +84,7 @@ export default function AppContextProvider(props: PropsWithChildren) {
         authUtils,
         executeApiRequest,
         loadingUtils,
+        transferManager,
         lastFtpDir,
         setLastFtpDir,
         lastLocalDir,

@@ -3,7 +3,7 @@ import { useNavigation } from "@react-navigation/native";
 import { Menu } from "react-native-paper";
 import { Ionicons } from "@react-native-vector-icons/ionicons";
 import { useAppContext } from "./app-context-provider";
-import { cpmvPath, download, makeDir, makePathWithRoot, remove, rename, upload } from "../utils/file-utils";
+import { cpmvPath, makeDir, makePathWithRoot, remove, rename } from "../utils/file-utils";
 import AppDialog from "./dialog";
 import UiUtils from "../utils/ui-utils";
 
@@ -15,14 +15,14 @@ export const UploadMenu = (props: TransferMenuProps) => {
     const context = useAppContext();
     const {
         dirSelected,
-        lastComponent,
         lastFtpDir,
         modifyLocalFile: toUpload,
-        refresh,
         setDirSelected,
         setLastComponent,
+        setLastFtpDir,
+        setLastLocalDir,
         setModifyLocalFile,
-        setRefresh
+        transferManager
     } = context;
 
     return (
@@ -33,15 +33,16 @@ export const UploadMenu = (props: TransferMenuProps) => {
                     return UiUtils.noElements(setVisible);
                 }
 
-                if (lastComponent === "local") {
+                if (getCurrentDrawerRoute(navigation) === "local") {
+                    setLastFtpDir(" ");
                     navigation.navigate("ftp", { screen: "login" });
                     setLastComponent("ftp");
                     UiUtils.showMessage("Elija directorio donde desea subir los archivos");
                 } else {
-                    await upload(toUpload, lastFtpDir, context);
+                    await transferManager.upload(toUpload, lastFtpDir);
+                    setLastLocalDir(" ");
                     setModifyLocalFile([]);
                     setDirSelected(!dirSelected);
-                    setRefresh(!refresh);
                 }
 
                 setVisible(false);
@@ -54,14 +55,15 @@ export const DownloadMenu = (props: TransferMenuProps) => {
     const context = useAppContext();
     const {
         dirSelected,
-        lastComponent,
+        lastFtpDir,
         lastLocalDir,
         modifyFtpFile: toDownload,
-        refresh,
         setDirSelected,
         setLastComponent,
+        setLastFtpDir,
+        setLastLocalDir,
         setModifyFtpFile,
-        setRefresh
+        transferManager
     } = context;
 
     return (
@@ -73,20 +75,26 @@ export const DownloadMenu = (props: TransferMenuProps) => {
                     return UiUtils.noElements(setVisible);
                 }
 
-                if (lastComponent === "ftp") {
+                if (getCurrentDrawerRoute(navigation) === "ftp") {
+                    setLastLocalDir(" ");
                     navigation.navigate("local");
                     setLastComponent("local");
                     UiUtils.showMessage("Elija directorio donde desea descargar los archivos");
                 } else {
-                    await download(toDownload, lastLocalDir, context);
+                    await transferManager.download(toDownload, lastFtpDir, lastLocalDir);
+                    setLastFtpDir(" ");
                     setModifyFtpFile([]);
                     setDirSelected(!dirSelected);
-                    setRefresh(!refresh);
                 }
             }}
         />
     );
 };
+
+function getCurrentDrawerRoute(navigation: DrawerNavigation): "local" | "ftp" {
+    const state = navigation.getState();
+    return state.routes[state.index].name as "local" | "ftp";
+}
 export const CopyMenu = (props: CopyMoveMenuProps) => {
     const { setVisible, title, setTitle } = props;
     const context = useAppContext();

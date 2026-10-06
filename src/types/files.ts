@@ -9,3 +9,7 @@ export interface ModifyElement {
     path: string;
     type: EntryType;
 }
+
+export interface LocalModifyElement extends ModifyElement {
+    path: string;
+}
