@@ -9,6 +9,11 @@ export type ApiResponse<T> = Response<T, ApiError>;
 
 export type ApiRequestOptions = RequestOptions;
 
+export interface ApiRequestOptions {
+    isBackground?: boolean;
+    showError?: boolean;
+}
+
 export type ExecuteApiRequest = <T>(
     request: (apiUtils: ApiUtils) => Promise<ApiResponse<T>>,
     options?: ApiRequestOptions

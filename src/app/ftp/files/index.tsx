@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { useNavigation } from "@react-navigation/native";
+import { useCallback, useEffect, useState } from "react";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { View } from "react-native";
 import { useAppContext } from "../../../components/app-context-provider";
@@ -13,44 +13,84 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import React from "react";
 import UiUtils from "../../../utils/ui-utils";
 import useBackButtonEvent from "../../../hooks/use-back-button-event";
+import ApiUtils from "../../../utils/api-utils";
 
 export default function Files() {
     const context = useAppContext();
-    const { executeApiRequest, isAuthenticated, lastFtpDir, refresh } = context;
+    const { executeApiRequest, isAuthenticated, lastFtpDir, isLoading, refresh, transferManager } = context;
     const navigation = useNavigation<NativeStackNavigationProp<FtpStackParamList>>();
     const [dirContent, setDirContent] = useState<DirContent[]>([]);
     const safeBottom = useSafeAreaInsets().bottom;
+
+    const loadDirectory = useCallback(async () => {
+        const result = await executeApiRequest((apiUtils) => apiUtils.getDirectory(lastFtpDir));
+        if (result.success) {
+            setDirContent(
+                result.data.map((entry) => ({
+                    name: entry.name,
+                    type: entry.type.toLocaleLowerCase() as DirContent["type"],
+                    supportsThumbnail: entry.supportsThumbnail
+                }))
+            );
+        }
+    }, [executeApiRequest, lastFtpDir]);
 
     useBackButtonEvent("ftp");
 
     useEffect(() => {
         if (!isAuthenticated) {
-            navigation.popToTop();
+            navigation.replace("login");
         }
     }, [isAuthenticated, navigation]);
 
     useEffect(() => {
-        let mounted = true;
-        const getDirContent = async () => {
-            const response = await executeApiRequest((apiUtils) =>
-                apiUtils.getDirectory(lastFtpDir === " " ? undefined : lastFtpDir)
-            );
-            if (mounted && response.success) {
-                setDirContent(
-                    response.data.map((entry) => ({
-                        name: entry.name,
-                        type: entry.type.toLocaleLowerCase() as "dir" | "file",
-                        supportsThumbnail: entry.supportsThumbnail
-                    }))
-                );
-            }
-        };
+        void loadDirectory();
+    }, [loadDirectory, refresh]);
 
-        getDirContent();
-        return () => {
-            mounted = false;
-        };
-    }, [executeApiRequest, lastFtpDir, refresh]);
+    useFocusEffect(
+        useCallback(() => {
+            const interval = setInterval(() => {
+                void (async () => {
+                    if (!isLoading) {
+                        const result = await executeApiRequest(
+                            async (apiUtils) => {
+                                if (apiUtils.isRemoteDirectoryBusy(lastFtpDir)) {
+                                    return {
+                                        success: true,
+                                        data: { version: ApiUtils.FTP_VERSION }
+                                    };
+                                }
+
+                                return apiUtils.getVersion({ dir: lastFtpDir });
+                            },
+                            { isBackground: true }
+                        );
+                        if (result.success && result.data.version !== ApiUtils.FTP_VERSION) {
+                            void loadDirectory();
+                        }
+                    }
+                })();
+            }, 2000);
+            return () => clearInterval(interval);
+        }, [executeApiRequest, isLoading, lastFtpDir, loadDirectory])
+    );
+
+    useEffect(
+        () =>
+            transferManager.addChangeListener(({ direction, status, remoteDir, result }) => {
+                const currentRemoteDir = lastFtpDir === " " ? "" : lastFtpDir;
+                if (direction === "UPLOAD" && status === "COMPLETED" && remoteDir === currentRemoteDir && result) {
+                    ApiUtils.FTP_VERSION = result.version;
+                    setDirContent(
+                        result.entries.map((entry) => ({
+                            name: entry.name,
+                            type: entry.type.toLocaleLowerCase() as DirContent["type"]
+                        }))
+                    );
+                }
+            }),
+        [lastFtpDir, transferManager]
+    );
 
     if (context.isLoading) {
         return <Loading />;

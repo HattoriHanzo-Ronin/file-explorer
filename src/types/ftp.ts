@@ -6,6 +6,11 @@ export interface FtpEntry {
     supportsThumbnail?: boolean;
 }
 
+export interface FtpDirectoryState {
+    dir: string;
+    content: FtpEntry[];
+}
+
 interface FtpDirectoryRequest {
     dir?: string;
 }

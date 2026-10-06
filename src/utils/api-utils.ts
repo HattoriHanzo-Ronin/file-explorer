@@ -1,7 +1,7 @@
-import Config from "react-native-config";
 import axios, { isAxiosError } from "axios";
 import type { ApiError } from "../types/api-error";
 import type { ApiResponse } from "../types/api-response";
+import type { LocalModifyElement } from "../types/files";
 import type {
     LoginRequest,
     LoginResponse,
@@ -25,6 +25,8 @@ import type {
     ThumbnailStatus
 } from "../types/ftp";
 import type { UpdatePasswordRequest, UpdateUsernameRequest, UpdateUsernameResponse } from "../types/users";
+import type { FileOperationSelection, RemoteDirectoryOperationResult } from "../types/file-operations";
+import type RemoteFileManager from "./operations/remote-file-manager";
 
 /**
  * API client
@@ -33,6 +35,68 @@ import type { UpdatePasswordRequest, UpdateUsernameRequest, UpdateUsernameRespon
  */
 export default class ApiUtils {
     static FTP_VERSION = "";
+    private readonly remoteFileManager: RemoteFileManager;
+    private readonly apiUrl: string;
+
+    constructor(remoteFileManager: RemoteFileManager, apiUrl: string) {
+        this.remoteFileManager = remoteFileManager;
+        this.apiUrl = apiUrl;
+    }
+
+    /**
+     * Restores persisted transfer state
+     */
+    async restoreOperations(): Promise<void> {
+        await this.remoteFileManager.restore();
+    }
+
+    clearSettledOperations(): void {
+        this.remoteFileManager.clearSettled();
+    }
+
+    /**
+     * Uploads local entries to a remote directory
+     *
+     * @param items Local entries
+     * @param remoteDir Remote directory
+     * @returns Updated remote directory
+     */
+    async upload(items: LocalModifyElement[], remoteDir: string): Promise<ApiResponse<RemoteDirectoryOperationResult>> {
+        const result = await this.remoteFileManager.upload(items, remoteDir);
+        if (result.success) {
+            this.updateFtpVersion(result.data.version);
+        }
+
+        return result;
+    }
+
+    /**
+     * Downloads remote entries to a local directory
+     *
+     * @param items Remote entries
+     * @param remoteDir Remote directory
+     * @param localRoot Local storage root
+     * @param localDir Local directory
+     * @returns Download response
+     */
+    download(
+        items: FileOperationSelection[],
+        remoteDir: string,
+        localRoot: string,
+        localDir: string
+    ): Promise<ApiResponse<void>> {
+        return this.remoteFileManager.download(items, remoteDir, localRoot, localDir);
+    }
+
+    /**
+     * Returns whether a remote directory is receiving files
+     *
+     * @param dir Remote directory
+     * @returns Whether the directory is busy
+     */
+    isRemoteDirectoryBusy(dir: string): boolean {
+        return this.remoteFileManager.isRemoteDirectoryBusy(dir);
+    }
 
     /**
      * Returns the current FTP directory version
@@ -179,19 +243,16 @@ export default class ApiUtils {
      * Moves remote entries
      *
      * @param request Entries and destination
-     * @returns Updated directory entries
+     * @returns Confirmed moved entries
      */
     async moveEntries(request: MoveEntriesRequest): Promise<ApiResponse<MoveEntriesResponse>> {
-        return this.executeRequest(async () => {
-            const { entries, dir, destination } = request;
-            const { data, headers } = await axios.post<MoveEntriesResponse>(this.buildUrl("ftp/move"), {
-                entries,
-                dir: this.normalizeDir(dir),
-                destination: this.normalizeDir(destination)
-            });
-            this.updateFtpVersion(headers["data-version"]);
-            return data;
-        });
+        const result = await this.remoteFileManager.move(request);
+        if (!result.success) {
+            return result;
+        }
+
+        this.updateFtpVersion(result.data.version);
+        return { success: true, data: result.data.changes };
     }
 
     /**
@@ -217,27 +278,20 @@ export default class ApiUtils {
      * Deletes remote entries
      *
      * @param request Entries to delete
-     * @returns Updated directory entries
+     * @returns Confirmed deleted entries
      */
     async deleteEntries(request: DeleteEntriesRequest): Promise<ApiResponse<DeleteEntriesResponse>> {
-        return this.executeRequest(async () => {
-            const { entries, dir } = request;
-            const { data, headers } = await axios.request<DeleteEntriesResponse>({
-                method: "DELETE",
-                url: this.buildUrl("ftp"),
-                headers: { "Content-Type": "application/json" },
-                data: {
-                    entries,
-                    dir: this.normalizeDir(dir)
-                }
-            });
-            this.updateFtpVersion(headers["data-version"]);
-            return data;
-        });
+        const result = await this.remoteFileManager.delete(request);
+        if (!result.success) {
+            return result;
+        }
+
+        this.updateFtpVersion(result.data.version);
+        return { success: true, data: result.data.changes };
     }
 
     private buildUrl(entity: string): string {
-        return `${Config.API_URL}/${entity}`;
+        return `${this.apiUrl}/${entity}`;
     }
 
     private normalizeDir(dir?: string): string | undefined {
