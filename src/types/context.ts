@@ -1,7 +1,16 @@
 import type { Dispatch, SetStateAction } from "react";
+import type { ExecuteApiRequest } from "./api-response";
+import type { AuthUser } from "./auth";
 import type { ModifyElement } from "./files";
+import type AuthUtils from "../utils/auth-utils";
+import type LoadingUtils from "../utils/loading-utils";
 
 export interface AppContextType {
+    isAuthenticated: boolean;
+    user: AuthUser | null;
+    authUtils: AuthUtils;
+    executeApiRequest: ExecuteApiRequest;
+    loadingUtils: LoadingUtils;
     lastFtpDir: string;
     setLastFtpDir: Dispatch<SetStateAction<string>>;
     lastLocalDir: string;
@@ -20,7 +29,7 @@ export interface AppContextType {
     setRefresh: Dispatch<SetStateAction<boolean>>;
     resetTitle: boolean;
     setResetTitle: Dispatch<SetStateAction<boolean>>;
-    load: boolean;
-    setLoad: Dispatch<SetStateAction<boolean>>;
+    isLoading: boolean;
+    setIsLoading: Dispatch<SetStateAction<boolean>>;
     url: string;
 }
