@@ -152,7 +152,8 @@ class FileOperationService : Service() {
 
     private fun isIndeterminate(record: FileOperationRecord): Boolean {
         val entryProgress = record.operation == FileOperationRecord.OPERATION_REMOTE_MOVE ||
-            record.operation == FileOperationRecord.OPERATION_REMOTE_DELETE
+            record.operation == FileOperationRecord.OPERATION_REMOTE_DELETE ||
+            record.operation == FileOperationRecord.OPERATION_LOCAL_DELETE
         return record.totalBytes <= 0 || (entryProgress && record.totalBytes == 1L && record.bytesTransferred == 0L)
     }
 

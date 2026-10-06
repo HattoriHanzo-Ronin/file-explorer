@@ -11,6 +11,7 @@ import React from "react";
 import { PaperProvider } from "react-native-paper";
 import AppContextProvider, { useAppContext } from "./src/components/app-context-provider";
 import type { AppContextType } from "./src/types/context";
+import type { StorageType } from "./src/types/navigation";
 import Background from "./src/components/background";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -18,23 +19,38 @@ import Local from "./src/app/local/index";
 import Ftp from "./src/app/ftp/index";
 import { Ionicons } from "@react-native-vector-icons/ionicons";
 import OverflowMenu from "./src/components/overflow-menu";
+import { openStorage } from "./src/utils/navigation-utils";
 
 const Drawer = createDrawerNavigator();
+
 const AppDrawerContent = (props: DrawerContentComponentProps) => {
     const { navigation } = props;
     const context = useAppContext();
+    const { externalRoots, internalRoot } = context;
 
     return (
         <Background type="nav">
             <View style={styles.drawerContent}>
                 <DrawerContentScrollView>
                     <DrawerItem
-                        label="Almacenamiento Local"
+                        label={internalRoot.name}
                         onPress={() => {
+                            openStorage(context, internalRoot);
                             navigation.navigate("local");
                             handleNavigationPress(context, "local");
                         }}
                     />
+                    {externalRoots.map((root) => (
+                        <DrawerItem
+                            key={root.id}
+                            label={root.name}
+                            onPress={() => {
+                                openStorage(context, root);
+                                navigation.navigate("local");
+                                handleNavigationPress(context, "local");
+                            }}
+                        />
+                    ))}
                     <DrawerItem
                         label="FTP"
                         onPress={() => {
@@ -84,27 +100,28 @@ const LogoutIcon = (props: { color: string; size: number }) => {
     const { color, size } = props;
     return <Ionicons name="log-out-outline" color={color} size={size} />;
 };
-const handleNavigationPress = (context: AppContextType, name: string) => {
+const handleNavigationPress = (context: AppContextType, name: StorageType) => {
     context.setLastComponent(name);
-    if (context.lastFtpDir !== " ") {
-        context.setLastFtpDir(" ");
-    }
-
-    if (context.lastLocalDir !== " ") {
-        context.setLastLocalDir(" ");
+    if (context.ftpDirectory.dir !== " ") {
+        context.setFtpDirectory((current) => ({ ...current, dir: " " }));
     }
 
     if (context.modifyFtpFile.length > 0 || context.modifyLocalFile.length > 0) {
-        if (context.modifyFtpFile.length > 0) {
+        let selectionCleared = false;
+        if (context.modifyFtpFile.length > 0 && name !== "local") {
             context.setModifyFtpFile([]);
+            selectionCleared = true;
         }
 
-        if (context.modifyLocalFile.length > 0) {
+        if (context.modifyLocalFile.length > 0 && (!context.onCopy || name !== "local")) {
             context.setModifyLocalFile([]);
+            selectionCleared = true;
         }
 
-        context.setResetTitle(!context.resetTitle);
-        context.setDirSelected(!context.dirSelected);
+        if (selectionCleared) {
+            context.setResetTitle(!context.resetTitle);
+            context.setDirSelected(!context.dirSelected);
+        }
     }
 };
 

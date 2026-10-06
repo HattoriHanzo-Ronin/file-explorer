@@ -12,7 +12,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import React from "react";
 import UiUtils from "../../utils/ui-utils";
 import useBackButtonEvent from "../../hooks/use-back-button-event";
-import { ensureStoragePermission } from "../../utils/permission-utils";
 
 export default function Local() {
     const context = useAppContext();
@@ -36,9 +35,9 @@ export default function Local() {
 
     useEffect(() => {
         void (async () => {
-            await ensureStoragePermission();
+            await context.permission.ensureStoragePermission();
         })();
-    }, []);
+    }, [context.permission]);
 
     useEffect(() => {
         void (async () => {

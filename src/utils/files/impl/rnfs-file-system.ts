@@ -1,11 +1,52 @@
+import { NativeEventEmitter, NativeModules } from "react-native";
 import RNFS from "react-native-fs";
+import type { StorageRoot, StorageRootNames } from "../../../types/files";
 import type { FileSystem, FileSystemEntry, FileSystemStat } from "../file-system";
+
+interface NativeStorageVolumeModule {
+    getExternalRoots(externalStorageName: string): Promise<StorageRoot[]>;
+}
 
 /**
  * Provides file system operations through React Native FS
  */
 export default class RNFSFileSystem implements FileSystem {
-    readonly rootPath = RNFS.ExternalStorageDirectoryPath;
+    readonly internalRoot: StorageRoot;
+    private readonly storageRootNames: StorageRootNames;
+    private readonly storageVolume = NativeModules.StorageVolume as NativeStorageVolumeModule;
+    private readonly eventEmitter = new NativeEventEmitter(NativeModules.StorageVolume);
+
+    constructor(storageRootNames: StorageRootNames) {
+        this.storageRootNames = storageRootNames;
+        this.internalRoot = {
+            id: "internal",
+            name: storageRootNames.internal,
+            path: RNFS.ExternalStorageDirectoryPath,
+            type: "INTERNAL"
+        };
+    }
+
+    /**
+     * Returns mounted removable storage roots
+     *
+     * @returns Removable storage roots
+     */
+    async getExternalRoots(): Promise<StorageRoot[]> {
+        return this.storageVolume.getExternalRoots(this.storageRootNames.external);
+    }
+
+    /**
+     * Adds a removable storage change listener
+     *
+     * @param listener Storage roots listener
+     * @returns Listener cleanup
+     */
+    addStorageRootsChangeListener(listener: (roots: StorageRoot[]) => void): () => void {
+        const subscription = this.eventEmitter.addListener("StorageVolumesChanged", (roots) =>
+            listener(roots as unknown as StorageRoot[])
+        );
+        return () => subscription.remove();
+    }
 
     /**
      * Returns whether a path exists

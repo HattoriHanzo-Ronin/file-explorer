@@ -6,6 +6,7 @@ export type RootDrawerParamList = {
     ftp: NavigatorScreenParams<FtpStackParamList>;
 };
 
+export type StorageType = keyof RootDrawerParamList;
 export type DrawerNavigation = DrawerNavigationProp<RootDrawerParamList>;
 
 export type FtpStackParamList = {

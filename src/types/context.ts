@@ -1,30 +1,40 @@
 import type { Dispatch, SetStateAction } from "react";
 import type { ExecuteApiRequest } from "./api-response";
+import type { ExecuteLocalRequest } from "./local-response";
 import type { AuthUser } from "./auth";
-import type { ModifyElement } from "./files";
+import type { LocalDirectoryState, LocalModifyElement, ModifyElement, StorageRoot } from "./files";
+import type { FtpDirectoryState, FtpEntryType } from "./ftp";
 import type AuthUtils from "../utils/auth-utils";
 import type LoadingUtils from "../utils/loading-utils";
-import type TransferManager from "../utils/transfers/transfer-manager";
+import type { Permission } from "../utils/permissions/permission";
+import type { StorageType } from "./navigation";
 
 export interface AppContextType {
     isAuthenticated: boolean;
     user: AuthUser | null;
     authUtils: AuthUtils;
     executeApiRequest: ExecuteApiRequest;
+    executeLocalRequest: ExecuteLocalRequest;
     loadingUtils: LoadingUtils;
-    transferManager: TransferManager;
-    lastFtpDir: string;
-    setLastFtpDir: Dispatch<SetStateAction<string>>;
+    permission: Permission;
+    internalRoot: StorageRoot;
+    externalRoots: StorageRoot[];
+    activeStorageRoot: StorageRoot;
+    setActiveStorageRoot: Dispatch<SetStateAction<StorageRoot>>;
+    lastLocalRootId: string;
     lastLocalDir: string;
-    setLastLocalDir: Dispatch<SetStateAction<string>>;
-    modifyLocalFile: ModifyElement[];
-    setModifyLocalFile: Dispatch<SetStateAction<ModifyElement[]>>;
+    ftpDirectory: FtpDirectoryState;
+    setFtpDirectory: Dispatch<SetStateAction<FtpDirectoryState>>;
+    localDirectory: LocalDirectoryState;
+    setLocalDirectory: Dispatch<SetStateAction<LocalDirectoryState>>;
+    modifyLocalFile: LocalModifyElement[];
+    setModifyLocalFile: Dispatch<SetStateAction<LocalModifyElement[]>>;
     onCopy: boolean;
     setOnCopy: Dispatch<SetStateAction<boolean>>;
-    modifyFtpFile: ModifyElement[];
-    setModifyFtpFile: Dispatch<SetStateAction<ModifyElement[]>>;
-    lastComponent: string;
-    setLastComponent: Dispatch<SetStateAction<string>>;
+    modifyFtpFile: ModifyElement<FtpEntryType>[];
+    setModifyFtpFile: Dispatch<SetStateAction<ModifyElement<FtpEntryType>[]>>;
+    lastComponent: StorageType;
+    setLastComponent: Dispatch<SetStateAction<StorageType>>;
     dirSelected: boolean;
     setDirSelected: Dispatch<SetStateAction<boolean>>;
     refresh: boolean;
@@ -33,5 +43,4 @@ export interface AppContextType {
     setResetTitle: Dispatch<SetStateAction<boolean>>;
     isLoading: boolean;
     setIsLoading: Dispatch<SetStateAction<boolean>>;
-    url: string;
 }

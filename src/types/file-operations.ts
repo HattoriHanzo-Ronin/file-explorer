@@ -1,4 +1,5 @@
-import type { FtpEntry, TransferEntry } from "./ftp";
+import type { FtpEntry, FtpEntryType, TransferEntry } from "./ftp";
+import type { EntryType } from "./files";
 import type { ResponseError } from "./response";
 
 export type FileOperationType =
@@ -14,7 +15,7 @@ export type FileOperationStatus = "PENDING" | "RUNNING" | "COMPLETED" | "FAILED"
 
 export interface FileOperationSelection {
     path: string;
-    type: string;
+    type: EntryType | FtpEntryType;
 }
 
 export interface FileOperationNotificationTexts {
@@ -139,7 +140,9 @@ export interface NativeLocalCopyMoveRequest extends NativeLocalRequest {
     destination: string;
 }
 
-export type NativeLocalDeleteRequest = NativeLocalRequest;
+export interface NativeLocalDeleteRequest extends NativeLocalRequest {
+    destination: string;
+}
 
 export interface NativeLocalExtractRequest {
     notificationTexts: FileOperationNotificationTexts;
