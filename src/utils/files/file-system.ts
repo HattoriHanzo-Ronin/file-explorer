@@ -1,15 +1,17 @@
-export interface FileSystemEntry {
-    name: string;
-    path: string;
-    isDirectory(): boolean;
-}
+import type { FileSystemEntry, StorageRoot } from "../../types/files";
+
+export type { FileSystemEntry } from "../../types/files";
 
 export interface FileSystemStat {
     size: number;
 }
 
 export interface FileSystem {
-    readonly rootPath: string;
+    readonly internalRoot: StorageRoot;
+
+    getExternalRoots(): Promise<StorageRoot[]>;
+
+    addStorageRootsChangeListener(listener: (roots: StorageRoot[]) => void): () => void;
 
     exists(path: string): Promise<boolean>;
 

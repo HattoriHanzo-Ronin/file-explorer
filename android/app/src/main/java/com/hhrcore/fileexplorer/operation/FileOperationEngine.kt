@@ -330,7 +330,9 @@ class FileOperationEngine(private val store: FileOperationStore, private val onC
         val sources = request.getJSONArray("sources")
         val destination = File(request.getString("destination"))
         validateLocalDestination(sources, destination)
-        record.totalBytes = (0 until sources.length()).sumOf { fileSize(File(sources.getString(it))) }
+        val totalSize = (0 until sources.length()).sumOf { fileSize(File(sources.getString(it))) }
+        val trackEntries = totalSize == 0L
+        record.totalBytes = if (trackEntries) sources.length().toLong() else totalSize
         persist(record)
         for (index in 0 until sources.length()) {
             checkCancelled(record.id)
@@ -338,6 +340,10 @@ class FileOperationEngine(private val store: FileOperationStore, private val onC
             val target = File(destination, availableName(destination, source.name))
             registerOwnedPath(record, target)
             copyLocal(record, source, target)
+            if (trackEntries) {
+                record.bytesTransferred = (index + 1).toLong()
+                persist(record)
+            }
         }
         if (move) {
             committing.add(record.id)
@@ -394,10 +400,13 @@ class FileOperationEngine(private val store: FileOperationStore, private val onC
 
     private fun localDelete(record: FileOperationRecord) {
         val sources = record.request.getJSONArray("sources")
-        record.totalBytes = 0
+        record.totalBytes = sources.length().toLong()
         persist(record)
         for (index in 0 until sources.length()) {
-            deleteLocal(record, File(sources.getString(index)))
+            val source = File(sources.getString(index))
+            deleteLocal(record, source)
+            record.bytesTransferred = (index + 1).toLong()
+            persist(record)
         }
     }
 

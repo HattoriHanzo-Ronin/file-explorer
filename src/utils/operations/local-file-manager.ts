@@ -1,0 +1,294 @@
+import { FILE_OPERATION_NOTIFICATION_TEXTS } from "../../constants/file-operations";
+import { EXTRACTABLE_ARCHIVE_EXTENSIONS } from "../../constants/archives";
+import type { LocalModifyElement } from "../../types/files";
+import type { FileOperationSnapshot } from "../../types/file-operations";
+import type { LocalResponse } from "../../types/local-response";
+import type { FileSystem, FileSystemEntry } from "../files/file-system";
+import type { LocalFileOperation } from "../files/local-file-operation";
+import type { Permission } from "../permissions/permission";
+import FileUtils from "../file-utils";
+
+/**
+ * Coordinates local file operations
+ *
+ * @author HattoriHanzo-Ronin
+ */
+export default class LocalFileManager {
+    static LOCAL_VERSION = "";
+    private readonly fileSystem: FileSystem;
+    private readonly localFileOperation: LocalFileOperation;
+    private readonly permission: Permission;
+    private readonly activeDirectories = new Map<string, Set<string>>();
+    private readonly completionListeners = new Map<string, (operation: FileOperationSnapshot) => void>();
+    private readonly completedOperations = new Map<string, FileOperationSnapshot>();
+
+    constructor(fileSystem: FileSystem, localFileOperation: LocalFileOperation, permission: Permission) {
+        this.fileSystem = fileSystem;
+        this.localFileOperation = localFileOperation;
+        this.permission = permission;
+        this.localFileOperation.addChangeListener((operation) => {
+            this.updateActiveDirectories(operation);
+            if (!this.isLocalOperation(operation) || ["PENDING", "RUNNING"].includes(operation.status)) {
+                return;
+            }
+
+            this.completeOperation(operation);
+        });
+    }
+
+    async restore(): Promise<void> {
+        const operations = await this.localFileOperation.listOperations();
+        operations
+            .filter(
+                (operation) => this.isLocalOperation(operation) && !["PENDING", "RUNNING"].includes(operation.status)
+            )
+            .forEach((operation) => this.completeOperation(operation));
+    }
+
+    /**
+     * Returns directory entries and their version
+     *
+     * @param rootPath Storage root path
+     * @param path Directory path
+     * @returns Directory entries and version
+     */
+    async dir(rootPath: string, path: string): Promise<LocalResponse<{ entries: FileSystemEntry[]; version: string }>> {
+        try {
+            const entries = await this.fileSystem.readDir(this.absolutePath(rootPath, path));
+            const version = FileUtils.hashDirectory(entries);
+            LocalFileManager.LOCAL_VERSION = version;
+            return { success: true, data: { entries, version } };
+        } catch {
+            return this.operationError("Error al listar");
+        }
+    }
+
+    /**
+     * Returns a directory version
+     *
+     * @param rootPath Storage root path
+     * @param path Directory path
+     * @returns Directory version
+     */
+    async getVersion(rootPath: string, path: string): Promise<LocalResponse<{ version: string }>> {
+        if (this.isDirectoryBusy(rootPath, path)) {
+            return { success: true, data: { version: LocalFileManager.LOCAL_VERSION } };
+        }
+
+        try {
+            const entries = await this.fileSystem.readDir(this.absolutePath(rootPath, path));
+            return { success: true, data: { version: FileUtils.hashDirectory(entries) } };
+        } catch {
+            return this.operationError("Error al comprobar la carpeta");
+        }
+    }
+
+    async createDirectory(rootPath: string, dir: string, name: string): Promise<LocalResponse<void>> {
+        try {
+            const destination = this.absolutePath(rootPath, dir);
+            await this.fileSystem.mkdir(`${destination}/${await this.availableName(destination, name)}`);
+            return { success: true, data: undefined };
+        } catch {
+            return this.operationError("Error al crear carpeta");
+        }
+    }
+
+    async rename(entry: LocalModifyElement, name: string): Promise<LocalResponse<void>> {
+        try {
+            const source = entry.path;
+            const destination = source.substring(0, source.lastIndexOf("/"));
+            await this.fileSystem.moveFile(source, `${destination}/${await this.availableName(destination, name)}`);
+            return { success: true, data: undefined };
+        } catch {
+            return this.operationError("Error al renombrar");
+        }
+    }
+
+    async openFile(rootPath: string, dir: string, name: string): Promise<LocalResponse<void>> {
+        try {
+            await this.localFileOperation.openFile(`${this.absolutePath(rootPath, dir)}/${name}`);
+            return { success: true, data: undefined };
+        } catch {
+            return this.operationError(`Error al abrir el archivo ${name}`);
+        }
+    }
+
+    async copy(items: LocalModifyElement[], destination: string): Promise<LocalResponse<void>> {
+        return this.startCopyMove(items, destination, false);
+    }
+
+    async move(items: LocalModifyElement[], destination: string): Promise<LocalResponse<void>> {
+        return this.startCopyMove(items, destination, true);
+    }
+
+    async delete(items: LocalModifyElement[]): Promise<LocalResponse<void>> {
+        const permission = await this.prepareOperation();
+        if (!permission.success) {
+            return permission;
+        }
+
+        try {
+            const sources = items.map((item) => item.path);
+            const id = await this.localFileOperation.startDelete({
+                notificationTexts: FILE_OPERATION_NOTIFICATION_TEXTS,
+                sources,
+                destination: sources[0]?.substring(0, sources[0].lastIndexOf("/")) ?? this.fileSystem.internalRoot.path
+            });
+            return this.waitForCompletion(id);
+        } catch {
+            return this.operationError();
+        }
+    }
+
+    async extract(rootPath: string, dir: string, name: string): Promise<LocalResponse<void>> {
+        const extension = name.split(".").pop()?.toLowerCase() ?? "";
+        if (!EXTRACTABLE_ARCHIVE_EXTENSIONS.includes(extension)) {
+            return {
+                success: false,
+                error: { code: "ARCHIVE_FORMAT_NOT_SUPPORTED", message: "Formato de archivo no compatible" }
+            };
+        }
+
+        const permission = await this.prepareOperation();
+        if (!permission.success) {
+            return permission;
+        }
+
+        try {
+            const destination = this.absolutePath(rootPath, dir);
+            const id = await this.localFileOperation.startExtract({
+                notificationTexts: FILE_OPERATION_NOTIFICATION_TEXTS,
+                source: `${destination}/${name}`,
+                destination
+            });
+            return this.waitForCompletion(id);
+        } catch {
+            return this.operationError();
+        }
+    }
+
+    cancel(id: string): void {
+        this.localFileOperation.cancel(id);
+    }
+
+    private async startCopyMove(
+        items: LocalModifyElement[],
+        destination: string,
+        move: boolean
+    ): Promise<LocalResponse<void>> {
+        const permission = await this.prepareOperation();
+        if (!permission.success) {
+            return permission;
+        }
+
+        try {
+            const request = {
+                notificationTexts: FILE_OPERATION_NOTIFICATION_TEXTS,
+                sources: items.map((item) => item.path),
+                destination
+            };
+            const id = move
+                ? await this.localFileOperation.startMove(request)
+                : await this.localFileOperation.startCopy(request);
+            return this.waitForCompletion(id);
+        } catch {
+            return this.operationError();
+        }
+    }
+
+    private async prepareOperation(): Promise<LocalResponse<void>> {
+        if (!(await this.permission.ensureNotificationPermission())) {
+            return this.operationError("Se necesita permiso para mostrar el progreso de la operación");
+        }
+
+        return { success: true, data: undefined };
+    }
+
+    private completeOperation(operation: FileOperationSnapshot): void {
+        const listener = this.completionListeners.get(operation.id);
+        if (listener) {
+            this.completionListeners.delete(operation.id);
+            listener(operation);
+        } else {
+            this.completedOperations.set(operation.id, operation);
+        }
+    }
+
+    private waitForCompletion(id: string): Promise<LocalResponse<void>> {
+        const completed = this.completedOperations.get(id);
+        if (completed) {
+            this.completedOperations.delete(id);
+            return Promise.resolve(this.toLocalResponse(completed));
+        }
+
+        return new Promise((resolve) => {
+            this.completionListeners.set(id, (operation) => resolve(this.toLocalResponse(operation)));
+        });
+    }
+
+    private toLocalResponse(operation: FileOperationSnapshot): LocalResponse<void> {
+        if (operation.status === "COMPLETED") {
+            return { success: true, data: undefined };
+        }
+
+        return operation.error ? { success: false, error: operation.error } : this.operationError();
+    }
+
+    private operationError(message = ""): LocalResponse<never> {
+        return { success: false, error: { code: "FILE_OPERATION_FAILED", message } };
+    }
+
+    private absolutePath(rootPath: string, path: string): string {
+        return path === " " ? rootPath : `${rootPath}/${path}`;
+    }
+
+    private isDirectoryBusy(rootPath: string, path: string): boolean {
+        return (this.activeDirectories.get(this.absolutePath(rootPath, path))?.size ?? 0) > 0;
+    }
+
+    private updateActiveDirectories(operation: FileOperationSnapshot): void {
+        if (!["DOWNLOAD", "LOCAL_COPY", "LOCAL_MOVE", "LOCAL_DELETE", "LOCAL_EXTRACT"].includes(operation.operation)) {
+            return;
+        }
+
+        const directory = operation.localDir;
+        if (!directory) {
+            return;
+        }
+
+        const ids = this.activeDirectories.get(directory) ?? new Set<string>();
+        if (["PENDING", "RUNNING"].includes(operation.status)) {
+            ids.add(operation.id);
+            this.activeDirectories.set(directory, ids);
+            return;
+        }
+
+        ids.delete(operation.id);
+        if (ids.size > 0) {
+            return;
+        }
+
+        this.activeDirectories.delete(directory);
+    }
+
+    private async availableName(destination: string, name: string): Promise<string> {
+        if (!(await this.fileSystem.exists(`${destination}/${name}`))) {
+            return name;
+        }
+
+        const extensionIndex = name.lastIndexOf(".");
+        const hasExtension = extensionIndex > 0;
+        const extension = hasExtension ? name.substring(extensionIndex) : "";
+        const baseName = (hasExtension ? name.substring(0, extensionIndex) : name).replace(/ \(\d+\)$/, "");
+        let copy = 1;
+        while (await this.fileSystem.exists(`${destination}/${baseName} (${copy})${extension}`)) {
+            copy += 1;
+        }
+
+        return `${baseName} (${copy})${extension}`;
+    }
+
+    private isLocalOperation(operation: FileOperationSnapshot): boolean {
+        return ["LOCAL_COPY", "LOCAL_MOVE", "LOCAL_DELETE", "LOCAL_EXTRACT"].includes(operation.operation);
+    }
+}
