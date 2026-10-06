@@ -34,7 +34,7 @@ export const UploadMenu = (props: TransferMenuProps) => {
                 }
 
                 if (lastComponent === "local") {
-                    navigation.navigate("ftp");
+                    navigation.navigate("ftp", { screen: "login" });
                     setLastComponent("ftp");
                     UiUtils.showMessage("Elija directorio donde desea subir los archivos");
                 } else {

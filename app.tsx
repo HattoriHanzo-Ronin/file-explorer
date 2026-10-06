@@ -12,7 +12,7 @@ import { PaperProvider } from "react-native-paper";
 import AppContextProvider, { useAppContext } from "./src/components/app-context-provider";
 import type { AppContextType } from "./src/types/context";
 import Background from "./src/components/background";
-import { Pressable, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Local from "./src/app/local/index";
 import Ftp from "./src/app/ftp/index";
@@ -26,27 +26,42 @@ const AppDrawerContent = (props: DrawerContentComponentProps) => {
 
     return (
         <Background type="nav">
-            <DrawerContentScrollView>
-                <DrawerItem
-                    label="Almacenamiento Local"
-                    onPress={() => {
-                        navigation.navigate("local");
-                        handleNavigationPress(context, "local");
-                    }}
-                />
-                <DrawerItem
-                    label="FTP"
-                    onPress={() => {
-                        navigation.navigate("ftp");
-                        handleNavigationPress(context, "ftp");
-                    }}
-                />
-            </DrawerContentScrollView>
+            <View style={styles.drawerContent}>
+                <DrawerContentScrollView>
+                    <DrawerItem
+                        label="Almacenamiento Local"
+                        onPress={() => {
+                            navigation.navigate("local");
+                            handleNavigationPress(context, "local");
+                        }}
+                    />
+                    <DrawerItem
+                        label="FTP"
+                        onPress={() => {
+                            navigation.navigate("ftp", { screen: "login" });
+                            handleNavigationPress(context, "ftp");
+                        }}
+                    />
+                </DrawerContentScrollView>
+                {context.lastComponent === "ftp" && context.isAuthenticated && (
+                    <View style={styles.drawerFooter}>
+                        <DrawerItem
+                            label="Cerrar sesión"
+                            icon={LogoutIcon}
+                            onPress={async () => {
+                                navigation.closeDrawer();
+                                await context.loadingUtils.run(() => context.authUtils.logout());
+                            }}
+                        />
+                    </View>
+                )}
+            </View>
         </Background>
     );
 };
 const AppHeader = (props: DrawerHeaderProps) => {
     const { navigation } = props;
+    const { isAuthenticated, lastComponent } = useAppContext();
     const safeArea = useSafeAreaInsets().top;
 
     return (
@@ -55,12 +70,19 @@ const AppHeader = (props: DrawerHeaderProps) => {
                 <Pressable onPress={() => navigation.dispatch(DrawerActions.toggleDrawer())}>
                     <Ionicons name="menu" size={30} />
                 </Pressable>
-                <View style={{ alignSelf: "flex-end", marginLeft: "85%" }}>
-                    <OverflowMenu />
-                </View>
+                {(lastComponent !== "ftp" || isAuthenticated) && (
+                    <View style={{ alignSelf: "flex-end", marginLeft: "85%" }}>
+                        <OverflowMenu />
+                    </View>
+                )}
             </View>
         </Background>
     );
+};
+
+const LogoutIcon = (props: { color: string; size: number }) => {
+    const { color, size } = props;
+    return <Ionicons name="log-out-outline" color={color} size={size} />;
 };
 const handleNavigationPress = (context: AppContextType, name: string) => {
     context.setLastComponent(name);
@@ -105,3 +127,12 @@ export default function App() {
         </AppContextProvider>
     );
 }
+
+const styles = StyleSheet.create({
+    drawerContent: {
+        flex: 1
+    },
+    drawerFooter: {
+        alignSelf: "flex-end"
+    }
+});

@@ -48,7 +48,7 @@ export const upload = async (toUpload: ModifyElement[], destination: string, con
     const formData = new FormData();
     let toZip;
     try {
-        context.setLoad(true);
+        context.setIsLoading(true);
         await RNFS.mkdir(tempToZip);
         await cpmv(toUpload, tempToZip, true);
         toZip = await zip(tempToZip, zipFile);
@@ -60,7 +60,7 @@ export const upload = async (toUpload: ModifyElement[], destination: string, con
     } catch {
         UiUtils.showMessage("Error al subir el archivo");
     } finally {
-        context.setLoad(false);
+        context.setIsLoading(false);
         await RNFS.unlink(tempDir);
     }
 };
@@ -76,7 +76,7 @@ export const download = async (toDownload: ModifyElement[], destination: string,
     const url = `${context.url}/download`;
     const dest = makePathWithRoot(destination);
     try {
-        context.setLoad(true);
+        context.setIsLoading(true);
 
         if (toDownload.length === 1 && toDownload[0].type === "file") {
             const file = toDownload[0].path;
@@ -94,7 +94,7 @@ export const download = async (toDownload: ModifyElement[], destination: string,
     } catch {
         UiUtils.showMessage("Error al descargar el archivo");
     } finally {
-        context.setLoad(false);
+        context.setIsLoading(false);
     }
 };
 /**
@@ -190,14 +190,14 @@ export const cpmvPath = async (
         context.setDirSelected(!context.dirSelected);
     } else {
         try {
-            context.setLoad(true);
+            context.setIsLoading(true);
             const lastDir = makePathWithRoot(context.lastLocalDir);
             await cpmv(toCopy, lastDir, cp);
             context.setRefresh(!context.refresh);
         } catch {
             UiUtils.showMessage(`Error al ${title}`);
         } finally {
-            context.setLoad(false);
+            context.setIsLoading(false);
             context.setModifyLocalFile([]);
             setTitle(cp ? "Copiar" : "Mover");
             setVisible(false);
@@ -257,7 +257,7 @@ export const remove = async (
     setVisible: (visible: boolean) => void
 ) => {
     try {
-        context.setLoad(true);
+        context.setIsLoading(true);
 
         for (const item of toRemove) {
             if (origin === "local") {
@@ -275,7 +275,7 @@ export const remove = async (
     } catch {
         UiUtils.showMessage("Error al borrar");
     } finally {
-        context.setLoad(false);
+        context.setIsLoading(false);
         context.setRefresh(!context.refresh);
 
         if (origin === "local") {
@@ -408,7 +408,7 @@ export const openFile = async (origin: string, name: string, context: AppContext
                     const nameZipDir = name.substring(0, name.lastIndexOf("."));
                     const zipDir = `${originWithRoot}/${nameZipDir}`;
                     try {
-                        context.setLoad(true);
+                        context.setIsLoading(true);
                         await unzip(file, zipDir);
                         const list = await RNFS.readDir(zipDir);
                         await cpmv(
@@ -423,7 +423,7 @@ export const openFile = async (origin: string, name: string, context: AppContext
                     } finally {
                         await RNFS.unlink(zipDir);
                         await RNFS.unlink(file);
-                        context.setLoad(false);
+                        context.setIsLoading(false);
                         context.setRefresh(!context.refresh);
                     }
                 }

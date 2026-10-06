@@ -20,7 +20,7 @@ export default function Local() {
     const safeBottom = useSafeAreaInsets().bottom;
     const getDirContent = async (dir: string) => {
         try {
-            context.setLoad(true);
+            context.setIsLoading(true);
             const dirContent = await RNFS.readDir(
                 dir !== " " ? `${RNFS.ExternalStorageDirectoryPath}/${dir}` : RNFS.ExternalStorageDirectoryPath
             );
@@ -28,7 +28,7 @@ export default function Local() {
         } catch {
             UiUtils.showMessage("Error al listar");
         } finally {
-            context.setLoad(false);
+            context.setIsLoading(false);
         }
     };
 
@@ -46,7 +46,7 @@ export default function Local() {
         })();
     }, [context.lastLocalDir, context.refresh]);
 
-    if (context.load) {
+    if (context.isLoading) {
         return <Loading />;
     }
 
