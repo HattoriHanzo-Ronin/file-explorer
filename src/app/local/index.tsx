@@ -1,35 +1,63 @@
-import { useEffect, useState } from "react";
-import { View } from "react-native";
-import RNFS from "react-native-fs";
+import { useCallback, useEffect } from "react";
+import { useIsFocused } from "@react-navigation/native";
+import { Alert, View } from "react-native";
 import Background from "../../components/background";
 import { useAppContext } from "../../components/app-context-provider";
 import type { DirContent } from "../../types/files";
 import List from "../../components/list";
 import Breadcrumb from "../../components/breadcrumb";
-import { openFile } from "../../utils/file-utils";
 import Loading from "../../components/loading";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import React from "react";
 import UiUtils from "../../utils/ui-utils";
 import useBackButtonEvent from "../../hooks/use-back-button-event";
+import FileUtils from "../../utils/file-utils";
+import LocalFileManager from "../../utils/operations/local-file-manager";
+import { explorer } from "../style";
 
 export default function Local() {
     const context = useAppContext();
-    const [dirContent, setDirContent] = useState<RNFS.ReadDirItem[]>([]);
+    const { activeStorageRoot, executeLocalRequest, isLoading, localDirectory, setLocalDirectory } = context;
+    const { content: dirContent, dir: lastLocalDir } = localDirectory;
+    const isFocused = useIsFocused();
     const safeBottom = useSafeAreaInsets().bottom;
-    const getDirContent = async (dir: string) => {
-        try {
-            context.setIsLoading(true);
-            const dirContent = await RNFS.readDir(
-                dir !== " " ? `${RNFS.ExternalStorageDirectoryPath}/${dir}` : RNFS.ExternalStorageDirectoryPath
+    const contentStyle = [explorer.content, { paddingBottom: safeBottom }];
+    const loadDirectory = useCallback(
+        async (dir: string, isBackground = false) => {
+            const result = await executeLocalRequest(
+                (localFileManager) => localFileManager.dir(activeStorageRoot.path, dir),
+                { isBackground }
             );
-            setDirContent(dirContent);
-        } catch {
-            UiUtils.showMessage("Error al listar");
-        } finally {
-            context.setIsLoading(false);
+            if (result.success) {
+                setLocalDirectory((current) =>
+                    current.dir === dir ? { ...current, content: result.data.entries } : current
+                );
+            }
+        },
+        [activeStorageRoot.path, executeLocalRequest, setLocalDirectory]
+    );
+
+    async function extractArchive(name: string) {
+        await executeLocalRequest(
+            (localFileManager) => localFileManager.extract(activeStorageRoot.path, lastLocalDir, name),
+            { isBackground: true, showError: true }
+        );
+    }
+
+    async function openFile(name: string) {
+        if (FileUtils.getTypeFile(name) === "compress") {
+            Alert.alert("", "Se va a descomprimir el archivo", [
+                { text: "Cancel", style: "cancel" },
+                { text: "Ok", onPress: () => void extractArchive(name) }
+            ]);
+            return;
         }
-    };
+
+        await executeLocalRequest(
+            (localFileManager) => localFileManager.openFile(activeStorageRoot.path, lastLocalDir, name),
+            { isBackground: true, showError: true }
+        );
+    }
 
     useBackButtonEvent("local");
 
@@ -40,10 +68,27 @@ export default function Local() {
     }, [context.permission]);
 
     useEffect(() => {
-        void (async () => {
-            await getDirContent(context.lastLocalDir);
-        })();
-    }, [context.lastLocalDir, context.refresh]);
+        if (isFocused) {
+            void loadDirectory(lastLocalDir);
+        }
+    }, [isFocused, lastLocalDir, loadDirectory]);
+
+    useEffect(() => {
+        const interval = setInterval(() => {
+            void (async () => {
+                if (!isLoading) {
+                    const result = await executeLocalRequest(
+                        (localFileManager) => localFileManager.getVersion(activeStorageRoot.path, lastLocalDir),
+                        { isBackground: true }
+                    );
+                    if (result.success && result.data.version !== LocalFileManager.LOCAL_VERSION) {
+                        void loadDirectory(lastLocalDir, true);
+                    }
+                }
+            })();
+        }, 2000);
+        return () => clearInterval(interval);
+    }, [activeStorageRoot.path, executeLocalRequest, isLoading, lastLocalDir, loadDirectory]);
 
     if (context.isLoading) {
         return <Loading />;
@@ -52,64 +97,78 @@ export default function Local() {
     return (
         <Background>
             <Breadcrumb
-                paths={context.lastLocalDir}
+                paths={lastLocalDir}
                 onPress={(dir: string) => {
-                    if (context.modifyLocalFile.length > 0 && !context.onCopy) {
+                    if (context.modifyLocalFile.length > 0 && !context.fileAction) {
                         context.setModifyLocalFile([]);
                     }
 
-                    context.setLastLocalDir(dir);
+                    setLocalDirectory((current) => ({ ...current, dir }));
                 }}
             />
-            <View style={{ flex: 1, padding: "2%", paddingBottom: safeBottom }}>
+            <View style={contentStyle}>
                 <List
-                    dirContent={dirContent.map((it) => ({ name: it.name, type: it.isDirectory() ? "dir" : "file" }))}
-                    doubleTapAction={async (name: string, type: DirContent["type"]) => {
-                        const path = `${context.lastLocalDir}/${name}`;
+                    dirContent={dirContent.map((it) => ({
+                        name: it.name,
+                        type: it.isDirectory() ? "dir" : "file"
+                    }))}
+                    doubleTapAction={(name: string, type: DirContent["type"]) => {
+                        const path = `${lastLocalDir}/${name}`;
                         if (type === "dir") {
                             if (path.includes("Android/data") || path.includes("Android/obb")) {
-                                return UiUtils.showMessage(`No se puede abrir la carpeta ${name}`);
+                                UiUtils.showMessage(`No se puede abrir la carpeta ${name}`);
+                                return;
                             }
 
-                            context.setLastLocalDir(
-                                context.lastLocalDir === " " ? name : `${context.lastLocalDir}/${name}`
-                            );
+                            setLocalDirectory((current) => ({
+                                ...current,
+                                dir: current.dir === " " ? name : `${current.dir}/${name}`
+                            }));
                         }
 
-                        if (context.modifyLocalFile.length > 0 && !context.onCopy) {
+                        if (context.modifyLocalFile.length > 0 && !context.fileAction) {
                             context.setModifyLocalFile([]);
                         }
                     }}
                     longPressAction={(name: string, type: DirContent["type"]) => {
-                        const path = `${context.lastLocalDir}/${name}`;
+                        const path = `${lastLocalDir}/${name}`;
+                        const absolutePath = `${activeStorageRoot.path}/${lastLocalDir === " " ? name : path}`;
                         if (path.includes("Android/data") || path.includes("Android/obb")) {
-                            return UiUtils.showMessage(`No se puede seleccionar la carpeta ${name}`);
+                            UiUtils.showMessage(`No se puede seleccionar la carpeta ${name}`);
+                            return;
                         }
 
                         if (context.modifyFtpFile.length > 0) {
-                            return UiUtils.showMessage("Acción no disponible");
+                            UiUtils.showMessage("Acción no disponible");
+                            return;
                         }
 
-                        if (!context.modifyLocalFile.some((item) => item.path === path)) {
+                        if (!context.modifyLocalFile.some((item) => item.path === absolutePath)) {
                             context.setModifyLocalFile([
                                 ...context.modifyLocalFile,
                                 {
-                                    path: context.lastLocalDir === " " ? name : `${context.lastLocalDir}/${name}`,
+                                    path: absolutePath,
                                     type
                                 }
                             ]);
                         } else {
-                            context.setModifyLocalFile(context.modifyLocalFile.filter((item) => item.path === path));
+                            context.setModifyLocalFile(
+                                context.modifyLocalFile.filter((item) => item.path !== absolutePath)
+                            );
                         }
                     }}
                     oneTapAction={async (name: string, type: DirContent["type"]) => {
                         const size = context.modifyLocalFile.length;
                         if (type === "file" && size === 0) {
-                            await openFile(context.lastLocalDir, name, context);
+                            await openFile(name);
                         }
 
                         context.setModifyLocalFile(
-                            context.modifyLocalFile.filter((item) => item.path !== `${context.lastLocalDir}/${name}`)
+                            context.modifyLocalFile.filter(
+                                (item) =>
+                                    item.path !==
+                                    `${activeStorageRoot.path}/${lastLocalDir === " " ? name : `${lastLocalDir}/${name}`}`
+                            )
                         );
                     }}
                     notSelectable={context.modifyFtpFile.length > 0}

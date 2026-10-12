@@ -1,78 +1,102 @@
-import { useFocusEffect } from "@react-navigation/native";
-import { useCallback } from "react";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useCallback, useRef } from "react";
 import { BackHandler } from "react-native";
 import { useAppContext } from "../components/app-context-provider";
+import { BACK_EXIT_INTERVAL, BACK_EXIT_MESSAGE } from "../constants/ui";
+import type { AppContextType } from "../types/context";
+import type { DrawerNavigation, StorageType } from "../types/navigation";
+import UiUtils from "../utils/ui-utils";
+
+function cancelFileAction(context: AppContextType, navigation: DrawerNavigation): boolean {
+    if (!context.fileAction) {
+        return false;
+    }
+
+    const target = UiUtils.cancelFileAction(context);
+    if (target === "ftp") {
+        navigation.navigate("ftp", { screen: "files" });
+    } else {
+        navigation.navigate("local");
+    }
+
+    return true;
+}
+
+function clearSelection(context: AppContextType, storage: StorageType): boolean {
+    const selection = storage === "local" ? context.modifyLocalFile : context.modifyFtpFile;
+    if (selection.length === 0) {
+        return false;
+    }
+
+    if (storage === "local") {
+        context.setModifyLocalFile([]);
+    } else {
+        context.setModifyFtpFile([]);
+    }
+
+    context.setDirSelected((current) => !current);
+    return true;
+}
+
+function navigateToParent(context: AppContextType, storage: StorageType): boolean {
+    const lastDir = storage === "local" ? context.localDirectory.dir : context.ftpDirectory.dir;
+    if (lastDir === " ") {
+        return false;
+    }
+
+    const paths = lastDir.split("/").slice(0, -1);
+    const dir = paths.length > 0 ? paths.join("/") : " ";
+    if (storage === "local") {
+        context.setLocalDirectory((current) => ({ ...current, dir }));
+    } else {
+        context.setFtpDirectory((current) => ({ ...current, dir }));
+    }
+
+    return true;
+}
 
 /**
  * Uses the Android back button to navigate to the parent directory
  *
  * @param storage Active storage
  */
-export default function useBackButtonEvent(storage: string): void {
+export default function useBackButtonEvent(storage: StorageType): void {
     const context = useAppContext();
-    const {
-        lastFtpDir,
-        lastLocalDir,
-        modifyFtpFile,
-        modifyLocalFile,
-        onCopy,
-        setLastFtpDir,
-        setLastLocalDir,
-        setModifyFtpFile,
-        setModifyLocalFile
-    } = context;
+    const navigation = useNavigation<DrawerNavigation>();
+    const lastBackPress = useRef<number | null>(null);
 
     useFocusEffect(
         useCallback(() => {
             const onBackPress = () => {
-                const lastDir = storage === "local" ? lastLocalDir : lastFtpDir;
-
-                if (lastDir !== " ") {
-                    let dir = " ";
-                    if (lastDir.includes("/")) {
-                        const sptLastDir = lastDir.split("/").slice(0, -1);
-                        dir = sptLastDir[0];
-                        if (sptLastDir.length > 1) {
-                            dir = sptLastDir.join("/");
-                        }
-                    }
-
-                    if (storage === "local") {
-                        if (modifyLocalFile.length > 0 && !onCopy) {
-                            setModifyLocalFile([]);
-                        }
-
-                        setLastLocalDir(dir);
-                    } else {
-                        if (modifyFtpFile.length > 0 && !onCopy) {
-                            setModifyFtpFile([]);
-                        }
-
-                        setLastFtpDir(dir);
-                    }
-
+                if (cancelFileAction(context, navigation)) {
                     return true;
                 }
 
-                return false;
+                if (clearSelection(context, storage)) {
+                    return true;
+                }
+
+                if (navigateToParent(context, storage)) {
+                    return true;
+                }
+
+                const now = Date.now();
+                if (lastBackPress.current && now - lastBackPress.current < BACK_EXIT_INTERVAL) {
+                    BackHandler.exitApp();
+                    return true;
+                }
+
+                lastBackPress.current = now;
+                UiUtils.showMessage(BACK_EXIT_MESSAGE, "SHORT");
+                return true;
             };
 
             const subscription = BackHandler.addEventListener("hardwareBackPress", onBackPress);
 
             return () => {
+                lastBackPress.current = null;
                 subscription.remove();
             };
-        }, [
-            lastFtpDir,
-            lastLocalDir,
-            modifyFtpFile,
-            modifyLocalFile,
-            onCopy,
-            setLastFtpDir,
-            setLastLocalDir,
-            setModifyFtpFile,
-            setModifyLocalFile,
-            storage
-        ])
+        }, [context, navigation, storage])
     );
 }

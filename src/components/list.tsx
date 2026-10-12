@@ -1,9 +1,10 @@
 import { FlatList } from "react-native";
 import { useAppContext } from "./app-context-provider";
 import type { ListProps } from "../types/components";
+import type { FileContent } from "../types/components";
 import ContentCard from "./content-card";
 
-export default function List(props: ListProps) {
+export default function List<T extends FileContent>(props: ListProps<T>) {
     const { dirContent, doubleTapAction, longPressAction, oneTapAction, notSelectable } = props;
     const ITEM_SIZE = 100;
     const context = useAppContext();
@@ -29,7 +30,8 @@ export default function List(props: ListProps) {
                         longPressAction={() => longPressAction(name, type)}
                         oneTapAction={() => oneTapAction(name, type)}
                         notSelectable={
-                            notSelectable || (context.lastLocalDir === "Android" && (name === "data" || name === "obb"))
+                            notSelectable ||
+                            (context.localDirectory.dir === "Android" && (name === "data" || name === "obb"))
                         }
                     />
                 );

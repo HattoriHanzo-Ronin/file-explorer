@@ -8,7 +8,7 @@ import type AuthUtils from "../utils/auth-utils";
 import type LoadingUtils from "../utils/loading-utils";
 import type { Permission } from "../utils/permissions/permission";
 import type { ThumbnailGenerator } from "../utils/thumbnails/thumbnail-generator";
-import type { StorageType } from "./navigation";
+import type { FileActionMode } from "./ui";
 
 export interface AppContextType {
     isAuthenticated: boolean;
@@ -31,18 +31,14 @@ export interface AppContextType {
     setLocalDirectory: Dispatch<SetStateAction<LocalDirectoryState>>;
     modifyLocalFile: LocalModifyElement[];
     setModifyLocalFile: Dispatch<SetStateAction<LocalModifyElement[]>>;
-    onCopy: boolean;
-    setOnCopy: Dispatch<SetStateAction<boolean>>;
+    fileAction: FileActionMode;
+    setFileAction: Dispatch<SetStateAction<FileActionMode>>;
     modifyFtpFile: ModifyElement<FtpEntryType>[];
     setModifyFtpFile: Dispatch<SetStateAction<ModifyElement<FtpEntryType>[]>>;
-    lastComponent: StorageType;
-    setLastComponent: Dispatch<SetStateAction<StorageType>>;
+    ftpSelectionDir: string;
+    setFtpSelectionDir: Dispatch<SetStateAction<string>>;
     dirSelected: boolean;
     setDirSelected: Dispatch<SetStateAction<boolean>>;
-    refresh: boolean;
-    setRefresh: Dispatch<SetStateAction<boolean>>;
-    resetTitle: boolean;
-    setResetTitle: Dispatch<SetStateAction<boolean>>;
     isLoading: boolean;
     setIsLoading: Dispatch<SetStateAction<boolean>>;
 }

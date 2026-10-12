@@ -1,20 +1,22 @@
 import type { DirContent } from "./files";
+import type { FtpEntry } from "./ftp";
 
-export type FileAction = (name: string, type: DirContent["type"]) => void;
+export type FileContent = DirContent | FtpEntry;
+export type FileAction<T extends FileContent = FileContent> = (name: string, type: T["type"]) => void;
 
 export interface ContentCardProps {
-    content: DirContent;
+    content: FileContent;
     doubleTapAction: () => void;
     longPressAction: () => void;
     oneTapAction: () => void;
     notSelectable: boolean;
 }
 
-export interface ListProps {
-    dirContent: DirContent[];
-    doubleTapAction: FileAction;
-    longPressAction: FileAction;
-    oneTapAction: FileAction;
+export interface ListProps<T extends FileContent = FileContent> {
+    dirContent: T[];
+    doubleTapAction: FileAction<T>;
+    longPressAction: FileAction<T>;
+    oneTapAction: FileAction<T>;
     notSelectable: boolean;
 }
 
