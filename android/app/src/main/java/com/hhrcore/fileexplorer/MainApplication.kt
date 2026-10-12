@@ -20,6 +20,7 @@ class MainApplication : Application(), ReactApplication {
           add(StorageVolumePackage())
           add(FileOpenerPackage())
           add(FileOperationPackage())
+          add(ThumbnailGeneratorPackage())
         },
     )
   }
