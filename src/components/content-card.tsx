@@ -9,12 +9,31 @@ import {
 import { contentCard } from "../app/style";
 import { useAppContext } from "./app-context-provider";
 import type { ContentCardProps } from "../types/components";
-import { getTypeFile, icons } from "../utils/file-utils";
+import type { FileIcons } from "../types/files";
+import FileUtils from "../utils/file-utils";
+
+const FILE_ICONS: FileIcons = {
+    dir: require("../../assets/images/folder.png"),
+    file: require("../../assets/images/file.png"),
+    image: require("../../assets/images/image.png"),
+    video: require("../../assets/images/video.png"),
+    audio: require("../../assets/images/audio.png"),
+    compress: require("../../assets/images/compress.png"),
+    pdf: require("../../assets/images/pdf.png"),
+    word: require("../../assets/images/word.png"),
+    excel: require("../../assets/images/excel.png"),
+    power: require("../../assets/images/power.png"),
+    apk: require("../../assets/images/apk.png"),
+    exe: require("../../assets/images/exe.png"),
+    code: require("../../assets/images/code.png")
+};
 
 export default function ContentCard(props: ContentCardProps) {
     const { content, doubleTapAction, longPressAction, oneTapAction, notSelectable } = props;
-    const context = useAppContext();
+    const { dirSelected } = useAppContext();
     const [select, setSelect] = useState<boolean>(false);
+    const fileType = content.type.toLocaleLowerCase() === "file" ? FileUtils.getTypeFile(content.name) : "dir";
+
     const handleOnTap = () => {
         if (select) {
             setSelect(false);
@@ -36,16 +55,12 @@ export default function ContentCard(props: ContentCardProps) {
 
     useEffect(() => {
         setSelect(false);
-    }, [context.dirSelected]);
+    }, [dirSelected]);
 
     return (
         <GestureDetector gesture={gestures}>
-            <View style={[contentCard.parent, select ? { backgroundColor: "rgba(255, 255, 255, 0.36)" } : {}]}>
-                <Image
-                    resizeMode="cover"
-                    style={{ height: "80%", width: "80%" }}
-                    source={icons[content.type === "file" ? getTypeFile(content.name) : "dir"]}
-                />
+            <View style={[contentCard.parent, select && contentCard.selected]}>
+                <Image resizeMode="cover" style={contentCard.icon} source={FILE_ICONS[fileType]} />
                 <Text numberOfLines={1}>{content.name}</Text>
             </View>
         </GestureDetector>

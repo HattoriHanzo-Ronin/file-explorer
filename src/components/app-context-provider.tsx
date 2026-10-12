@@ -7,7 +7,7 @@ import type { AppContextType } from "../types/context";
 import type { LocalDirectoryState, LocalModifyElement, ModifyElement, StorageRoot } from "../types/files";
 import type { FtpDirectoryState, FtpEntryType } from "../types/ftp";
 import type { LocalRequestOptions, LocalResponse } from "../types/local-response";
-import type { StorageType } from "../types/navigation";
+import type { FileActionMode } from "../types/ui";
 import ApiUtils from "../utils/api-utils";
 import AuthUtils from "../utils/auth-utils";
 import RNFSFileSystem from "../utils/files/impl/rnfs-file-system";
@@ -36,12 +36,10 @@ export default function AppContextProvider(props: PropsWithChildren) {
     const [ftpDirectory, setFtpDirectory] = useState<FtpDirectoryState>({ dir: " ", content: [] });
     const [localDirectory, setLocalDirectory] = useState<LocalDirectoryState>({ dir: " ", content: [] });
     const [modifyLocalFile, setModifyLocalFile] = useState<LocalModifyElement[]>([]);
-    const [onCopy, setOnCopy] = useState<boolean>(false);
+    const [fileAction, setFileAction] = useState<FileActionMode>(null);
     const [modifyFtpFile, setModifyFtpFile] = useState<ModifyElement<FtpEntryType>[]>([]);
-    const [lastComponent, setLastComponent] = useState<StorageType>("local");
+    const [ftpSelectionDir, setFtpSelectionDir] = useState<string>(" ");
     const [dirSelected, setDirSelected] = useState<boolean>(false);
-    const [refresh, setRefresh] = useState<boolean>(false);
-    const [resetTitle, setResetTitle] = useState<boolean>(false);
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
     const [user, setUser] = useState<AuthUser | null>(null);
@@ -143,20 +141,16 @@ export default function AppContextProvider(props: PropsWithChildren) {
         setFtpDirectory,
         localDirectory,
         setLocalDirectory,
-        onCopy,
-        setOnCopy,
+        fileAction,
+        setFileAction,
         modifyLocalFile,
         setModifyLocalFile,
         modifyFtpFile,
         setModifyFtpFile,
-        lastComponent,
-        setLastComponent,
+        ftpSelectionDir,
+        setFtpSelectionDir,
         dirSelected,
         setDirSelected,
-        refresh,
-        setRefresh,
-        resetTitle,
-        setResetTitle,
         isLoading,
         setIsLoading
     };

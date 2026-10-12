@@ -1,4 +1,6 @@
 import { ToastAndroid } from "react-native";
+import type { AppContextType } from "../types/context";
+import type { StorageType } from "../types/navigation";
 import type { MessageDuration } from "../types/ui";
 
 /**
@@ -16,14 +18,43 @@ export default class UiUtils {
     }
 
     /**
-     * Shows the empty selection message
+     * Cancels the active file action and restores its source
      *
-     * @param setVisible Updates menu visibility
+     * @param context Application context
+     * @returns Storage containing the original selection
      */
-    static noElements(setVisible?: (visible: boolean) => void): void {
-        UiUtils.showMessage("No hay elementos seleccionados");
-        if (setVisible) {
-            setVisible(false);
+    static cancelFileAction(context: AppContextType): StorageType {
+        const target = UiUtils.getFileActionSource(context);
+        if (target === "local") {
+            const roots = [context.internalRoot, ...context.externalRoots];
+            const root = roots.find((it) => it.id === context.lastLocalRootId) ?? context.internalRoot;
+            context.setActiveStorageRoot(root);
+            context.setLocalDirectory((current) => ({ ...current, dir: context.lastLocalDir }));
+        } else {
+            context.setFtpDirectory((current) => ({ ...current, dir: context.ftpSelectionDir }));
         }
+
+        UiUtils.completeFileAction(context);
+        return target;
+    }
+
+    /**
+     * Clears the active file action and its selection
+     *
+     * @param context Application context
+     */
+    static completeFileAction(context: AppContextType): void {
+        context.setFileAction(null);
+        context.setModifyFtpFile([]);
+        context.setModifyLocalFile([]);
+        context.setDirSelected((current) => !current);
+    }
+
+    private static getFileActionSource(context: AppContextType): StorageType {
+        if (context.fileAction === "download" || (context.fileAction === "move" && context.modifyFtpFile.length > 0)) {
+            return "ftp";
+        }
+
+        return "local";
     }
 }

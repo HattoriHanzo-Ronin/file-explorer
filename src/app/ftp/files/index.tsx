@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect } from "react";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { View } from "react-native";
 import { useAppContext } from "../../../components/app-context-provider";
-import type { DirContent } from "../../../types/files";
+import type { FtpEntry } from "../../../types/ftp";
 import type { FtpStackParamList } from "../../../types/navigation";
 import Background from "../../../components/background";
 import Breadcrumb from "../../../components/breadcrumb";
@@ -14,26 +14,27 @@ import React from "react";
 import UiUtils from "../../../utils/ui-utils";
 import useBackButtonEvent from "../../../hooks/use-back-button-event";
 import ApiUtils from "../../../utils/api-utils";
+import { explorer } from "../../style";
 
 export default function Files() {
     const context = useAppContext();
-    const { executeApiRequest, isAuthenticated, lastFtpDir, isLoading, refresh, transferManager } = context;
+    const { executeApiRequest, ftpDirectory, isAuthenticated, isLoading, setFtpDirectory } = context;
+    const { content: ftpDirContent, dir: lastFtpDir } = ftpDirectory;
     const navigation = useNavigation<NativeStackNavigationProp<FtpStackParamList>>();
-    const [dirContent, setDirContent] = useState<DirContent[]>([]);
     const safeBottom = useSafeAreaInsets().bottom;
+    const contentStyle = [explorer.content, { paddingBottom: safeBottom }];
 
-    const loadDirectory = useCallback(async () => {
-        const result = await executeApiRequest((apiUtils) => apiUtils.getDirectory(lastFtpDir));
-        if (result.success) {
-            setDirContent(
-                result.data.map((entry) => ({
-                    name: entry.name,
-                    type: entry.type.toLocaleLowerCase() as DirContent["type"],
-                    supportsThumbnail: entry.supportsThumbnail
-                }))
-            );
-        }
-    }, [executeApiRequest, lastFtpDir]);
+    const loadDirectory = useCallback(
+        async (isBackground = false) => {
+            const result = await executeApiRequest((apiUtils) => apiUtils.getDirectory(lastFtpDir), { isBackground });
+            if (result.success) {
+                setFtpDirectory((current) =>
+                    current.dir === lastFtpDir ? { ...current, content: result.data } : current
+                );
+            }
+        },
+        [executeApiRequest, lastFtpDir, setFtpDirectory]
+    );
 
     useBackButtonEvent("ftp");
 
@@ -45,7 +46,7 @@ export default function Files() {
 
     useEffect(() => {
         void loadDirectory();
-    }, [loadDirectory, refresh]);
+    }, [loadDirectory]);
 
     useFocusEffect(
         useCallback(() => {
@@ -66,7 +67,7 @@ export default function Files() {
                             { isBackground: true }
                         );
                         if (result.success && result.data.version !== ApiUtils.FTP_VERSION) {
-                            void loadDirectory();
+                            void loadDirectory(true);
                         }
                     }
                 })();
@@ -75,57 +76,48 @@ export default function Files() {
         }, [executeApiRequest, isLoading, lastFtpDir, loadDirectory])
     );
 
-    useEffect(
-        () =>
-            transferManager.addChangeListener(({ direction, status, remoteDir, result }) => {
-                const currentRemoteDir = lastFtpDir === " " ? "" : lastFtpDir;
-                if (direction === "UPLOAD" && status === "COMPLETED" && remoteDir === currentRemoteDir && result) {
-                    ApiUtils.FTP_VERSION = result.version;
-                    setDirContent(
-                        result.entries.map((entry) => ({
-                            name: entry.name,
-                            type: entry.type.toLocaleLowerCase() as DirContent["type"]
-                        }))
-                    );
-                }
-            }),
-        [lastFtpDir, transferManager]
-    );
-
-    if (context.isLoading) {
+    if (isLoading) {
         return <Loading />;
     }
 
     return (
         <Background>
             <Breadcrumb
-                paths={context.lastFtpDir}
-                onPress={(dir: string) => {
-                    if (context.modifyFtpFile.length > 0) {
+                paths={lastFtpDir}
+                onPress={(path: string) => {
+                    if (context.modifyFtpFile.length > 0 && !context.fileAction) {
                         context.setModifyFtpFile([]);
                     }
 
-                    context.setLastFtpDir(dir);
+                    setFtpDirectory((current) => ({ ...current, dir: path }));
                 }}
             />
-            <View style={{ flex: 1, padding: "2%", paddingBottom: safeBottom }}>
+            <View style={contentStyle}>
                 <List
-                    dirContent={dirContent}
-                    doubleTapAction={async (name: string, type: DirContent["type"]) => {
-                        if (type === "dir") {
-                            context.setLastFtpDir(context.lastFtpDir === " " ? name : `${context.lastFtpDir}/${name}`);
+                    dirContent={ftpDirContent}
+                    doubleTapAction={(name: string, type: FtpEntry["type"]) => {
+                        if (type === "DIR") {
+                            setFtpDirectory((current) => ({
+                                ...current,
+                                dir: current.dir === " " ? name : `${current.dir}/${name}`
+                            }));
                         }
 
-                        if (context.modifyFtpFile.length > 0) {
+                        if (context.modifyFtpFile.length > 0 && !context.fileAction) {
                             context.setModifyFtpFile([]);
                         }
                     }}
-                    longPressAction={(name: string, type: DirContent["type"]) => {
+                    longPressAction={(name: string, type: FtpEntry["type"]) => {
                         if (context.modifyLocalFile.length > 0) {
-                            return UiUtils.showMessage("Acción no disponible");
+                            UiUtils.showMessage("Acción no disponible");
+                            return;
                         }
 
                         if (!context.modifyFtpFile.some((item) => item.path === name)) {
+                            if (context.modifyFtpFile.length === 0) {
+                                context.setFtpSelectionDir(lastFtpDir);
+                            }
+
                             context.setModifyFtpFile([...context.modifyFtpFile, { path: name, type }]);
                         } else {
                             context.setModifyFtpFile(context.modifyFtpFile.filter((item) => item.path !== name));
