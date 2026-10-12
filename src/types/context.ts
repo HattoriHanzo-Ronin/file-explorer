@@ -7,6 +7,7 @@ import type { FtpDirectoryState, FtpEntryType } from "./ftp";
 import type AuthUtils from "../utils/auth-utils";
 import type LoadingUtils from "../utils/loading-utils";
 import type { Permission } from "../utils/permissions/permission";
+import type { ThumbnailGenerator } from "../utils/thumbnails/thumbnail-generator";
 import type { StorageType } from "./navigation";
 
 export interface AppContextType {
@@ -17,6 +18,7 @@ export interface AppContextType {
     executeLocalRequest: ExecuteLocalRequest;
     loadingUtils: LoadingUtils;
     permission: Permission;
+    thumbnailGenerator: ThumbnailGenerator;
     internalRoot: StorageRoot;
     externalRoots: StorageRoot[];
     activeStorageRoot: StorageRoot;

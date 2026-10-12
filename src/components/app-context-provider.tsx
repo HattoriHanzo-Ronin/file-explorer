@@ -18,6 +18,7 @@ import LocalFileManager from "../utils/operations/local-file-manager";
 import RemoteFileManager from "../utils/operations/remote-file-manager";
 import ReactNativePermission from "../utils/permissions/impl/react-native-permission";
 import KeychainStorage from "../utils/storage/impl/keychain-storage";
+import NativeThumbnailGenerator from "../utils/thumbnails/impl/native-thumbnail-generator";
 import UiUtils from "../utils/ui-utils";
 
 const AppContext = createContext<AppContextType>({} as AppContextType);
@@ -47,6 +48,7 @@ export default function AppContextProvider(props: PropsWithChildren) {
 
     const [storage] = useState<KeychainStorage>(() => new KeychainStorage());
     const [permission] = useState<ReactNativePermission>(() => new ReactNativePermission());
+    const [thumbnailGenerator] = useState<NativeThumbnailGenerator>(() => new NativeThumbnailGenerator());
     const [localFileOperation] = useState<NativeLocalFileOperation>(() => new NativeLocalFileOperation());
     const [remoteFileOperation] = useState<NativeRemoteFileOperation>(() => new NativeRemoteFileOperation());
     const [localFileManager] = useState<LocalFileManager>(
@@ -130,6 +132,7 @@ export default function AppContextProvider(props: PropsWithChildren) {
         executeLocalRequest,
         loadingUtils,
         permission,
+        thumbnailGenerator,
         internalRoot: fileSystem.internalRoot,
         externalRoots,
         activeStorageRoot,
