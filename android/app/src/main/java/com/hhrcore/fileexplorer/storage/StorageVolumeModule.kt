@@ -1,4 +1,4 @@
-package com.hhrcore.fileexplorer
+package com.hhrcore.fileexplorer.storage
 
 import android.content.BroadcastReceiver
 import android.content.Context

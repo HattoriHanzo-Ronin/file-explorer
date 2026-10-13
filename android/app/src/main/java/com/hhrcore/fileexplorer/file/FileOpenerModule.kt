@@ -1,4 +1,4 @@
-package com.hhrcore.fileexplorer
+package com.hhrcore.fileexplorer.file
 
 import android.content.Intent
 import android.net.Uri

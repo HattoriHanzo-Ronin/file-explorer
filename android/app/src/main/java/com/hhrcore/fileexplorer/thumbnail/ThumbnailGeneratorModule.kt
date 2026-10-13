@@ -1,4 +1,4 @@
-package com.hhrcore.fileexplorer
+package com.hhrcore.fileexplorer.thumbnail
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory

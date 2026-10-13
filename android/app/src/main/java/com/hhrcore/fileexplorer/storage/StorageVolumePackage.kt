@@ -1,4 +1,4 @@
-package com.hhrcore.fileexplorer
+package com.hhrcore.fileexplorer.storage
 
 import com.facebook.react.ReactPackage
 import com.facebook.react.bridge.NativeModule
