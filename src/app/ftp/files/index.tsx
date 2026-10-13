@@ -14,7 +14,7 @@ import React from "react";
 import UiUtils from "../../../utils/ui-utils";
 import useBackButtonEvent from "../../../hooks/use-back-button-event";
 import ApiUtils from "../../../utils/api-utils";
-import { explorer } from "../../style";
+import { common } from "../../../styles/style";
 
 export default function Files() {
     const context = useAppContext();
@@ -22,7 +22,7 @@ export default function Files() {
     const { content: ftpDirContent, dir: lastFtpDir } = ftpDirectory;
     const navigation = useNavigation<NativeStackNavigationProp<FtpStackParamList>>();
     const safeBottom = useSafeAreaInsets().bottom;
-    const contentStyle = [explorer.content, { paddingBottom: safeBottom }];
+    const contentStyle = [common.explorerContent, { paddingBottom: safeBottom }];
 
     const loadDirectory = useCallback(
         async (isBackground = false) => {

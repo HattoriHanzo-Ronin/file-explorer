@@ -13,7 +13,7 @@ import UiUtils from "../../utils/ui-utils";
 import useBackButtonEvent from "../../hooks/use-back-button-event";
 import FileUtils from "../../utils/file-utils";
 import LocalFileManager from "../../utils/operations/local-file-manager";
-import { explorer } from "../style";
+import { common } from "../../styles/style";
 
 export default function Local() {
     const context = useAppContext();
@@ -21,7 +21,7 @@ export default function Local() {
     const { content: dirContent, dir: lastLocalDir } = localDirectory;
     const isFocused = useIsFocused();
     const safeBottom = useSafeAreaInsets().bottom;
-    const contentStyle = [explorer.content, { paddingBottom: safeBottom }];
+    const contentStyle = [common.explorerContent, { paddingBottom: safeBottom }];
     const loadDirectory = useCallback(
         async (dir: string, isBackground = false) => {
             const result = await executeLocalRequest(

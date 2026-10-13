@@ -11,8 +11,10 @@ import React from "react";
 import { PaperProvider } from "react-native-paper";
 import AppContextProvider, { useAppContext } from "./src/components/app-context-provider";
 import type { StorageType } from "./src/types/navigation";
+import { app } from "./src/styles/app/style";
+import { common } from "./src/styles/style";
 import Background from "./src/components/background";
-import { Pressable, StyleSheet, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Local from "./src/app/local/index";
 import Ftp from "./src/app/ftp/index";
@@ -30,7 +32,7 @@ const AppDrawerContent = (props: DrawerContentComponentProps) => {
 
     return (
         <Background type="nav">
-            <View style={styles.drawerContent}>
+            <View style={app.drawerContent}>
                 <DrawerContentScrollView>
                     <DrawerItem
                         label={internalRoot.name}
@@ -62,7 +64,7 @@ const AppDrawerContent = (props: DrawerContentComponentProps) => {
                     />
                 </DrawerContentScrollView>
                 {storage === "ftp" && context.isAuthenticated && (
-                    <View style={styles.drawerFooter}>
+                    <View style={app.drawerFooter}>
                         <DrawerItem
                             label="Cerrar sesión"
                             icon={LogoutIcon}
@@ -85,12 +87,12 @@ const AppHeader = (props: DrawerHeaderProps) => {
 
     return (
         <Background type="tab">
-            <View style={{ flexDirection: "row", padding: "2%", paddingTop: safeArea }}>
+            <View style={[app.header, { paddingTop: safeArea }]}>
                 <Pressable onPress={() => navigation.dispatch(DrawerActions.toggleDrawer())}>
                     <Ionicons name="menu" size={30} />
                 </Pressable>
                 {(storage !== "ftp" || isAuthenticated) && (
-                    <View style={{ alignSelf: "flex-end", marginLeft: "85%" }}>
+                    <View style={app.overflow}>
                         <OverflowMenu storage={storage} />
                     </View>
                 )}
@@ -107,7 +109,7 @@ export default function App() {
     return (
         <AppContextProvider>
             <PaperProvider>
-                <GestureHandlerRootView style={{ flex: 1 }}>
+                <GestureHandlerRootView style={common.root}>
                     <NavigationContainer>
                         <Drawer.Navigator
                             drawerContent={(props) => <AppDrawerContent {...props} />}
@@ -122,12 +124,3 @@ export default function App() {
         </AppContextProvider>
     );
 }
-
-const styles = StyleSheet.create({
-    drawerContent: {
-        flex: 1
-    },
-    drawerFooter: {
-        alignSelf: "flex-end"
-    }
-});
