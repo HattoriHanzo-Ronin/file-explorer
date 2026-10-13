@@ -6,7 +6,11 @@ import com.facebook.react.ReactApplication
 import com.facebook.react.ReactHost
 import com.facebook.react.ReactNativeApplicationEntryPoint.loadReactNative
 import com.facebook.react.defaults.DefaultReactHost.getDefaultReactHost
+import com.hhrcore.fileexplorer.file.FileOpenerPackage
 import com.hhrcore.fileexplorer.operation.FileOperationPackage
+import com.hhrcore.fileexplorer.permission.StoragePermissionPackage
+import com.hhrcore.fileexplorer.storage.StorageVolumePackage
+import com.hhrcore.fileexplorer.thumbnail.ThumbnailGeneratorPackage
 
 class MainApplication : Application(), ReactApplication {
 

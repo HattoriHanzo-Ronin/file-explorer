@@ -1,14 +1,14 @@
-package com.hhrcore.fileexplorer
+package com.hhrcore.fileexplorer.file
 
 import com.facebook.react.ReactPackage
 import com.facebook.react.bridge.NativeModule
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.uimanager.ViewManager
 
-class ThumbnailGeneratorPackage : ReactPackage {
+class FileOpenerPackage : ReactPackage {
 
     override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> {
-        return listOf(ThumbnailGeneratorModule(reactContext))
+        return listOf(FileOpenerModule(reactContext))
     }
 
     override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> {

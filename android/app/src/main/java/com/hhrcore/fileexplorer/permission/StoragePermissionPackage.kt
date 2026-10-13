@@ -1,14 +1,13 @@
-package com.hhrcore.fileexplorer
+package com.hhrcore.fileexplorer.permission
 
 import com.facebook.react.ReactPackage
 import com.facebook.react.bridge.NativeModule
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.uimanager.ViewManager
 
-class FileOpenerPackage : ReactPackage {
-
+class StoragePermissionPackage : ReactPackage {
     override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> {
-        return listOf(FileOpenerModule(reactContext))
+        return listOf(StoragePermissionModule(reactContext))
     }
 
     override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> {
