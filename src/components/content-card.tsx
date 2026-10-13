@@ -6,7 +6,7 @@ import {
     useLongPressGesture,
     useTapGesture
 } from "react-native-gesture-handler";
-import { contentCard } from "../app/style";
+import { contentCard } from "../styles/components/style";
 import { useAppContext } from "./app-context-provider";
 import type { ContentCardProps } from "../types/components";
 import type { FileIcons } from "../types/files";

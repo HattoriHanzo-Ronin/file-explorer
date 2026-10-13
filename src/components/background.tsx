@@ -1,6 +1,6 @@
 import { PropsWithChildren } from "react";
 import { ImageBackground } from "react-native";
-import { background } from "../app/style";
+import { background } from "../styles/components/style";
 
 export default function Background(props: PropsWithChildren<{ type?: "nav" | "tab" }>) {
     const { type, children } = props;

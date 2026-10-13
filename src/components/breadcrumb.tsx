@@ -1,7 +1,7 @@
 import { useRef, type ComponentRef } from "react";
 import { View, Pressable, Text } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
-import { breadcrumb } from "../app/style";
+import { breadcrumb } from "../styles/components/style";
 import { Ionicons } from "@react-native-vector-icons/ionicons";
 
 export default function Breadcrumb(props: { paths: string; onPress: (path: string) => void }) {

@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { StyleSheet, View } from "react-native";
+import { View } from "react-native";
 import { Button, Text, TextInput } from "react-native-paper";
 import Background from "../../../components/background";
 import { useAppContext } from "../../../components/app-context-provider";
 import type { ApiValidationErrorDetail } from "../../../types/api-error";
 import type { FtpStackParamList } from "../../../types/navigation";
+import { login } from "../../../styles/app/ftp/style";
 
 function getValidationMessage(details: ApiValidationErrorDetail[] | undefined, field: string): string {
     return details?.find((detail) => detail.field === field)?.message ?? "";
@@ -47,7 +48,7 @@ export default function Login() {
 
     return (
         <Background>
-            <View style={styles.container}>
+            <View style={login.container}>
                 <Text variant="headlineMedium">File Explorer</Text>
                 <TextInput
                     label="Usuario"
@@ -57,7 +58,7 @@ export default function Login() {
                     autoCorrect={false}
                     error={Boolean(usernameError)}
                 />
-                {usernameError ? <Text style={styles.error}>{usernameError}</Text> : null}
+                {usernameError ? <Text style={login.error}>{usernameError}</Text> : null}
                 <TextInput
                     label="Contraseña"
                     value={password}
@@ -65,7 +66,7 @@ export default function Login() {
                     secureTextEntry
                     error={Boolean(passwordError)}
                 />
-                {passwordError ? <Text style={styles.error}>{passwordError}</Text> : null}
+                {passwordError ? <Text style={login.error}>{passwordError}</Text> : null}
                 <Button mode="contained" onPress={handleLogin}>
                     Iniciar sesión
                 </Button>
@@ -73,15 +74,3 @@ export default function Login() {
         </Background>
     );
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        justifyContent: "center",
-        gap: 12,
-        padding: 32
-    },
-    error: {
-        color: "#ba1a1a"
-    }
-});

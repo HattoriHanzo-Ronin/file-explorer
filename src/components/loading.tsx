@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Animated, View } from "react-native";
 import Background from "./background";
-import { loading } from "../app/style";
+import { loading } from "../styles/components/style";
 
 export default function Loading() {
     const scale = useRef(new Animated.Value(1)).current;
