@@ -6,7 +6,6 @@ import { useAppContext } from "../../../components/app-context-provider";
 import type { FtpEntry } from "../../../types/ftp";
 import type { FtpStackParamList } from "../../../types/navigation";
 import Background from "../../../components/background";
-import Breadcrumb from "../../../components/breadcrumb";
 import List from "../../../components/list";
 import Loading from "../../../components/loading";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -82,16 +81,6 @@ export default function Files() {
 
     return (
         <Background>
-            <Breadcrumb
-                paths={lastFtpDir}
-                onPress={(path: string) => {
-                    if (context.modifyFtpFile.length > 0 && !context.fileAction) {
-                        context.setModifyFtpFile([]);
-                    }
-
-                    setFtpDirectory((current) => ({ ...current, dir: path }));
-                }}
-            />
             <View style={contentStyle}>
                 <List
                     dirContent={ftpDirContent}

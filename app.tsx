@@ -6,20 +6,20 @@ import {
     DrawerContentComponentProps,
     DrawerHeaderProps
 } from "@react-navigation/drawer";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
-import React from "react";
+import { GestureHandlerRootView, ScrollView } from "react-native-gesture-handler";
+import React, { useRef, type ComponentRef } from "react";
 import { PaperProvider } from "react-native-paper";
 import AppContextProvider, { useAppContext } from "./src/components/app-context-provider";
 import type { StorageType } from "./src/types/navigation";
 import { app } from "./src/styles/app/style";
 import { common } from "./src/styles/style";
 import Background from "./src/components/background";
-import { Pressable, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Local from "./src/app/local/index";
 import Ftp from "./src/app/ftp/index";
 import { Ionicons } from "@react-native-vector-icons/ionicons";
-import OverflowMenu from "./src/components/overflow-menu";
+import OverflowMenu from "./src/app/_overflow-menu";
 import { handleNavigationPress, openStorage } from "./src/utils/navigation-utils";
 
 const Drawer = createDrawerNavigator();
@@ -84,20 +84,88 @@ const AppHeader = (props: DrawerHeaderProps) => {
     const { isAuthenticated } = useAppContext();
     const storage = route.name as StorageType;
     const safeArea = useSafeAreaInsets().top;
+    const showActions = storage !== "ftp" || isAuthenticated;
 
     return (
-        <Background type="tab">
-            <View style={[app.header, { paddingTop: safeArea }]}>
-                <Pressable onPress={() => navigation.dispatch(DrawerActions.toggleDrawer())}>
-                    <Ionicons name="menu" size={30} />
-                </Pressable>
-                {(storage !== "ftp" || isAuthenticated) && (
-                    <View style={app.overflow}>
+        <View style={[app.header, { paddingTop: safeArea }]}>
+            <Pressable style={app.headerButton} onPress={() => navigation.dispatch(DrawerActions.toggleDrawer())}>
+                <Ionicons name="menu" size={30} />
+            </Pressable>
+            {showActions && (
+                <>
+                    <AppBreadcrumb storage={storage} />
+                    <View style={app.headerButton}>
                         <OverflowMenu storage={storage} />
                     </View>
-                )}
-            </View>
-        </Background>
+                </>
+            )}
+        </View>
+    );
+};
+
+const AppBreadcrumb = (props: { storage: StorageType }) => {
+    const {
+        fileAction,
+        ftpDirectory,
+        localDirectory,
+        modifyFtpFile,
+        modifyLocalFile,
+        setFtpDirectory,
+        setLocalDirectory,
+        setModifyFtpFile,
+        setModifyLocalFile
+    } = useAppContext();
+    const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
+    const currentDir = props.storage === "ftp" ? ftpDirectory.dir : localDirectory.dir;
+    const paths = currentDir.split("/");
+
+    function navigateTo(dir: string) {
+        if (props.storage === "ftp") {
+            if (modifyFtpFile.length > 0 && !fileAction) {
+                setModifyFtpFile([]);
+            }
+
+            setFtpDirectory((current) => ({ ...current, dir }));
+            return;
+        }
+
+        if (modifyLocalFile.length > 0 && !fileAction) {
+            setModifyLocalFile([]);
+        }
+
+        setLocalDirectory((current) => ({ ...current, dir }));
+    }
+
+    return (
+        <View style={app.breadcrumb}>
+            <ScrollView
+                ref={scrollRef}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
+            >
+                <Pressable onPress={() => navigateTo(" ")}>
+                    <Text>/ {currentDir !== " " && <Ionicons name="chevron-forward-outline" size={10} />} </Text>
+                </Pressable>
+                {paths.map((path, index) => (
+                    <Pressable
+                        key={`${path}${index}`}
+                        onPress={() => {
+                            if (index !== paths.length - 1) {
+                                navigateTo(paths.slice(0, index + 1).join("/"));
+                            }
+                        }}
+                    >
+                        <Text>
+                            {path}{" "}
+                            {path !== " " && index !== paths.length - 1 && (
+                                <Ionicons name="chevron-forward-outline" size={10} />
+                            )}{" "}
+                        </Text>
+                    </Pressable>
+                ))}
+            </ScrollView>
+        </View>
     );
 };
 

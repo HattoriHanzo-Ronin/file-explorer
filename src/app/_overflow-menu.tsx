@@ -2,8 +2,8 @@ import { useState } from "react";
 import { useNavigation } from "@react-navigation/native";
 import { Menu } from "react-native-paper";
 import { Ionicons } from "@react-native-vector-icons/ionicons";
-import { useAppContext } from "./app-context-provider";
-import AppDialog from "./dialog";
+import { useAppContext } from "../components/app-context-provider";
+import AppDialog from "../components/dialog";
 import UiUtils from "../utils/ui-utils";
 import type {
     CopyMoveActionProps,
