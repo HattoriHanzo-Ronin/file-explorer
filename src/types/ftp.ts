@@ -23,6 +23,12 @@ export interface ThumbnailRequest extends FtpDirectoryRequest {
 
 export type ThumbnailStatus = "AVAILABLE" | "UNAVAILABLE" | "PENDING";
 
+export interface ThumbnailResponse {
+    status: ThumbnailStatus;
+    uri?: string;
+    headers?: Record<string, string>;
+}
+
 export type FtpVersionRequest = FtpDirectoryRequest;
 
 export interface FtpVersionResponse {

@@ -1,4 +1,5 @@
 export const STORAGE_KEYS = {
     accessToken: "accessToken",
-    refreshToken: "refreshToken"
+    refreshToken: "refreshToken",
+    viewMode: "viewMode"
 } as const;

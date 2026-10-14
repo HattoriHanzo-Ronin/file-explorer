@@ -1,5 +1,6 @@
-import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useRef, useState } from "react";
 import Config from "react-native-config";
+import { STORAGE_KEYS } from "../constants/storage";
 import { STORAGE_ROOT_NAMES } from "../constants/storage-roots";
 import type { ApiRequestOptions, ApiResponse } from "../types/api-response";
 import type { AuthUser } from "../types/auth";
@@ -7,7 +8,7 @@ import type { AppContextType } from "../types/context";
 import type { LocalDirectoryState, LocalModifyElement, ModifyElement, StorageRoot } from "../types/files";
 import type { FtpDirectoryState, FtpEntryType } from "../types/ftp";
 import type { LocalRequestOptions, LocalResponse } from "../types/local-response";
-import type { FileActionMode } from "../types/ui";
+import type { FileActionMode, ListViewMode } from "../types/ui";
 import ApiUtils from "../utils/api-utils";
 import AuthUtils from "../utils/auth-utils";
 import RNFSFileSystem from "../utils/files/impl/rnfs-file-system";
@@ -18,6 +19,7 @@ import LocalFileManager from "../utils/operations/local-file-manager";
 import RemoteFileManager from "../utils/operations/remote-file-manager";
 import ReactNativePermission from "../utils/permissions/impl/react-native-permission";
 import KeychainStorage from "../utils/storage/impl/keychain-storage";
+import AsyncStorageStorage from "../utils/storage/impl/async-storage";
 import NativeThumbnailGenerator from "../utils/thumbnails/impl/native-thumbnail-generator";
 import UiUtils from "../utils/ui-utils";
 
@@ -40,11 +42,14 @@ export default function AppContextProvider(props: PropsWithChildren) {
     const [modifyFtpFile, setModifyFtpFile] = useState<ModifyElement<FtpEntryType>[]>([]);
     const [ftpSelectionDir, setFtpSelectionDir] = useState<string>(" ");
     const [dirSelected, setDirSelected] = useState<boolean>(false);
+    const [viewMode, setViewMode] = useState<ListViewMode>("LARGE_ICONS");
+    const viewModeRestored = useRef<boolean>(false);
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
     const [user, setUser] = useState<AuthUser | null>(null);
 
     const [storage] = useState<KeychainStorage>(() => new KeychainStorage());
+    const [preferenceStorage] = useState<AsyncStorageStorage>(() => new AsyncStorageStorage());
     const [permission] = useState<ReactNativePermission>(() => new ReactNativePermission());
     const [thumbnailGenerator] = useState<NativeThumbnailGenerator>(() => new NativeThumbnailGenerator());
     const [localFileOperation] = useState<NativeLocalFileOperation>(() => new NativeLocalFileOperation());
@@ -55,7 +60,7 @@ export default function AppContextProvider(props: PropsWithChildren) {
     const [remoteFileManager] = useState<RemoteFileManager>(
         () => new RemoteFileManager(fileSystem, remoteFileOperation, storage, permission, API_URL)
     );
-    const [apiUtils] = useState<ApiUtils>(() => new ApiUtils(remoteFileManager, API_URL));
+    const [apiUtils] = useState<ApiUtils>(() => new ApiUtils(remoteFileManager, storage, API_URL));
     const [authUtils] = useState<AuthUtils>(() => new AuthUtils(setIsAuthenticated, setUser, apiUtils, storage));
     const [loadingUtils] = useState<LoadingUtils>(() => new LoadingUtils(setIsLoading));
 
@@ -151,9 +156,36 @@ export default function AppContextProvider(props: PropsWithChildren) {
         setFtpSelectionDir,
         dirSelected,
         setDirSelected,
+        viewMode,
+        setViewMode,
         isLoading,
         setIsLoading
     };
+
+    useEffect(() => {
+        let mounted = true;
+        void preferenceStorage.get<ListViewMode>(STORAGE_KEYS.viewMode).then(
+            (storedViewMode) => {
+                if (mounted && isListViewMode(storedViewMode)) {
+                    setViewMode(storedViewMode);
+                }
+
+                viewModeRestored.current = true;
+            },
+            () => {
+                viewModeRestored.current = true;
+            }
+        );
+        return () => {
+            mounted = false;
+        };
+    }, [preferenceStorage]);
+
+    useEffect(() => {
+        if (viewModeRestored.current) {
+            void preferenceStorage.set(STORAGE_KEYS.viewMode, viewMode);
+        }
+    }, [preferenceStorage, viewMode]);
 
     useEffect(() => {
         const updateExternalRoots = (roots: StorageRoot[]) => setExternalRoots(roots);
@@ -189,4 +221,8 @@ export default function AppContextProvider(props: PropsWithChildren) {
     }, [apiUtils, localFileManager]);
 
     return <AppContext.Provider value={contextValues}>{children}</AppContext.Provider>;
+}
+
+function isListViewMode(value: unknown): value is ListViewMode {
+    return value === "LIST" || value === "SMALL_ICONS" || value === "LARGE_ICONS";
 }
