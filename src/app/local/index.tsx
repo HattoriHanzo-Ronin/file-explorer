@@ -5,7 +5,6 @@ import Background from "../../components/background";
 import { useAppContext } from "../../components/app-context-provider";
 import type { DirContent } from "../../types/files";
 import List from "../../components/list";
-import Breadcrumb from "../../components/breadcrumb";
 import Loading from "../../components/loading";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import React from "react";
@@ -96,16 +95,6 @@ export default function Local() {
 
     return (
         <Background>
-            <Breadcrumb
-                paths={lastLocalDir}
-                onPress={(dir: string) => {
-                    if (context.modifyLocalFile.length > 0 && !context.fileAction) {
-                        context.setModifyLocalFile([]);
-                    }
-
-                    setLocalDirectory((current) => ({ ...current, dir }));
-                }}
-            />
             <View style={contentStyle}>
                 <List
                     dirContent={dirContent.map((it) => ({
