@@ -17,5 +17,14 @@ export const app = StyleSheet.create({
         borderRadius: 10
     },
     drawerContent: { flex: 1 },
-    drawerFooter: { alignSelf: "flex-end" }
+    drawerFooter: { width: "100%" },
+    drawerUser: {
+        width: "100%",
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "flex-end",
+        paddingHorizontal: 16,
+        paddingVertical: 14
+    },
+    drawerUserName: { marginRight: 6, color: "black", fontSize: 18 }
 });

@@ -13,6 +13,7 @@ import type { FileActionMode, ListViewMode } from "./ui";
 export interface AppContextType {
     isAuthenticated: boolean;
     user: AuthUser | null;
+    setUser: Dispatch<SetStateAction<AuthUser | null>>;
     authUtils: AuthUtils;
     executeApiRequest: ExecuteApiRequest;
     executeLocalRequest: ExecuteLocalRequest;

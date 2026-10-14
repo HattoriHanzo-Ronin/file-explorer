@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useNavigation } from "@react-navigation/native";
-import { Menu } from "react-native-paper";
 import { Ionicons } from "@react-native-vector-icons/ionicons";
+import { Modal, Pressable, Text, TextInput, View } from "react-native";
 import { useAppContext } from "../components/app-context-provider";
 import AppDialog from "../components/dialog";
 import UiUtils from "../utils/ui-utils";
+import { cancelFileAction } from "../utils/navigation-utils";
 import type {
     CopyMoveActionProps,
     CopyMoveMenuProps,
@@ -14,6 +15,21 @@ import type {
 } from "../types/menu";
 import type { DrawerNavigation } from "../types/navigation";
 import type { FileActionMode } from "../types/ui";
+import { overflowMenu } from "../styles/components/style";
+
+interface MenuItemProps {
+    title: string;
+    onPress: () => void;
+}
+
+function MenuItem(props: MenuItemProps) {
+    const { onPress, title } = props;
+    return (
+        <Pressable style={overflowMenu.item} onPress={onPress}>
+            <Text style={overflowMenu.itemText}>{title}</Text>
+        </Pressable>
+    );
+}
 
 export const UploadMenu = (props: TransferMenuProps) => {
     const { navigation, setVisible } = props;
@@ -44,7 +60,7 @@ export const UploadMenu = (props: TransferMenuProps) => {
     }
 
     return (
-        <Menu.Item
+        <MenuItem
             title="Subir"
             onPress={() => {
                 if (fileAction !== "upload") {
@@ -92,7 +108,7 @@ export const DownloadMenu = (props: TransferMenuProps) => {
     }
 
     return (
-        <Menu.Item
+        <MenuItem
             title="Descargar"
             onPress={() => {
                 setVisible(false);
@@ -194,7 +210,7 @@ const CopyMoveAction = (props: CopyMoveActionProps) => {
         UiUtils.completeFileAction(context);
     }
 
-    return <Menu.Item title={fileAction === action ? "Pegar" : copy ? "Copiar" : "Mover"} onPress={handlePress} />;
+    return <MenuItem title={fileAction === action ? "Pegar" : copy ? "Copiar" : "Mover"} onPress={handlePress} />;
 };
 export const MakeDir = (props: MenuProps) => {
     const { setVisible, storage } = props;
@@ -214,8 +230,9 @@ export const MakeDir = (props: MenuProps) => {
 
     async function createDirectory() {
         if (storage === "ftp") {
-            const result = await executeApiRequest((apiUtils) =>
-                apiUtils.createDirectory({ name, dir: ftpDirectory.dir })
+            const result = await executeApiRequest(
+                (apiUtils) => apiUtils.createDirectory({ name, dir: ftpDirectory.dir }),
+                { isBackground: true }
             );
             if (result.success) {
                 setFtpDirectory((current) =>
@@ -223,8 +240,9 @@ export const MakeDir = (props: MenuProps) => {
                 );
             }
         } else {
-            await executeLocalRequest((localFileManager) =>
-                localFileManager.createDirectory(activeStorageRoot.path, localDirectory.dir, name)
+            await executeLocalRequest(
+                (localFileManager) => localFileManager.createDirectory(activeStorageRoot.path, localDirectory.dir, name),
+                { isBackground: true }
             );
         }
 
@@ -234,25 +252,25 @@ export const MakeDir = (props: MenuProps) => {
 
     return (
         <>
-            <Menu.Item
+            <MenuItem
                 title="Crear carpeta"
                 onPress={() => {
                     setShow(true);
                 }}
             />
             <AppDialog
-                description="Escriba el nombre de la carpeta:"
-                name={name}
-                setName={setName}
-                show={show}
+                title="Nueva carpeta"
+                visible={show}
                 onCancel={() => {
                     setShow(false);
                     setVisible(false);
                     setDirSelected(!dirSelected);
                     setModifyLocalFile([]);
                 }}
-                onOk={createDirectory}
-            />
+                onAccept={createDirectory}
+            >
+                <TextInput autoFocus style={overflowMenu.input} value={name} onChangeText={setName} />
+            </AppDialog>
         </>
     );
 };
@@ -273,7 +291,7 @@ export const RenameMenu = (props: MenuProps) => {
     const [name, setName] = useState<string>("");
     return (
         <>
-            <Menu.Item
+            <MenuItem
                 title="Renombrar"
                 onPress={() => {
                     const selected = storage === "ftp" ? modifyFtpFile : toRename;
@@ -282,10 +300,8 @@ export const RenameMenu = (props: MenuProps) => {
                 }}
             />
             <AppDialog
-                description="Escriba el nuevo nombre:"
-                name={name}
-                setName={setName}
-                show={show}
+                title="Nuevo nombre"
+                visible={show}
                 onCancel={() => {
                     setShow(false);
                     setVisible(false);
@@ -293,15 +309,16 @@ export const RenameMenu = (props: MenuProps) => {
                     setModifyFtpFile([]);
                     setModifyLocalFile([]);
                 }}
-                onOk={async () => {
+                onAccept={async () => {
                     if (storage === "ftp") {
                         const entry = modifyFtpFile[0];
-                        const result = await executeApiRequest((apiUtils) =>
-                            apiUtils.renameEntry({
+                        const result = await executeApiRequest(
+                            (apiUtils) => apiUtils.renameEntry({
                                 dir: ftpDirectory.dir,
                                 entry: { name: entry.path, type: entry.type },
                                 newName: name
-                            })
+                            }),
+                            { isBackground: true }
                         );
                         if (result.success) {
                             setFtpDirectory((current) =>
@@ -309,7 +326,9 @@ export const RenameMenu = (props: MenuProps) => {
                             );
                         }
                     } else {
-                        await executeLocalRequest((localFileManager) => localFileManager.rename(toRename[0], name));
+                        await executeLocalRequest((localFileManager) => localFileManager.rename(toRename[0], name), {
+                            isBackground: true
+                        });
                     }
 
                     setShow(false);
@@ -318,7 +337,9 @@ export const RenameMenu = (props: MenuProps) => {
                     setModifyFtpFile([]);
                     setModifyLocalFile([]);
                 }}
-            />
+            >
+                <TextInput autoFocus style={overflowMenu.input} value={name} onChangeText={setName} />
+            </AppDialog>
         </>
     );
 };
@@ -375,7 +396,7 @@ export const RemoveMenu = (props: MenuProps) => {
         setVisible(false);
     }
 
-    return <Menu.Item onPress={removeEntries} title="Eliminar" />;
+    return <MenuItem onPress={removeEntries} title="Eliminar" />;
 };
 
 function getMenuVisibility(
@@ -440,7 +461,8 @@ function getDefaultMenuVisibility(storage: "local" | "ftp", localSelectionCount:
 export default function OverflowMenu(props: OverflowMenuProps) {
     const { storage } = props;
     const [visible, setVisible] = useState<boolean>(false);
-    const { fileAction, modifyFtpFile, modifyLocalFile } = useAppContext();
+    const context = useAppContext();
+    const { fileAction, modifyFtpFile, modifyLocalFile } = context;
     const navigation = useNavigation<DrawerNavigation>();
     const { showCopy, showDownload, showMakeDir, showMove, showRemove, showRename, showUpload } = getMenuVisibility(
         storage,
@@ -449,19 +471,30 @@ export default function OverflowMenu(props: OverflowMenuProps) {
         fileAction
     );
 
+    function handleCancelFileAction() {
+        cancelFileAction(context, navigation);
+        setVisible(false);
+    }
+
     return (
-        <Menu
-            visible={visible}
-            onDismiss={() => setVisible(false)}
-            anchor={<Ionicons name="ellipsis-vertical-outline" size={25} onPress={() => setVisible(true)} />}
-        >
-            {showUpload && <UploadMenu navigation={navigation} setVisible={setVisible} storage={storage} />}
-            {showDownload && <DownloadMenu navigation={navigation} setVisible={setVisible} storage={storage} />}
-            {showCopy && <CopyMenu setVisible={setVisible} storage={storage} />}
-            {showMove && <MoveMenu setVisible={setVisible} storage={storage} />}
-            {showMakeDir && <MakeDir setVisible={setVisible} storage={storage} />}
-            {showRename && <RenameMenu setVisible={setVisible} storage={storage} />}
-            {showRemove && <RemoveMenu setVisible={setVisible} storage={storage} />}
-        </Menu>
+        <>
+            <Ionicons name="ellipsis-vertical-outline" size={25} onPress={() => setVisible(true)} />
+            <Modal animationType="fade" transparent visible={visible} onRequestClose={() => setVisible(false)}>
+                <Pressable style={overflowMenu.backdrop} onPress={() => setVisible(false)}>
+                    <View style={overflowMenu.container} onStartShouldSetResponder={() => true}>
+                        {showUpload && <UploadMenu navigation={navigation} setVisible={setVisible} storage={storage} />}
+                        {showDownload && (
+                            <DownloadMenu navigation={navigation} setVisible={setVisible} storage={storage} />
+                        )}
+                        {showCopy && <CopyMenu setVisible={setVisible} storage={storage} />}
+                        {showMove && <MoveMenu setVisible={setVisible} storage={storage} />}
+                        {showMakeDir && <MakeDir setVisible={setVisible} storage={storage} />}
+                        {showRename && <RenameMenu setVisible={setVisible} storage={storage} />}
+                        {showRemove && <RemoveMenu setVisible={setVisible} storage={storage} />}
+                        {fileAction && <MenuItem title="Cancelar" onPress={handleCancelFileAction} />}
+                    </View>
+                </Pressable>
+            </Modal>
+        </>
     );
 }

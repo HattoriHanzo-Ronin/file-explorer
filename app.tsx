@@ -20,6 +20,7 @@ import Local from "./src/app/local/index";
 import Ftp from "./src/app/ftp/index";
 import { Ionicons } from "@react-native-vector-icons/ionicons";
 import OverflowMenu from "./src/app/_overflow-menu";
+import UserMenu from "./src/app/_user-menu";
 import { handleNavigationPress, openStorage } from "./src/utils/navigation-utils";
 
 const Drawer = createDrawerNavigator();
@@ -27,7 +28,9 @@ const Drawer = createDrawerNavigator();
 const AppDrawerContent = (props: DrawerContentComponentProps) => {
     const { navigation, state } = props;
     const context = useAppContext();
-    const { externalRoots, internalRoot } = context;
+    const { externalRoots, internalRoot, user } = context;
+    const [userMenuVisible, setUserMenuVisible] = React.useState<boolean>(false);
+    const safeArea = useSafeAreaInsets();
     const storage = state.routes[state.index].name as StorageType;
 
     return (
@@ -64,17 +67,17 @@ const AppDrawerContent = (props: DrawerContentComponentProps) => {
                     />
                 </DrawerContentScrollView>
                 {storage === "ftp" && context.isAuthenticated && (
-                    <View style={app.drawerFooter}>
-                        <DrawerItem
-                            label="Cerrar sesión"
-                            icon={LogoutIcon}
-                            onPress={async () => {
-                                navigation.closeDrawer();
-                                await context.loadingUtils.run(() => context.authUtils.logout());
-                            }}
-                        />
+                    <View style={[app.drawerFooter, { paddingBottom: safeArea.bottom }]}>
+                        <Pressable
+                            style={app.drawerUser}
+                            onPress={() => setUserMenuVisible(true)}
+                        >
+                            <Text style={app.drawerUserName}>{user?.username ?? "Usuario"}</Text>
+                            <Ionicons name="open-outline" color="black" size={24} />
+                        </Pressable>
                     </View>
                 )}
+                <UserMenu visible={userMenuVisible} onClose={() => setUserMenuVisible(false)} />
             </View>
         </Background>
     );
@@ -169,10 +172,6 @@ const AppBreadcrumb = (props: { storage: StorageType }) => {
     );
 };
 
-const LogoutIcon = (props: { color: string; size: number }) => {
-    const { color, size } = props;
-    return <Ionicons name="log-out-outline" color={color} size={size} />;
-};
 export default function App() {
     return (
         <AppContextProvider>

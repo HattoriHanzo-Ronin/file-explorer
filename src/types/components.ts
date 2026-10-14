@@ -1,3 +1,4 @@
+import type { PropsWithChildren } from "react";
 import type { ImageSourcePropType } from "react-native";
 import type { DirContent } from "./files";
 import type { FtpEntry } from "./ftp";
@@ -36,11 +37,9 @@ export interface ThumbnailState {
     source: ImageSourcePropType | null;
 }
 
-export interface DialogProps {
-    show: boolean;
+export type DialogProps = PropsWithChildren<{
+    visible: boolean;
+    title?: string;
     onCancel: () => void;
-    onOk: () => void;
-    description: string;
-    name: string;
-    setName: (name: string) => void;
-}
+    onAccept: () => void;
+}>;

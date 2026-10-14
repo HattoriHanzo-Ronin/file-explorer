@@ -57,6 +57,56 @@ export const fileList = StyleSheet.create({
     viewButton: { padding: 6, borderRadius: 6 },
     activeViewButton: { backgroundColor: "rgba(255, 255, 255, 0.36)" }
 });
+export const appDialog = StyleSheet.create({
+    backdrop: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0, 0, 0, 0.5)" },
+    container: { width: "82%", padding: 20, borderRadius: 8, backgroundColor: "white" },
+    description: { marginBottom: 12, color: "black", fontSize: 16 },
+    message: { color: "black", fontSize: 18 },
+    input: { borderBottomWidth: 1, borderBottomColor: "#777", color: "black", paddingVertical: 6 },
+    actions: { flexDirection: "row", justifyContent: "flex-end", gap: 8, marginTop: 18 },
+    button: { paddingHorizontal: 10, paddingVertical: 8 },
+    cancelText: { color: "#a65d66", fontWeight: "600" },
+    acceptText: { color: "#1976d2", fontWeight: "600" }
+});
+export const overflowMenu = StyleSheet.create({
+    backdrop: { flex: 1, alignItems: "flex-end", paddingTop: 52, paddingRight: 8, backgroundColor: "transparent" },
+    container: { minWidth: 190, paddingVertical: 6, borderRadius: 8, backgroundColor: "white", elevation: 6 },
+    item: { paddingHorizontal: 18, paddingVertical: 12 },
+    itemText: { color: "black", fontSize: 16 },
+    input: { borderBottomWidth: 1, borderBottomColor: "#777", color: "black", paddingVertical: 6 }
+});
+export const userMenu = StyleSheet.create({
+    backdrop: {
+        flex: 1,
+        justifyContent: "flex-end",
+        alignItems: "flex-start",
+        backgroundColor: "rgba(0, 0, 0, 0.25)"
+    },
+    container: {
+        width: "80%",
+        marginBottom: 72,
+        marginLeft: 8,
+        padding: 16,
+        borderRadius: 12,
+        backgroundColor: "white",
+        elevation: 6
+    },
+    username: { marginBottom: 12, color: "black", fontSize: 18, fontWeight: "600" },
+    option: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12 },
+    optionText: { color: "black", fontSize: 16 },
+    logoutText: { color: "#a65d66", fontSize: 16 },
+    cancelText: { color: "#a65d66", fontSize: 16 },
+    acceptText: { color: "black", fontSize: 16 },
+    dialogBackdrop: { flex: 1, justifyContent: "center", padding: 24, backgroundColor: "rgba(0, 0, 0, 0.45)" },
+    dialog: { padding: 16, borderRadius: 12, backgroundColor: "white", gap: 12 },
+    dialogTitle: { color: "black", fontSize: 18, fontWeight: "600" },
+    input: { padding: 10, borderWidth: 1, borderColor: "#999", borderRadius: 6, color: "black" },
+    fieldLabel: { color: "black", fontSize: 16 },
+    lineInput: { borderBottomWidth: 1, borderBottomColor: "#777", color: "black", paddingVertical: 6 },
+    passwordField: { flexDirection: "row", alignItems: "center", borderBottomWidth: 1, borderBottomColor: "#999" },
+    passwordInput: { flex: 1, color: "black" },
+    dialogActions: { flexDirection: "row", justifyContent: "flex-end", gap: 20 }
+});
 export const background = StyleSheet.create({
     parent: { flex: 1 },
     navImage: { opacity: 0.1 },

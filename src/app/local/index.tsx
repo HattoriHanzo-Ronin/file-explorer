@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from "react";
 import { useIsFocused } from "@react-navigation/native";
-import { Alert, View } from "react-native";
+import { Text, View } from "react-native";
 import Background from "../../components/background";
 import { useAppContext } from "../../components/app-context-provider";
 import type { DirContent } from "../../types/files";
@@ -13,6 +13,8 @@ import useBackButtonEvent from "../../hooks/use-back-button-event";
 import FileUtils from "../../utils/file-utils";
 import LocalFileManager from "../../utils/operations/local-file-manager";
 import { common } from "../../styles/style";
+import AppDialog from "../../components/dialog";
+import { appDialog } from "../../styles/components/style";
 
 export default function Local() {
     const context = useAppContext();
@@ -28,6 +30,7 @@ export default function Local() {
         setModifyLocalFile
     } = context;
     const { content: dirContent, dir: lastLocalDir } = localDirectory;
+    const [archiveName, setArchiveName] = React.useState<string | null>(null);
     const isFocused = useIsFocused();
     const safeBottom = useSafeAreaInsets().bottom;
     const contentStyle = [common.explorerContent, { paddingBottom: safeBottom }];
@@ -55,10 +58,7 @@ export default function Local() {
 
     async function openFile(name: string) {
         if (FileUtils.getTypeFile(name) === "compress") {
-            Alert.alert("", "Se va a descomprimir el archivo", [
-                { text: "Cancel", style: "cancel" },
-                { text: "Ok", onPress: () => void extractArchive(name) }
-            ]);
+            setArchiveName(name);
             return;
         }
 
@@ -196,6 +196,19 @@ export default function Local() {
                     }}
                 />
             </View>
+            <AppDialog
+                visible={archiveName !== null}
+                onCancel={() => setArchiveName(null)}
+                onAccept={() => {
+                    if (archiveName) {
+                        void extractArchive(archiveName);
+                    }
+
+                    setArchiveName(null);
+                }}
+            >
+                <Text style={appDialog.message}>Se va a descomprimir el archivo</Text>
+            </AppDialog>
         </Background>
     );
 }
