@@ -50,6 +50,15 @@ export default class UiUtils {
         context.setDirSelected((current) => !current);
     }
 
+    static isActionBlocked(condition: boolean, message: string): boolean {
+        if (condition) {
+            UiUtils.showMessage(message);
+            return true;
+        }
+
+        return false;
+    }
+
     private static getFileActionSource(context: AppContextType): StorageType {
         if (context.fileAction === "download" || (context.fileAction === "move" && context.modifyFtpFile.length > 0)) {
             return "ftp";

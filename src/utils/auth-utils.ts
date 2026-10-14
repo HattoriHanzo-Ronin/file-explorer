@@ -19,6 +19,7 @@ export default class AuthUtils {
     private setUser: (user: AuthUser | null) => void;
     private apiUtils: ApiUtils;
     private storage: Storage;
+    private restoreSessionRequest: Promise<boolean> | null = null;
 
     constructor(
         setIsAuthenticated: (isAuthenticated: boolean) => void,
@@ -56,14 +57,13 @@ export default class AuthUtils {
      * @returns Whether the session was restored
      */
     async restoreSession(): Promise<boolean> {
-        const refreshToken = await this.storage.get<RefreshTokenRequest>(STORAGE_KEYS.refreshToken);
-        if (!refreshToken) {
-            await this.clearSession();
-            return false;
+        if (!this.restoreSessionRequest) {
+            this.restoreSessionRequest = this.restoreCurrentSession().finally(() => {
+                this.restoreSessionRequest = null;
+            });
         }
 
-        const { success } = await this.authenticate(() => this.apiUtils.refreshToken(refreshToken));
-        return success;
+        return this.restoreSessionRequest;
     }
 
     /**
@@ -83,6 +83,17 @@ export default class AuthUtils {
         }
 
         UiUtils.showMessage(result.error.message);
+    }
+
+    private async restoreCurrentSession(): Promise<boolean> {
+        const refreshToken = await this.storage.get<RefreshTokenRequest>(STORAGE_KEYS.refreshToken);
+        if (!refreshToken) {
+            await this.clearSession();
+            return false;
+        }
+
+        const { success } = await this.authenticate(() => this.apiUtils.refreshToken(refreshToken));
+        return success;
     }
 
     /**

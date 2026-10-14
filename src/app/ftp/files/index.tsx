@@ -10,14 +10,23 @@ import List from "../../../components/list";
 import Loading from "../../../components/loading";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import React from "react";
-import UiUtils from "../../../utils/ui-utils";
 import useBackButtonEvent from "../../../hooks/use-back-button-event";
 import ApiUtils from "../../../utils/api-utils";
 import { common } from "../../../styles/style";
 
 export default function Files() {
     const context = useAppContext();
-    const { executeApiRequest, ftpDirectory, isAuthenticated, isLoading, setFtpDirectory } = context;
+    const {
+        executeApiRequest,
+        ftpDirectory,
+        isAuthenticated,
+        isLoading,
+        setFtpDirectory,
+        setModifyFtpFile,
+        setFtpSelectionDir,
+        fileAction,
+        modifyFtpFile
+    } = context;
     const { content: ftpDirContent, dir: lastFtpDir } = ftpDirectory;
     const navigation = useNavigation<NativeStackNavigationProp<FtpStackParamList>>();
     const safeBottom = useSafeAreaInsets().bottom;
@@ -83,6 +92,7 @@ export default function Files() {
         <Background>
             <View style={contentStyle}>
                 <List
+                    storage="ftp"
                     dirContent={ftpDirContent}
                     doubleTapAction={(name: string, type: FtpEntry["type"]) => {
                         if (type === "DIR") {
@@ -92,30 +102,40 @@ export default function Files() {
                             }));
                         }
 
-                        if (context.modifyFtpFile.length > 0 && !context.fileAction) {
-                            context.setModifyFtpFile([]);
+                        if (modifyFtpFile.length > 0 && !fileAction) {
+                            setModifyFtpFile([]);
                         }
                     }}
                     longPressAction={(name: string, type: FtpEntry["type"]) => {
-                        if (context.modifyLocalFile.length > 0) {
-                            UiUtils.showMessage("Acción no disponible");
+                        if (!modifyFtpFile.some(({ path }) => path === name)) {
+                            if (modifyFtpFile.length === 0) {
+                                setFtpSelectionDir(lastFtpDir);
+                            }
+
+                            setModifyFtpFile([...modifyFtpFile, { path: name, type }]);
+                        } else {
+                            setModifyFtpFile(modifyFtpFile.filter(({ path }) => path !== name));
+                        }
+                    }}
+                    oneTapAction={(name: string, type: FtpEntry["type"]) => {
+                        if (modifyFtpFile.length > 0) {
+                            setModifyFtpFile((current) => {
+                                const hasName = current.find(({ path }) => path === name);
+                                return hasName
+                                    ? current.filter(({ path }) => path !== name)
+                                    : [...current, { path: name, type }];
+                            });
+                        }
+                    }}
+                    selectAll={(selectAll) => {
+                        if (!selectAll) {
+                            setModifyFtpFile([]);
                             return;
                         }
 
-                        if (!context.modifyFtpFile.some((item) => item.path === name)) {
-                            if (context.modifyFtpFile.length === 0) {
-                                context.setFtpSelectionDir(lastFtpDir);
-                            }
-
-                            context.setModifyFtpFile([...context.modifyFtpFile, { path: name, type }]);
-                        } else {
-                            context.setModifyFtpFile(context.modifyFtpFile.filter((item) => item.path !== name));
-                        }
+                        setFtpSelectionDir(lastFtpDir);
+                        setModifyFtpFile(ftpDirectory.content.map(({ name, type }) => ({ path: name, type })));
                     }}
-                    oneTapAction={(name: string) =>
-                        context.setModifyFtpFile(context.modifyFtpFile.filter((item) => item.path !== name))
-                    }
-                    notSelectable={context.modifyLocalFile.length > 0}
                 />
             </View>
         </Background>

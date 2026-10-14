@@ -16,7 +16,17 @@ import { common } from "../../styles/style";
 
 export default function Local() {
     const context = useAppContext();
-    const { activeStorageRoot, executeLocalRequest, isLoading, localDirectory, setLocalDirectory } = context;
+    const {
+        activeStorageRoot,
+        executeLocalRequest,
+        fileAction,
+        isLoading,
+        localDirectory,
+        modifyLocalFile,
+        permission,
+        setLocalDirectory,
+        setModifyLocalFile
+    } = context;
     const { content: dirContent, dir: lastLocalDir } = localDirectory;
     const isFocused = useIsFocused();
     const safeBottom = useSafeAreaInsets().bottom;
@@ -61,10 +71,8 @@ export default function Local() {
     useBackButtonEvent("local");
 
     useEffect(() => {
-        void (async () => {
-            await context.permission.ensureStoragePermission();
-        })();
-    }, [context.permission]);
+        void permission.ensureStoragePermission();
+    }, [permission]);
 
     useEffect(() => {
         if (isFocused) {
@@ -89,7 +97,7 @@ export default function Local() {
         return () => clearInterval(interval);
     }, [activeStorageRoot.path, executeLocalRequest, isLoading, lastLocalDir, loadDirectory]);
 
-    if (context.isLoading) {
+    if (isLoading) {
         return <Loading />;
     }
 
@@ -97,9 +105,11 @@ export default function Local() {
         <Background>
             <View style={contentStyle}>
                 <List
-                    dirContent={dirContent.map((it) => ({
-                        name: it.name,
-                        type: it.isDirectory() ? "dir" : "file"
+                    storage="local"
+                    dirContent={dirContent.map(({ isDirectory, name, path }) => ({
+                        name,
+                        type: isDirectory() ? "dir" : "file",
+                        thumbnailPath: path
                     }))}
                     doubleTapAction={(name: string, type: DirContent["type"]) => {
                         const path = `${lastLocalDir}/${name}`;
@@ -115,52 +125,75 @@ export default function Local() {
                             }));
                         }
 
-                        if (context.modifyLocalFile.length > 0 && !context.fileAction) {
-                            context.setModifyLocalFile([]);
+                        if (modifyLocalFile.length > 0 && !fileAction) {
+                            setModifyLocalFile([]);
                         }
                     }}
                     longPressAction={(name: string, type: DirContent["type"]) => {
                         const path = `${lastLocalDir}/${name}`;
                         const absolutePath = `${activeStorageRoot.path}/${lastLocalDir === " " ? name : path}`;
-                        if (path.includes("Android/data") || path.includes("Android/obb")) {
-                            UiUtils.showMessage(`No se puede seleccionar la carpeta ${name}`);
+                        const isRestrictedDir = UiUtils.isActionBlocked(
+                            path.includes("Android/data") || path.includes("Android/obb"),
+                            `No se puede seleccionar la carpeta ${name}`
+                        );
+                        if (isRestrictedDir) {
                             return;
                         }
 
-                        if (context.modifyFtpFile.length > 0) {
-                            UiUtils.showMessage("Acción no disponible");
-                            return;
-                        }
-
-                        if (!context.modifyLocalFile.some((item) => item.path === absolutePath)) {
-                            context.setModifyLocalFile([
-                                ...context.modifyLocalFile,
+                        if (!modifyLocalFile.some(({ path: entryPath }) => entryPath === absolutePath)) {
+                            setModifyLocalFile([
+                                ...modifyLocalFile,
                                 {
                                     path: absolutePath,
                                     type
                                 }
                             ]);
                         } else {
-                            context.setModifyLocalFile(
-                                context.modifyLocalFile.filter((item) => item.path !== absolutePath)
+                            setModifyLocalFile(
+                                modifyLocalFile.filter(({ path: entryPath }) => entryPath !== absolutePath)
                             );
                         }
                     }}
                     oneTapAction={async (name: string, type: DirContent["type"]) => {
-                        const size = context.modifyLocalFile.length;
+                        const size = modifyLocalFile.length;
+                        const relativePath = `${lastLocalDir}/${name}`;
+                        const absolutePath = `${activeStorageRoot.path}/${lastLocalDir === " " ? name : relativePath}`;
                         if (type === "file" && size === 0) {
                             await openFile(name);
                         }
 
-                        context.setModifyLocalFile(
-                            context.modifyLocalFile.filter(
-                                (item) =>
-                                    item.path !==
-                                    `${activeStorageRoot.path}/${lastLocalDir === " " ? name : `${lastLocalDir}/${name}`}`
-                            )
+                        if (size > 0) {
+                            const isRestrictedDir = UiUtils.isActionBlocked(
+                                relativePath.includes("Android/data") || relativePath.includes("Android/obb"),
+                                `No se puede seleccionar la carpeta ${name}`
+                            );
+                            if (isRestrictedDir) {
+                                return;
+                            }
+
+                            setModifyLocalFile((current) => {
+                                const hasName = current.some(({ path }) => path === absolutePath);
+                                return hasName
+                                    ? current.filter(({ path }) => path !== absolutePath)
+                                    : [...current, { path: absolutePath, type }];
+                            });
+                        }
+                    }}
+                    selectAll={(selectAll) => {
+                        if (!selectAll) {
+                            setModifyLocalFile([]);
+                            return;
+                        }
+
+                        setModifyLocalFile(
+                            dirContent
+                                .filter(({ name }) => lastLocalDir !== "Android" || (name !== "data" && name !== "obb"))
+                                .map(({ path, isDirectory }) => ({
+                                    path,
+                                    type: isDirectory() ? "dir" : "file"
+                                }))
                         );
                     }}
-                    notSelectable={context.modifyFtpFile.length > 0}
                 />
             </View>
         </Background>

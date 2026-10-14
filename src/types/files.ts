@@ -10,6 +10,7 @@ export type FileIcons = Record<FileIconType, ImageSourcePropType>;
 export interface DirContent {
     name: string;
     type: EntryType;
+    thumbnailPath?: string;
 }
 
 export interface FileSystemEntry {

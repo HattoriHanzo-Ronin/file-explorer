@@ -8,7 +8,7 @@ import type AuthUtils from "../utils/auth-utils";
 import type LoadingUtils from "../utils/loading-utils";
 import type { Permission } from "../utils/permissions/permission";
 import type { ThumbnailGenerator } from "../utils/thumbnails/thumbnail-generator";
-import type { FileActionMode } from "./ui";
+import type { FileActionMode, ListViewMode } from "./ui";
 
 export interface AppContextType {
     isAuthenticated: boolean;
@@ -39,6 +39,8 @@ export interface AppContextType {
     setFtpSelectionDir: Dispatch<SetStateAction<string>>;
     dirSelected: boolean;
     setDirSelected: Dispatch<SetStateAction<boolean>>;
+    viewMode: ListViewMode;
+    setViewMode: Dispatch<SetStateAction<ListViewMode>>;
     isLoading: boolean;
     setIsLoading: Dispatch<SetStateAction<boolean>>;
 }

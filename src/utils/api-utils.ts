@@ -22,11 +22,14 @@ import type {
     RenameEntryRequest,
     RenameEntryResponse,
     ThumbnailRequest,
+    ThumbnailResponse,
     ThumbnailStatus
 } from "../types/ftp";
 import type { UpdatePasswordRequest, UpdateUsernameRequest, UpdateUsernameResponse } from "../types/users";
 import type { FileOperationSelection, RemoteDirectoryOperationResult } from "../types/file-operations";
 import type RemoteFileManager from "./operations/remote-file-manager";
+import type { Storage } from "./storage/storage";
+import { STORAGE_KEYS } from "../constants/storage";
 
 /**
  * API client
@@ -36,10 +39,12 @@ import type RemoteFileManager from "./operations/remote-file-manager";
 export default class ApiUtils {
     static FTP_VERSION = "";
     private readonly remoteFileManager: RemoteFileManager;
+    private readonly storage: Storage;
     private readonly apiUrl: string;
 
-    constructor(remoteFileManager: RemoteFileManager, apiUrl: string) {
+    constructor(remoteFileManager: RemoteFileManager, storage: Storage, apiUrl: string) {
         this.remoteFileManager = remoteFileManager;
+        this.storage = storage;
         this.apiUrl = apiUrl;
     }
 
@@ -219,6 +224,32 @@ export default class ApiUtils {
                 ? "AVAILABLE"
                 : "UNAVAILABLE";
         });
+    }
+
+    /**
+     * Returns the current FTP thumbnail state and authenticated image source
+     *
+     * @param request Thumbnail data
+     * @returns Thumbnail response
+     */
+    async getThumbnail(request: ThumbnailRequest): Promise<ApiResponse<ThumbnailResponse>> {
+        const result = await this.getThumbnailStatus(request);
+        if (!result.success || result.data !== "AVAILABLE") {
+            return result.success ? { success: true, data: { status: result.data } } : result;
+        }
+
+        const accessToken = await this.storage.get<string>(STORAGE_KEYS.accessToken);
+        const { dir, name } = request;
+        const normalizedDir = this.normalizeDir(dir);
+        const query = normalizedDir ? `?dir=${encodeURIComponent(normalizedDir)}` : "";
+        return {
+            success: true,
+            data: {
+                status: "AVAILABLE",
+                uri: `${this.buildUrl(`ftp/thumbnail/${encodeURIComponent(name)}`)}${query}`,
+                headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined
+            }
+        };
     }
 
     /**
