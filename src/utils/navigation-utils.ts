@@ -1,6 +1,6 @@
 import type { AppContextType } from "../types/context";
 import type { StorageRoot } from "../types/files";
-import type { StorageType } from "../types/navigation";
+import type { DrawerNavigation, StorageType } from "../types/navigation";
 import UiUtils from "./ui-utils";
 
 type StorageContext = Pick<AppContextType, "activeStorageRoot" | "setActiveStorageRoot" | "setLocalDirectory">;
@@ -25,6 +25,21 @@ export function handleNavigationPress(context: AppContextType, storage: StorageT
     if (!context.fileAction && context.ftpDirectory.dir !== " ") {
         context.setFtpDirectory((current) => ({ ...current, dir: " " }));
     }
+}
+
+export function cancelFileAction(context: AppContextType, navigation: DrawerNavigation): boolean {
+    if (!context.fileAction) {
+        return false;
+    }
+
+    const target = UiUtils.cancelFileAction(context);
+    if (target === "ftp") {
+        navigation.navigate("ftp", { screen: "files" });
+    } else {
+        navigation.navigate("local");
+    }
+
+    return true;
 }
 
 function getFileActionTarget(context: AppContextType): StorageType {

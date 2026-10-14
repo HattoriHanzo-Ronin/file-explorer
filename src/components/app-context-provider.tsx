@@ -130,6 +130,7 @@ export default function AppContextProvider(props: PropsWithChildren) {
     const contextValues: AppContextType = {
         isAuthenticated,
         user,
+        setUser,
         authUtils,
         executeApiRequest,
         executeLocalRequest,

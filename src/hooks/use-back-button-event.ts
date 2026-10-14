@@ -6,21 +6,7 @@ import { BACK_EXIT_INTERVAL, BACK_EXIT_MESSAGE } from "../constants/ui";
 import type { AppContextType } from "../types/context";
 import type { DrawerNavigation, StorageType } from "../types/navigation";
 import UiUtils from "../utils/ui-utils";
-
-function cancelFileAction(context: AppContextType, navigation: DrawerNavigation): boolean {
-    if (!context.fileAction) {
-        return false;
-    }
-
-    const target = UiUtils.cancelFileAction(context);
-    if (target === "ftp") {
-        navigation.navigate("ftp", { screen: "files" });
-    } else {
-        navigation.navigate("local");
-    }
-
-    return true;
-}
+import { cancelFileAction } from "../utils/navigation-utils";
 
 function clearSelection(context: AppContextType, storage: StorageType): boolean {
     const selection = storage === "local" ? context.modifyLocalFile : context.modifyFtpFile;
