@@ -4,6 +4,7 @@ import { Ionicons } from "@react-native-vector-icons/ionicons";
 import { Modal, Pressable, Text, TextInput, View } from "react-native";
 import { useAppContext } from "../components/app-context-provider";
 import AppDialog from "../components/dialog";
+import FileUtils from "../utils/file-utils";
 import UiUtils from "../utils/ui-utils";
 import { cancelFileAction } from "../utils/navigation-utils";
 import type {
@@ -14,7 +15,8 @@ import type {
     TransferMenuProps
 } from "../types/menu";
 import type { DrawerNavigation } from "../types/navigation";
-import type { FileActionMode } from "../types/ui";
+import type { FileActionMode, ValidationErrors } from "../types/ui";
+import type { CreateDirectoryRequest, RenameEntryRequest } from "../types/ftp";
 import { overflowMenu } from "../styles/components/style";
 
 interface MenuItemProps {
@@ -227,21 +229,35 @@ export const MakeDir = (props: MenuProps) => {
     } = useAppContext();
     const [show, setShow] = useState<boolean>(false);
     const [name, setName] = useState<string>("");
+    const [validationErrors, setValidationErrors] = useState<ValidationErrors<CreateDirectoryRequest>>({});
 
     async function createDirectory() {
+        const normalizedName = name.trim();
+        if (storage === "local") {
+            const validationMessage = FileUtils.validateName(normalizedName);
+            if (validationMessage) {
+                setValidationErrors({ name: [`- ${validationMessage}`] });
+                return;
+            }
+        }
+
         if (storage === "ftp") {
             const result = await executeApiRequest(
-                (apiUtils) => apiUtils.createDirectory({ name, dir: ftpDirectory.dir }),
+                (apiUtils) => apiUtils.createDirectory({ name: normalizedName, dir: ftpDirectory.dir }),
                 { isBackground: true }
             );
-            if (result.success) {
-                setFtpDirectory((current) =>
-                    current.dir === ftpDirectory.dir ? { ...current, content: result.data } : current
-                );
+            if (!result.success) {
+                setValidationErrors(UiUtils.mapValidationErrors<CreateDirectoryRequest>(result.error.details ?? []));
+                return;
             }
+
+            setFtpDirectory((current) =>
+                current.dir === ftpDirectory.dir ? { ...current, content: result.data } : current
+            );
         } else {
             await executeLocalRequest(
-                (localFileManager) => localFileManager.createDirectory(activeStorageRoot.path, localDirectory.dir, name),
+                (localFileManager) =>
+                    localFileManager.createDirectory(activeStorageRoot.path, localDirectory.dir, normalizedName),
                 { isBackground: true }
             );
         }
@@ -262,6 +278,7 @@ export const MakeDir = (props: MenuProps) => {
                 title="Nueva carpeta"
                 visible={show}
                 onCancel={() => {
+                    setValidationErrors({});
                     setShow(false);
                     setVisible(false);
                     setDirSelected(!dirSelected);
@@ -269,7 +286,18 @@ export const MakeDir = (props: MenuProps) => {
                 }}
                 onAccept={createDirectory}
             >
-                <TextInput autoFocus style={overflowMenu.input} value={name} onChangeText={setName} />
+                <TextInput
+                    autoFocus
+                    style={overflowMenu.input}
+                    value={name}
+                    onChangeText={(value) => {
+                        setName(value);
+                        setValidationErrors({});
+                    }}
+                />
+                {validationErrors.name?.map((message) => (
+                    <Text key={message} style={overflowMenu.validationError}>{message}</Text>
+                ))}
             </AppDialog>
         </>
     );
@@ -289,6 +317,7 @@ export const RenameMenu = (props: MenuProps) => {
     } = useAppContext();
     const [show, setShow] = useState<boolean>(false);
     const [name, setName] = useState<string>("");
+    const [validationErrors, setValidationErrors] = useState<ValidationErrors<RenameEntryRequest>>({});
     return (
         <>
             <MenuItem
@@ -296,6 +325,7 @@ export const RenameMenu = (props: MenuProps) => {
                 onPress={() => {
                     const selected = storage === "ftp" ? modifyFtpFile : toRename;
                     setName(selected[0].path.split("/").pop() ?? "");
+                    setValidationErrors({});
                     setShow(true);
                 }}
             />
@@ -303,6 +333,7 @@ export const RenameMenu = (props: MenuProps) => {
                 title="Nuevo nombre"
                 visible={show}
                 onCancel={() => {
+                    setValidationErrors({});
                     setShow(false);
                     setVisible(false);
                     setDirSelected((current) => !current);
@@ -310,23 +341,41 @@ export const RenameMenu = (props: MenuProps) => {
                     setModifyLocalFile([]);
                 }}
                 onAccept={async () => {
+                    const normalizedName = name.trim();
+                    if (storage === "local") {
+                        const currentName = toRename[0].path.split("/").pop() ?? "";
+                        if (currentName === normalizedName) {
+                            setValidationErrors({ newName: ["- El nuevo nombre debe ser diferente"] });
+                            return;
+                        }
+
+                        const validationMessage = FileUtils.validateName(normalizedName);
+                        if (validationMessage) {
+                            setValidationErrors({ newName: [`- ${validationMessage}`] });
+                            return;
+                        }
+                    }
+
                     if (storage === "ftp") {
                         const entry = modifyFtpFile[0];
                         const result = await executeApiRequest(
                             (apiUtils) => apiUtils.renameEntry({
                                 dir: ftpDirectory.dir,
                                 entry: { name: entry.path, type: entry.type },
-                                newName: name
+                                newName: normalizedName
                             }),
                             { isBackground: true }
                         );
-                        if (result.success) {
-                            setFtpDirectory((current) =>
-                                current.dir === ftpDirectory.dir ? { ...current, content: result.data } : current
-                            );
+                        if (!result.success) {
+                            setValidationErrors(UiUtils.mapValidationErrors<RenameEntryRequest>(result.error.details ?? []));
+                            return;
                         }
+
+                        setFtpDirectory((current) =>
+                            current.dir === ftpDirectory.dir ? { ...current, content: result.data } : current
+                        );
                     } else {
-                        await executeLocalRequest((localFileManager) => localFileManager.rename(toRename[0], name), {
+                        await executeLocalRequest((localFileManager) => localFileManager.rename(toRename[0], normalizedName), {
                             isBackground: true
                         });
                     }
@@ -338,7 +387,18 @@ export const RenameMenu = (props: MenuProps) => {
                     setModifyLocalFile([]);
                 }}
             >
-                <TextInput autoFocus style={overflowMenu.input} value={name} onChangeText={setName} />
+                <TextInput
+                    autoFocus
+                    style={overflowMenu.input}
+                    value={name}
+                    onChangeText={(value) => {
+                        setName(value);
+                        setValidationErrors({});
+                    }}
+                />
+                {validationErrors.newName?.map((message) => (
+                    <Text key={message} style={overflowMenu.validationError}>{message}</Text>
+                ))}
             </AppDialog>
         </>
     );

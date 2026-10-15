@@ -40,6 +40,7 @@ const CODE_EXTENSIONS = [
     "json",
     "xml"
 ];
+const NAME_REGEX = /^[^\p{Cc}/\\]+$/u;
 
 /**
  * Provides local file presentation utilities
@@ -47,6 +48,20 @@ const CODE_EXTENSIONS = [
  * @author HattoriHanzo-Ronin
  */
 export default class FileUtils {
+    /**
+     * Returns a validation message for a local resource name
+     *
+     * @param name Resource name
+     * @returns Validation message or nothing
+     */
+    static validateName(name: string): string | undefined {
+        if (name.trim().length === 0) {
+            return "El nombre no puede estar vacío";
+        }
+
+        return NAME_REGEX.test(name) ? undefined : "El nombre tiene un formato no válido";
+    }
+
     /**
      * Returns a directory content hash
      *

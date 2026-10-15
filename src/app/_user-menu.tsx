@@ -4,21 +4,27 @@ import { useAppContext } from "../components/app-context-provider";
 import { userMenu } from "../styles/components/style";
 import AppDialog from "../components/dialog";
 import Ionicons from "@react-native-vector-icons/ionicons";
+import UiUtils from "../utils/ui-utils";
+import type { UpdatePasswordRequest, UpdateUsernameRequest } from "../types/users";
+import type { ValidationErrors } from "../types/ui";
 
 interface UserMenuProps {
     visible: boolean;
     onClose: () => void;
+    onLogout: () => void;
 }
 
 export default function UserMenu(props: UserMenuProps) {
-    const { onClose, visible } = props;
+    const { onClose, onLogout, visible } = props;
     const { authUtils, executeApiRequest, loadingUtils, setUser, user } = useAppContext();
     const [dialog, setDialog] = React.useState<"username" | "password" | null>(null);
-    const [username, setUsername] = React.useState("");
-    const [currentPassword, setCurrentPassword] = React.useState("");
-    const [newPassword, setNewPassword] = React.useState("");
-    const [showCurrentPassword, setShowCurrentPassword] = React.useState(false);
-    const [showNewPassword, setShowNewPassword] = React.useState(false);
+    const [username, setUsername] = React.useState<string>("");
+    const [currentPassword, setCurrentPassword] = React.useState<string>("");
+    const [newPassword, setNewPassword] = React.useState<string>("");
+    const [showCurrentPassword, setShowCurrentPassword] = React.useState<boolean>(false);
+    const [showNewPassword, setShowNewPassword] = React.useState<boolean>(false);
+    const [usernameErrors, setUsernameErrors] = React.useState<ValidationErrors<UpdateUsernameRequest>>({});
+    const [passwordErrors, setPasswordErrors] = React.useState<ValidationErrors<UpdatePasswordRequest>>({});
 
     function closeDialog() {
         setDialog(null);
@@ -27,10 +33,13 @@ export default function UserMenu(props: UserMenuProps) {
         setNewPassword("");
         setShowCurrentPassword(false);
         setShowNewPassword(false);
+        setUsernameErrors({});
+        setPasswordErrors({});
     }
 
     async function logout() {
         onClose();
+        onLogout();
         await loadingUtils.run(() => authUtils.logout());
     }
 
@@ -43,14 +52,20 @@ export default function UserMenu(props: UserMenuProps) {
             closeDialog();
             return;
         }
+
+        setUsernameErrors(UiUtils.mapValidationErrors<UpdateUsernameRequest>(result.error.details ?? []));
     }
 
     async function savePassword() {
         const result = await executeApiRequest((apiUtils) => apiUtils.updatePassword({ currentPassword, newPassword }));
         if (result.success) {
             closeDialog();
+            onLogout();
             await authUtils.logout();
+            return;
         }
+
+        setPasswordErrors(UiUtils.mapValidationErrors<UpdatePasswordRequest>(result.error.details ?? []));
     }
 
     return (
@@ -77,7 +92,20 @@ export default function UserMenu(props: UserMenuProps) {
                 onAccept={() => void (dialog === "username" ? saveUsername() : savePassword())}
             >
                 {dialog === "username" ? (
-                    <TextInput style={userMenu.lineInput} value={username} onChangeText={setUsername} autoFocus />
+                    <>
+                        <TextInput
+                            style={userMenu.lineInput}
+                            value={username}
+                            onChangeText={(value) => {
+                                setUsername(value);
+                                setUsernameErrors({});
+                            }}
+                            autoFocus
+                        />
+                        {usernameErrors.username?.map((message) => (
+                            <Text key={message} style={userMenu.validationError}>{message}</Text>
+                        ))}
+                    </>
                 ) : (
                     <>
                         <Text style={userMenu.fieldLabel}>Contraseña actual:</Text>
@@ -85,25 +113,37 @@ export default function UserMenu(props: UserMenuProps) {
                             <TextInput
                                 style={userMenu.passwordInput}
                                 value={currentPassword}
-                                onChangeText={setCurrentPassword}
+                                onChangeText={(value) => {
+                                    setCurrentPassword(value);
+                                    setPasswordErrors((current) => ({ ...current, currentPassword: undefined }));
+                                }}
                                 secureTextEntry={!showCurrentPassword}
                             />
                             <Pressable onPress={() => setShowCurrentPassword((current) => !current)}>
                                 <Ionicons name={showCurrentPassword ? "eye-off-outline" : "eye-outline"} size={22} />
                             </Pressable>
                         </View>
+                        {passwordErrors.currentPassword?.map((message) => (
+                            <Text key={message} style={userMenu.validationError}>{message}</Text>
+                        ))}
                         <Text style={userMenu.fieldLabel}>Nueva contraseña:</Text>
                         <View style={userMenu.passwordField}>
                             <TextInput
                                 style={userMenu.passwordInput}
                                 value={newPassword}
-                                onChangeText={setNewPassword}
+                                onChangeText={(value) => {
+                                    setNewPassword(value);
+                                    setPasswordErrors((current) => ({ ...current, newPassword: undefined }));
+                                }}
                                 secureTextEntry={!showNewPassword}
                             />
                             <Pressable onPress={() => setShowNewPassword((current) => !current)}>
                                 <Ionicons name={showNewPassword ? "eye-off-outline" : "eye-outline"} size={22} />
                             </Pressable>
                         </View>
+                        {passwordErrors.newPassword?.map((message) => (
+                            <Text key={message} style={userMenu.validationError}>{message}</Text>
+                        ))}
                     </>
                 )}
             </AppDialog>
