@@ -8,7 +8,6 @@ import {
 } from "@react-navigation/drawer";
 import { GestureHandlerRootView, ScrollView } from "react-native-gesture-handler";
 import React, { useRef, type ComponentRef } from "react";
-import { PaperProvider } from "react-native-paper";
 import AppContextProvider, { useAppContext } from "./src/components/app-context-provider";
 import type { StorageType } from "./src/types/navigation";
 import { appStyles } from "./src/styles/app/style";
@@ -220,41 +219,39 @@ function ThemedApp() {
     const navigationTheme = mode === "dark" ? DarkTheme : DefaultTheme;
     return (
         <AppContextProvider>
-            <PaperProvider>
-                <GestureHandlerRootView style={common.root}>
-                    <View style={common.background}>
-                        <Image
-                            source={require("./assets/images/background.jpg")}
-                            resizeMode="cover"
-                            style={[common.absoluteImage, common.contentBackgroundImage]}
-                        />
-                        <View pointerEvents="none" style={common.backgroundOverlay} />
-                        <StatusBar barStyle={mode === "dark" ? "light-content" : "dark-content"} />
-                        <NavigationContainer
-                            theme={{
-                                ...navigationTheme,
-                                colors: {
-                                    ...navigationTheme.colors,
-                                    background: "transparent",
-                                    card: "transparent",
-                                    text: theme.text
-                                }
+            <GestureHandlerRootView style={common.root}>
+                <View style={common.background}>
+                    <Image
+                        source={require("./assets/images/background.jpg")}
+                        resizeMode="cover"
+                        style={[common.absoluteImage, common.contentBackgroundImage]}
+                    />
+                    <View pointerEvents="none" style={common.backgroundOverlay} />
+                    <StatusBar barStyle={mode === "dark" ? "light-content" : "dark-content"} />
+                    <NavigationContainer
+                        theme={{
+                            ...navigationTheme,
+                            colors: {
+                                ...navigationTheme.colors,
+                                background: "transparent",
+                                card: "transparent",
+                                text: theme.text
+                            }
+                        }}
+                    >
+                        <Drawer.Navigator
+                            drawerContent={(props) => <AppDrawerContent {...props} />}
+                            screenOptions={{
+                                drawerStyle: app.drawer,
+                                header: (props) => <AppHeader {...props} />
                             }}
                         >
-                            <Drawer.Navigator
-                                drawerContent={(props) => <AppDrawerContent {...props} />}
-                                screenOptions={{
-                                    drawerStyle: app.drawer,
-                                    header: (props) => <AppHeader {...props} />
-                                }}
-                            >
-                                <Drawer.Screen name="local" component={Local} />
-                                <Drawer.Screen name="ftp" component={Ftp} />
-                            </Drawer.Navigator>
-                        </NavigationContainer>
-                    </View>
-                </GestureHandlerRootView>
-            </PaperProvider>
+                            <Drawer.Screen name="local" component={Local} />
+                            <Drawer.Screen name="ftp" component={Ftp} />
+                        </Drawer.Navigator>
+                    </NavigationContainer>
+                </View>
+            </GestureHandlerRootView>
         </AppContextProvider>
     );
 }
