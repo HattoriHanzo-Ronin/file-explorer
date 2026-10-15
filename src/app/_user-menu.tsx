@@ -2,6 +2,7 @@ import { Modal, Pressable, Text, TextInput, View } from "react-native";
 import React from "react";
 import { useAppContext } from "../components/app-context-provider";
 import { userMenu } from "../styles/components/style";
+import { useTheme } from "../components/theme-provider";
 import AppDialog from "../components/dialog";
 import Ionicons from "@react-native-vector-icons/ionicons";
 import UiUtils from "../utils/ui-utils";
@@ -16,6 +17,7 @@ interface UserMenuProps {
 
 export default function UserMenu(props: UserMenuProps) {
     const { onClose, onLogout, visible } = props;
+    const { theme } = useTheme();
     const { authUtils, executeApiRequest, loadingUtils, setUser, user } = useAppContext();
     const [dialog, setDialog] = React.useState<"username" | "password" | null>(null);
     const [username, setUsername] = React.useState<string>("");
@@ -72,12 +74,15 @@ export default function UserMenu(props: UserMenuProps) {
         <>
             <Modal animationType="fade" transparent visible={visible} onRequestClose={onClose}>
                 <Pressable style={userMenu.backdrop} onPress={onClose}>
-                    <View style={userMenu.container} onStartShouldSetResponder={() => true}>
+                    <View
+                        style={[userMenu.container, { backgroundColor: theme.surface, borderColor: theme.border }]}
+                        onStartShouldSetResponder={() => true}
+                    >
                         <Pressable style={userMenu.option} onPress={() => setDialog("username")}>
-                            <Text style={userMenu.optionText}>Cambiar nombre de usuario</Text>
+                            <Text style={[userMenu.optionText, { color: theme.text }]}>Cambiar nombre de usuario</Text>
                         </Pressable>
                         <Pressable style={userMenu.option} onPress={() => setDialog("password")}>
-                            <Text style={userMenu.optionText}>Cambiar contraseña</Text>
+                            <Text style={[userMenu.optionText, { color: theme.text }]}>Cambiar contraseña</Text>
                         </Pressable>
                         <Pressable style={userMenu.option} onPress={() => void logout()}>
                             <Text style={userMenu.logoutText}>Cerrar sesión</Text>
@@ -94,7 +99,7 @@ export default function UserMenu(props: UserMenuProps) {
                 {dialog === "username" ? (
                     <>
                         <TextInput
-                            style={userMenu.lineInput}
+                            style={[userMenu.lineInput, { borderBottomColor: theme.border, color: theme.text }]}
                             value={username}
                             onChangeText={(value) => {
                                 setUsername(value);
@@ -103,15 +108,17 @@ export default function UserMenu(props: UserMenuProps) {
                             autoFocus
                         />
                         {usernameErrors.username?.map((message) => (
-                            <Text key={message} style={userMenu.validationError}>{message}</Text>
+                            <Text key={message} style={[userMenu.validationError, { color: theme.danger }]}>
+                                {message}
+                            </Text>
                         ))}
                     </>
                 ) : (
                     <>
-                        <Text style={userMenu.fieldLabel}>Contraseña actual:</Text>
-                        <View style={userMenu.passwordField}>
+                        <Text style={[userMenu.fieldLabel, { color: theme.text }]}>Contraseña actual:</Text>
+                        <View style={[userMenu.passwordField, { borderBottomColor: theme.border }]}>
                             <TextInput
-                                style={userMenu.passwordInput}
+                                style={[userMenu.passwordInput, { color: theme.text }]}
                                 value={currentPassword}
                                 onChangeText={(value) => {
                                     setCurrentPassword(value);
@@ -120,16 +127,22 @@ export default function UserMenu(props: UserMenuProps) {
                                 secureTextEntry={!showCurrentPassword}
                             />
                             <Pressable onPress={() => setShowCurrentPassword((current) => !current)}>
-                                <Ionicons name={showCurrentPassword ? "eye-off-outline" : "eye-outline"} size={22} />
+                                <Ionicons
+                                    name={showCurrentPassword ? "eye-off-outline" : "eye-outline"}
+                                    color={theme.text}
+                                    size={22}
+                                />
                             </Pressable>
                         </View>
                         {passwordErrors.currentPassword?.map((message) => (
-                            <Text key={message} style={userMenu.validationError}>{message}</Text>
+                            <Text key={message} style={[userMenu.validationError, { color: theme.danger }]}>
+                                {message}
+                            </Text>
                         ))}
-                        <Text style={userMenu.fieldLabel}>Nueva contraseña:</Text>
-                        <View style={userMenu.passwordField}>
+                        <Text style={[userMenu.fieldLabel, { color: theme.text }]}>Nueva contraseña:</Text>
+                        <View style={[userMenu.passwordField, { borderBottomColor: theme.border }]}>
                             <TextInput
-                                style={userMenu.passwordInput}
+                                style={[userMenu.passwordInput, { color: theme.text }]}
                                 value={newPassword}
                                 onChangeText={(value) => {
                                     setNewPassword(value);
@@ -138,11 +151,17 @@ export default function UserMenu(props: UserMenuProps) {
                                 secureTextEntry={!showNewPassword}
                             />
                             <Pressable onPress={() => setShowNewPassword((current) => !current)}>
-                                <Ionicons name={showNewPassword ? "eye-off-outline" : "eye-outline"} size={22} />
+                                <Ionicons
+                                    name={showNewPassword ? "eye-off-outline" : "eye-outline"}
+                                    color={theme.text}
+                                    size={22}
+                                />
                             </Pressable>
                         </View>
                         {passwordErrors.newPassword?.map((message) => (
-                            <Text key={message} style={userMenu.validationError}>{message}</Text>
+                            <Text key={message} style={[userMenu.validationError, { color: theme.danger }]}>
+                                {message}
+                            </Text>
                         ))}
                     </>
                 )}
