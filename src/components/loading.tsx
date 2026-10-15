@@ -25,7 +25,7 @@ export default function Loading() {
 
     return (
         <View style={loading.parent}>
-                <Animated.Image style={imageStyle} source={require("../../assets/images/icon.png")} />
+            <Animated.Image style={imageStyle} source={require("../../assets/images/icon.png")} />
         </View>
     );
 }

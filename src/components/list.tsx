@@ -18,6 +18,7 @@ import type {
 import type { ListViewMode } from "../types/ui";
 import type { FileIcons } from "../types/files";
 import { contentCard, fileList } from "../styles/components/style";
+import { useTheme } from "./theme-provider";
 import FileUtils from "../utils/file-utils";
 import UiUtils from "../utils/ui-utils";
 
@@ -34,8 +35,8 @@ const FILE_ICONS: FileIcons = {
     power: require("../../assets/images/power.png"),
     apk: require("../../assets/images/apk.png"),
     exe: require("../../assets/images/exe.png"),
-    code: require("../../assets/images/code.png")
-    text: require("../../assets/images/text.png")
+    code: require("../../assets/images/code.png"),
+    text: require("../../assets/images/text.png"),
     system: require("../../assets/images/system.png")
 };
 const THUMBNAIL_RETRY_TIME = 2000;
@@ -44,6 +45,7 @@ const LOADING_THUMBNAIL: ThumbnailState = { isLoading: true, source: null };
 
 function ContentCard(props: ContentCardProps) {
     const { content, doubleTapAction, longPressAction, oneTapAction, selected, storage, viewMode } = props;
+    const { theme } = useTheme();
     const tap = useTapGesture({ numberOfTaps: 1, onActivate: oneTapAction, runOnJS: true });
     const doubleTap = useTapGesture({ numberOfTaps: 2, onActivate: doubleTapAction, runOnJS: true });
     const longPress = useLongPressGesture({ minDuration: 200, onActivate: longPressAction, runOnJS: true });
@@ -55,7 +57,7 @@ function ContentCard(props: ContentCardProps) {
                 <ContentThumbnail content={content} storage={storage} viewMode={viewMode} />
                 <Text
                     numberOfLines={viewMode === "LIST" ? 2 : 3}
-                    style={viewMode === "LIST" ? contentCard.listText : contentCard.text}
+                    style={[viewMode === "LIST" ? contentCard.listText : contentCard.text, { color: theme.text }]}
                 >
                     {content.name}
                 </Text>
@@ -66,6 +68,7 @@ function ContentCard(props: ContentCardProps) {
 
 const ContentThumbnail = memo(function Thumbnail(props: ContentThumbnailProps) {
     const { content, storage, viewMode } = props;
+    const { theme } = useTheme();
     const fileType = content.type.toLocaleLowerCase() === "file" ? FileUtils.getTypeFile(content.name) : "dir";
     const { handleError, imageSource, isLoading } = useContentThumbnail(content, storage, fileType);
     const { icon, thumbnail } = getThumbnailStyles(viewMode);
@@ -73,7 +76,7 @@ const ContentThumbnail = memo(function Thumbnail(props: ContentThumbnailProps) {
     return (
         <View style={thumbnail}>
             {isLoading ? (
-                <ActivityIndicator size="large" />
+                <ActivityIndicator color={theme.accent} size="large" />
             ) : (
                 <Image resizeMode="cover" style={icon} source={imageSource} onError={() => void handleError()} />
             )}
@@ -200,6 +203,7 @@ function getThumbnailMode(
 
 export default function List<T extends FileContent>(props: ListProps<T>) {
     const { dirContent, doubleTapAction, longPressAction, oneTapAction, selectAll, storage } = props;
+    const { theme } = useTheme();
     const {
         localDirectory,
         modifyFtpFile,
@@ -229,11 +233,21 @@ export default function List<T extends FileContent>(props: ListProps<T>) {
             <View style={fileList.toolbar}>
                 {showSelectAll && (
                     <Pressable style={fileList.selectAll} onPress={() => selectAll(!allSelected)}>
-                        <Text style={fileList.selectAllText}>Seleccionar todo</Text>
+                        <Text style={[fileList.selectAllText, { color: theme.text }]}>Seleccionar todo</Text>
                         {allSelected ? (
-                            <Ionicons style={fileList.selectAllIcon} name="checkbox-outline" size={20} />
+                            <Ionicons
+                                style={fileList.selectAllIcon}
+                                name="checkbox-outline"
+                                color={theme.text}
+                                size={20}
+                            />
                         ) : (
-                            <Ionicons style={fileList.selectAllIcon} name="square-outline" size={20} />
+                            <Ionicons
+                                style={fileList.selectAllIcon}
+                                name="square-outline"
+                                color={theme.text}
+                                size={20}
+                            />
                         )}
                     </Pressable>
                 )}
@@ -242,19 +256,19 @@ export default function List<T extends FileContent>(props: ListProps<T>) {
                         style={[fileList.viewButton, viewMode === "LIST" && fileList.activeViewButton]}
                         onPress={() => setViewMode("LIST")}
                     >
-                        <Ionicons name="list-outline" size={26} />
+                        <Ionicons name="list-outline" color={theme.text} size={26} />
                     </Pressable>
                     <Pressable
                         style={[fileList.viewButton, viewMode === "SMALL_ICONS" && fileList.activeViewButton]}
                         onPress={() => setViewMode("SMALL_ICONS")}
                     >
-                        <Ionicons name="apps-outline" size={20} />
+                        <Ionicons name="apps-outline" color={theme.text} size={20} />
                     </Pressable>
                     <Pressable
                         style={[fileList.viewButton, viewMode === "LARGE_ICONS" && fileList.activeViewButton]}
                         onPress={() => setViewMode("LARGE_ICONS")}
                     >
-                        <Ionicons name="grid-outline" size={20} />
+                        <Ionicons name="grid-outline" color={theme.text} size={20} />
                     </Pressable>
                 </View>
             </View>

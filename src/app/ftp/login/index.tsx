@@ -6,8 +6,9 @@ import { Ionicons } from "@react-native-vector-icons/ionicons";
 import { useAppContext } from "../../../components/app-context-provider";
 import type { ApiValidationErrorDetail } from "../../../types/api-error";
 import type { FtpStackParamList } from "../../../types/navigation";
-import { login } from "../../../styles/app/ftp/style";
-import { common } from "../../../styles/style";
+import { loginStyles } from "../../../styles/app/ftp/style";
+import { commonStyles } from "../../../styles/style";
+import { useTheme } from "../../../components/theme-provider";
 
 function getValidationMessage(details: ApiValidationErrorDetail[] | undefined, field: string): string {
     return details?.find(({ field: detailField }) => detailField === field)?.message ?? "";
@@ -15,6 +16,9 @@ function getValidationMessage(details: ApiValidationErrorDetail[] | undefined, f
 
 export default function Login() {
     const { authUtils, isAuthenticated, isLoading, loadingUtils } = useAppContext();
+    const { mode, theme } = useTheme();
+    const common = commonStyles[mode];
+    const login = loginStyles[mode];
     const navigation = useNavigation<NativeStackNavigationProp<FtpStackParamList>>();
     const [username, setUsername] = useState<string>("");
     const [password, setPassword] = useState<string>("");
@@ -68,12 +72,20 @@ export default function Login() {
                         secureTextEntry={!showPassword}
                     />
                     <Pressable onPress={() => setShowPassword((current) => !current)}>
-                        <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={24} />
+                        <Ionicons
+                            name={showPassword ? "eye-off-outline" : "eye-outline"}
+                            color={theme.text}
+                            size={24}
+                        />
                     </Pressable>
                 </View>
                 {passwordError ? <Text style={login.error}>{passwordError}</Text> : null}
                 <Pressable disabled={isLoading} style={login.submitButton} onPress={() => void handleLogin()}>
-                    {isLoading ? <ActivityIndicator color="white" /> : <Text style={login.submitText}>Iniciar sesión</Text>}
+                    {isLoading ? (
+                        <ActivityIndicator color={theme.text} />
+                    ) : (
+                        <Text style={login.submitText}>Iniciar sesión</Text>
+                    )}
                 </Pressable>
             </View>
         </View>

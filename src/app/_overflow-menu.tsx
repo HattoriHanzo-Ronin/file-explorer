@@ -18,6 +18,7 @@ import type { DrawerNavigation } from "../types/navigation";
 import type { FileActionMode, ValidationErrors } from "../types/ui";
 import type { CreateDirectoryRequest, RenameEntryRequest } from "../types/ftp";
 import { overflowMenu } from "../styles/components/style";
+import { useTheme } from "../components/theme-provider";
 
 interface MenuItemProps {
     title: string;
@@ -26,9 +27,10 @@ interface MenuItemProps {
 
 function MenuItem(props: MenuItemProps) {
     const { onPress, title } = props;
+    const { theme } = useTheme();
     return (
         <Pressable style={overflowMenu.item} onPress={onPress}>
-            <Text style={overflowMenu.itemText}>{title}</Text>
+            <Text style={[overflowMenu.itemText, { color: theme.text }]}>{title}</Text>
         </Pressable>
     );
 }
@@ -216,6 +218,7 @@ const CopyMoveAction = (props: CopyMoveActionProps) => {
 };
 export const MakeDir = (props: MenuProps) => {
     const { setVisible, storage } = props;
+    const { theme } = useTheme();
     const {
         dirSelected,
         activeStorageRoot,
@@ -288,7 +291,7 @@ export const MakeDir = (props: MenuProps) => {
             >
                 <TextInput
                     autoFocus
-                    style={overflowMenu.input}
+                    style={[overflowMenu.input, { borderBottomColor: theme.border, color: theme.text }]}
                     value={name}
                     onChangeText={(value) => {
                         setName(value);
@@ -296,7 +299,9 @@ export const MakeDir = (props: MenuProps) => {
                     }}
                 />
                 {validationErrors.name?.map((message) => (
-                    <Text key={message} style={overflowMenu.validationError}>{message}</Text>
+                    <Text key={message} style={[overflowMenu.validationError, { color: theme.danger }]}>
+                        {message}
+                    </Text>
                 ))}
             </AppDialog>
         </>
@@ -304,6 +309,7 @@ export const MakeDir = (props: MenuProps) => {
 };
 export const RenameMenu = (props: MenuProps) => {
     const { setVisible, storage } = props;
+    const { theme } = useTheme();
     const {
         executeApiRequest,
         executeLocalRequest,
@@ -359,15 +365,18 @@ export const RenameMenu = (props: MenuProps) => {
                     if (storage === "ftp") {
                         const entry = modifyFtpFile[0];
                         const result = await executeApiRequest(
-                            (apiUtils) => apiUtils.renameEntry({
-                                dir: ftpDirectory.dir,
-                                entry: { name: entry.path, type: entry.type },
-                                newName: normalizedName
-                            }),
+                            (apiUtils) =>
+                                apiUtils.renameEntry({
+                                    dir: ftpDirectory.dir,
+                                    entry: { name: entry.path, type: entry.type },
+                                    newName: normalizedName
+                                }),
                             { isBackground: true }
                         );
                         if (!result.success) {
-                            setValidationErrors(UiUtils.mapValidationErrors<RenameEntryRequest>(result.error.details ?? []));
+                            setValidationErrors(
+                                UiUtils.mapValidationErrors<RenameEntryRequest>(result.error.details ?? [])
+                            );
                             return;
                         }
 
@@ -375,9 +384,12 @@ export const RenameMenu = (props: MenuProps) => {
                             current.dir === ftpDirectory.dir ? { ...current, content: result.data } : current
                         );
                     } else {
-                        await executeLocalRequest((localFileManager) => localFileManager.rename(toRename[0], normalizedName), {
-                            isBackground: true
-                        });
+                        await executeLocalRequest(
+                            (localFileManager) => localFileManager.rename(toRename[0], normalizedName),
+                            {
+                                isBackground: true
+                            }
+                        );
                     }
 
                     setShow(false);
@@ -389,7 +401,7 @@ export const RenameMenu = (props: MenuProps) => {
             >
                 <TextInput
                     autoFocus
-                    style={overflowMenu.input}
+                    style={[overflowMenu.input, { borderBottomColor: theme.border, color: theme.text }]}
                     value={name}
                     onChangeText={(value) => {
                         setName(value);
@@ -397,7 +409,9 @@ export const RenameMenu = (props: MenuProps) => {
                     }}
                 />
                 {validationErrors.newName?.map((message) => (
-                    <Text key={message} style={overflowMenu.validationError}>{message}</Text>
+                    <Text key={message} style={[overflowMenu.validationError, { color: theme.danger }]}>
+                        {message}
+                    </Text>
                 ))}
             </AppDialog>
         </>
@@ -521,6 +535,7 @@ function getDefaultMenuVisibility(storage: "local" | "ftp", localSelectionCount:
 export default function OverflowMenu(props: OverflowMenuProps) {
     const { storage } = props;
     const [visible, setVisible] = useState<boolean>(false);
+    const { theme } = useTheme();
     const context = useAppContext();
     const { fileAction, modifyFtpFile, modifyLocalFile } = context;
     const navigation = useNavigation<DrawerNavigation>();
@@ -538,10 +553,13 @@ export default function OverflowMenu(props: OverflowMenuProps) {
 
     return (
         <>
-            <Ionicons name="ellipsis-vertical-outline" size={25} onPress={() => setVisible(true)} />
+            <Ionicons name="ellipsis-vertical-outline" color={theme.text} size={25} onPress={() => setVisible(true)} />
             <Modal animationType="fade" transparent visible={visible} onRequestClose={() => setVisible(false)}>
                 <Pressable style={overflowMenu.backdrop} onPress={() => setVisible(false)}>
-                    <View style={overflowMenu.container} onStartShouldSetResponder={() => true}>
+                    <View
+                        style={[overflowMenu.container, { backgroundColor: theme.surface, borderColor: theme.border }]}
+                        onStartShouldSetResponder={() => true}
+                    >
                         {showUpload && <UploadMenu navigation={navigation} setVisible={setVisible} storage={storage} />}
                         {showDownload && (
                             <DownloadMenu navigation={navigation} setVisible={setVisible} storage={storage} />

@@ -11,10 +11,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import React from "react";
 import useBackButtonEvent from "../../../hooks/use-back-button-event";
 import ApiUtils from "../../../utils/api-utils";
-import { common } from "../../../styles/style";
+import { commonStyles } from "../../../styles/style";
+import { useTheme } from "../../../components/theme-provider";
 
 export default function Files() {
     const context = useAppContext();
+    const { mode } = useTheme();
+    const common = commonStyles[mode];
     const {
         executeApiRequest,
         ftpDirectory,

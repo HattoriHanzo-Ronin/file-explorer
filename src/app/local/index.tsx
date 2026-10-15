@@ -11,12 +11,15 @@ import UiUtils from "../../utils/ui-utils";
 import useBackButtonEvent from "../../hooks/use-back-button-event";
 import FileUtils from "../../utils/file-utils";
 import LocalFileManager from "../../utils/operations/local-file-manager";
-import { common } from "../../styles/style";
+import { commonStyles } from "../../styles/style";
+import { useTheme } from "../../components/theme-provider";
 import AppDialog from "../../components/dialog";
 import { appDialog } from "../../styles/components/style";
 
 export default function Local() {
     const context = useAppContext();
+    const { mode, theme } = useTheme();
+    const common = commonStyles[mode];
     const {
         activeStorageRoot,
         executeLocalRequest,
@@ -206,7 +209,7 @@ export default function Local() {
                     setArchiveName(null);
                 }}
             >
-                <Text style={appDialog.message}>Se va a descomprimir el archivo</Text>
+                <Text style={[appDialog.message, { color: theme.text }]}>Se va a descomprimir el archivo</Text>
             </AppDialog>
         </View>
     );
