@@ -46,10 +46,10 @@ export default function Login() {
     }, [authUtils, loadingUtils]);
 
     useEffect(() => {
-        if (isAuthenticated) {
+        if (isAuthenticated && !isLoading) {
             navigation.replace("files");
         }
-    }, [isAuthenticated, navigation]);
+    }, [isAuthenticated, isLoading, navigation]);
 
     return (
         <View style={common.root}>
