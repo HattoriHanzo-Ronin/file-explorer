@@ -15,9 +15,6 @@ import { commonStyles } from "../../../styles/style";
 import { useTheme } from "../../../components/theme-provider";
 
 export default function Files() {
-    const context = useAppContext();
-    const { mode } = useTheme();
-    const common = commonStyles[mode];
     const {
         executeApiRequest,
         ftpDirectory,
@@ -28,7 +25,9 @@ export default function Files() {
         setFtpSelectionDir,
         fileAction,
         modifyFtpFile
-    } = context;
+    } = useAppContext();
+    const { mode } = useTheme();
+    const common = commonStyles[mode];
     const { content: ftpDirContent, dir: lastFtpDir } = ftpDirectory;
     const navigation = useNavigation<NativeStackNavigationProp<FtpStackParamList>>();
     const safeBottom = useSafeAreaInsets().bottom;

@@ -6,6 +6,7 @@ export interface FileSystemStat {
     size: number;
 }
 
+/** File system access contract */
 export interface FileSystem {
     readonly internalRoot: StorageRoot;
 

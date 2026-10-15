@@ -195,14 +195,15 @@ export default function AppContextProvider(props: PropsWithChildren) {
     }, [fileSystem]);
 
     useEffect(() => {
-        if (activeStorageRoot.type === "REMOVABLE" && !externalRoots.some((root) => root.id === activeStorageRoot.id)) {
+        const { id: activeRootId, type: activeRootType } = activeStorageRoot;
+        if (activeRootType === "REMOVABLE" && !externalRoots.some(({ id }) => id === activeRootId)) {
             setActiveStorageRoot(fileSystem.internalRoot);
             setLocalDirectory({ dir: " ", content: [] });
         }
 
-        const rootPaths = [fileSystem.internalRoot.path, ...externalRoots.map((root) => root.path)];
+        const rootPaths = [fileSystem.internalRoot.path, ...externalRoots.map(({ path }) => path)];
         setModifyLocalFile((items) =>
-            items.filter((item) => rootPaths.some((path) => item.path.startsWith(`${path}/`)))
+            items.filter(({ path: itemPath }) => rootPaths.some((path) => itemPath.startsWith(`${path}/`)))
         );
     }, [activeStorageRoot, externalRoots, fileSystem]);
 

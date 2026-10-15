@@ -2,7 +2,6 @@ import { DarkTheme, DefaultTheme, DrawerActions, NavigationContainer } from "@re
 import {
     createDrawerNavigator,
     DrawerContentScrollView,
-    DrawerItem,
     DrawerContentComponentProps,
     DrawerHeaderProps
 } from "@react-navigation/drawer";
@@ -19,8 +18,8 @@ import Ftp from "./src/app/ftp/index";
 import { Ionicons } from "@react-native-vector-icons/ionicons";
 import OverflowMenu from "./src/app/_overflow-menu";
 import UserMenu from "./src/app/_user-menu";
-import { handleNavigationPress, openStorage } from "./src/utils/navigation-utils";
 import ThemeProvider, { useTheme } from "./src/components/theme-provider";
+import DrawerNavigationItem from "./src/components/drawer-navigation-item";
 
 const Drawer = createDrawerNavigator();
 
@@ -30,7 +29,7 @@ const AppDrawerContent = (props: DrawerContentComponentProps) => {
     const { mode, theme } = useTheme();
     const app = appStyles[mode];
     const common = commonStyles[mode];
-    const { externalRoots, internalRoot, user } = context;
+    const { externalRoots, internalRoot, isAuthenticated, user } = context;
     const [userMenuVisible, setUserMenuVisible] = React.useState<boolean>(false);
     const safeArea = useSafeAreaInsets();
     const storage = state.routes[state.index].name as StorageType;
@@ -44,51 +43,13 @@ const AppDrawerContent = (props: DrawerContentComponentProps) => {
             />
             <View style={[app.drawerContent, { paddingTop: safeArea.top + 12 }]}>
                 <DrawerContentScrollView contentContainerStyle={app.drawerScrollContent}>
-                    <DrawerItem
-                        label={() => (
-                            <Text numberOfLines={3} style={app.drawerItemText}>
-                                {internalRoot.name}
-                            </Text>
-                        )}
-                        activeTintColor={theme.text}
-                        activeBackgroundColor={theme.accentMuted}
-                        onPress={() => {
-                            openStorage(context, internalRoot);
-                            navigation.navigate("local");
-                            navigation.closeDrawer();
-                            handleNavigationPress(context, "local");
-                        }}
-                    />
+                    <DrawerNavigationItem navigation={navigation} root={internalRoot} storage={storage} />
                     {externalRoots.map((root) => (
-                        <DrawerItem
-                            key={root.id}
-                            label={() => (
-                                <Text numberOfLines={3} style={app.drawerItemText}>
-                                    {root.name}
-                                </Text>
-                            )}
-                            activeTintColor={theme.text}
-                            activeBackgroundColor={theme.accentMuted}
-                            onPress={() => {
-                                openStorage(context, root);
-                                navigation.navigate("local");
-                                navigation.closeDrawer();
-                                handleNavigationPress(context, "local");
-                            }}
-                        />
+                        <DrawerNavigationItem key={root.id} navigation={navigation} root={root} storage={storage} />
                     ))}
-                    <DrawerItem
-                        label={() => <Text style={app.drawerItemText}>FTP</Text>}
-                        activeTintColor={theme.text}
-                        activeBackgroundColor={theme.accentMuted}
-                        onPress={() => {
-                            navigation.navigate("ftp", { screen: "login" });
-                            navigation.closeDrawer();
-                            handleNavigationPress(context, "ftp");
-                        }}
-                    />
+                    <DrawerNavigationItem navigation={navigation} storage={storage} />
                 </DrawerContentScrollView>
-                {storage === "ftp" && context.isAuthenticated && (
+                {storage === "ftp" && isAuthenticated && (
                     <View style={[app.drawerFooter, { paddingBottom: safeArea.bottom }]}>
                         <Pressable style={app.drawerUser} onPress={() => setUserMenuVisible(true)}>
                             <Text style={app.drawerUserName}>{user?.username ?? "Usuario"}</Text>
@@ -132,6 +93,7 @@ const AppHeader = (props: DrawerHeaderProps) => {
 };
 
 const AppBreadcrumb = (props: { storage: StorageType }) => {
+    const { storage } = props;
     const {
         fileAction,
         ftpDirectory,
@@ -146,11 +108,11 @@ const AppBreadcrumb = (props: { storage: StorageType }) => {
     const { mode, theme } = useTheme();
     const app = appStyles[mode];
     const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
-    const currentDir = props.storage === "ftp" ? ftpDirectory.dir : localDirectory.dir;
+    const currentDir = storage === "ftp" ? ftpDirectory.dir : localDirectory.dir;
     const paths = currentDir.split("/");
 
     function navigateTo(dir: string) {
-        if (props.storage === "ftp") {
+        if (storage === "ftp") {
             if (modifyFtpFile.length > 0 && !fileAction) {
                 setModifyFtpFile([]);
             }
@@ -240,10 +202,10 @@ function ThemedApp() {
                         }}
                     >
                         <Drawer.Navigator
-                            drawerContent={(props) => <AppDrawerContent {...props} />}
+                            drawerContent={AppDrawerContent}
                             screenOptions={{
                                 drawerStyle: app.drawer,
-                                header: (props) => <AppHeader {...props} />
+                                header: AppHeader
                             }}
                         >
                             <Drawer.Screen name="local" component={Local} />

@@ -6,6 +6,7 @@ import type {
     NativeUploadRequest
 } from "../../types/file-operations";
 
+/** Remote background file operation contract */
 export interface RemoteFileOperation {
     startUpload(request: NativeUploadRequest): Promise<string>;
 

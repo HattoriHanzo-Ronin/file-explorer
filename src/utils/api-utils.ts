@@ -55,6 +55,7 @@ export default class ApiUtils {
         await this.remoteFileManager.restore();
     }
 
+    /** Clears completed remote operations */
     clearSettledOperations(): void {
         this.remoteFileManager.clearSettled();
     }

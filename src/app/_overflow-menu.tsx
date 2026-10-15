@@ -170,7 +170,7 @@ const CopyMoveAction = (props: CopyMoveActionProps) => {
             return;
         }
 
-        const entries = modifyFtpFile.map((item) => ({ name: item.path, type: item.type }));
+        const entries = modifyFtpFile.map(({ path, type }) => ({ name: path, type }));
         const result = await executeApiRequest(
             (apiUtils) => apiUtils.moveEntries({ dir: ftpSelectionDir, entries, destination }),
             { isBackground: true, showError: true }
@@ -179,13 +179,13 @@ const CopyMoveAction = (props: CopyMoveActionProps) => {
             setFtpDirectory((current) => {
                 let content = current.content;
                 if (current.dir === ftpSelectionDir) {
-                    content = content.filter((entry) => !result.data.some((change) => change.path === entry.name));
+                    content = content.filter(({ name }) => !result.data.some(({ path }) => path === name));
                 }
 
                 if (current.dir === destination) {
-                    const moved = result.data.map((change) => ({
-                        name: change.targetPath ?? change.path,
-                        type: change.type
+                    const moved = result.data.map(({ path, targetPath, type }) => ({
+                        name: targetPath ?? path,
+                        type
                     }));
                     content = [...content, ...moved];
                 }
@@ -439,7 +439,7 @@ export const RemoveMenu = (props: MenuProps) => {
 
     async function removeRemoteEntries() {
         const remoteDir = ftpDirectory.dir;
-        const entries = modifyFtpFile.map((item) => ({ name: item.path, type: item.type }));
+        const entries = modifyFtpFile.map(({ path, type }) => ({ name: path, type }));
         const result = await executeApiRequest((apiUtils) => apiUtils.deleteEntries({ dir: remoteDir, entries }), {
             isBackground: true,
             showError: true
@@ -449,9 +449,7 @@ export const RemoveMenu = (props: MenuProps) => {
                 current.dir === remoteDir
                     ? {
                           ...current,
-                          content: current.content.filter(
-                              (entry) => !result.data.some((change) => change.path === entry.name)
-                          )
+                          content: current.content.filter(({ name }) => !result.data.some(({ path }) => path === name))
                       }
                     : current
             );

@@ -57,6 +57,7 @@ export default class RemoteFileManager {
         });
     }
 
+    /** Restores persisted remote operations */
     async restore(): Promise<void> {
         const operations = await this.remoteFileOperation.listOperations();
         operations
@@ -64,10 +65,18 @@ export default class RemoteFileManager {
             .forEach((operation) => this.handleChange(operation, false));
     }
 
+    /** Clears completed remote operations */
     clearSettled(): void {
         this.remoteFileOperation.clearSettled();
     }
 
+    /**
+     * Uploads local entries
+     *
+     * @param items Local entries
+     * @param remoteDir Remote directory
+     * @returns Remote operation response
+     */
     async upload(items: LocalModifyElement[], remoteDir: string): Promise<ApiResponse<RemoteDirectoryOperationResult>> {
         const accessToken = await this.prepareOperation();
         if (!accessToken.success) {
@@ -97,6 +106,15 @@ export default class RemoteFileManager {
         }
     }
 
+    /**
+     * Downloads remote entries
+     *
+     * @param items Remote entries
+     * @param remoteDir Remote directory
+     * @param localRoot Local storage root
+     * @param localDir Local directory
+     * @returns Remote operation response
+     */
     async download(
         items: FileOperationSelection[],
         remoteDir: string,
@@ -124,7 +142,14 @@ export default class RemoteFileManager {
         }
     }
 
+    /**
+     * Deletes remote entries
+     *
+     * @param request Delete request
+     * @returns Remote operation response
+     */
     async delete(request: DeleteEntriesRequest): Promise<ApiResponse<RemoteChangeOperationResult>> {
+        const { dir, entries } = request;
         const accessToken = await this.prepareOperation();
         if (!accessToken.success) {
             return accessToken;
@@ -135,8 +160,8 @@ export default class RemoteFileManager {
                 apiUrl: this.apiUrl,
                 accessToken: accessToken.data,
                 notificationTexts: FILE_OPERATION_NOTIFICATION_TEXTS,
-                ...(request.dir === undefined || request.dir === " " ? {} : { remoteDir: request.dir }),
-                entries: request.entries
+                ...(dir === undefined || dir === " " ? {} : { remoteDir: dir }),
+                entries
             });
             const result = await this.waitForCompletion(id);
             if (!result.success) {
@@ -154,7 +179,14 @@ export default class RemoteFileManager {
         }
     }
 
+    /**
+     * Moves remote entries
+     *
+     * @param request Move request
+     * @returns Remote operation response
+     */
     async move(request: MoveEntriesRequest): Promise<ApiResponse<RemoteChangeOperationResult>> {
+        const { destination, dir, entries } = request;
         const accessToken = await this.prepareOperation();
         if (!accessToken.success) {
             return accessToken;
@@ -165,9 +197,9 @@ export default class RemoteFileManager {
                 apiUrl: this.apiUrl,
                 accessToken: accessToken.data,
                 notificationTexts: FILE_OPERATION_NOTIFICATION_TEXTS,
-                ...(request.dir === undefined || request.dir === " " ? {} : { remoteDir: request.dir }),
-                destination: request.destination === " " ? "" : request.destination,
-                entries: request.entries
+                ...(dir === undefined || dir === " " ? {} : { remoteDir: dir }),
+                destination: destination === " " ? "" : destination,
+                entries
             });
             const result = await this.waitForCompletion(id);
             if (!result.success) {
@@ -185,19 +217,41 @@ export default class RemoteFileManager {
         }
     }
 
+    /**
+     * Cancels a remote operation
+     *
+     * @param id Operation identifier
+     */
     cancel(id: string): void {
         this.remoteFileOperation.cancel(id);
     }
 
+    /**
+     * Returns persisted remote operations
+     *
+     * @returns File operation snapshots
+     */
     async listOperations(): Promise<FileOperationSnapshot[]> {
         return this.remoteFileOperation.listOperations();
     }
 
+    /**
+     * Adds an operation change listener
+     *
+     * @param listener Operation listener
+     * @returns Listener cleanup
+     */
     addChangeListener(listener: (operation: FileOperationSnapshot) => void): () => void {
         this.listeners.add(listener);
         return () => this.listeners.delete(listener);
     }
 
+    /**
+     * Returns whether a remote directory is busy
+     *
+     * @param dir Remote directory
+     * @returns Whether the directory is busy
+     */
     isRemoteDirectoryBusy(dir: string): boolean {
         const directory = dir === " " ? "" : dir;
         return (
@@ -206,20 +260,27 @@ export default class RemoteFileManager {
         );
     }
 
+    /**
+     * Returns whether a local directory is receiving downloads
+     *
+     * @param dir Local directory
+     * @returns Whether the directory is busy
+     */
     isLocalDirectoryBusy(dir: string): boolean {
         return (this.activeDownloads.get(dir)?.size ?? 0) > 0;
     }
 
     private handleChange(operation: FileOperationSnapshot, notifyError: boolean): void {
-        const active = ["PENDING", "RUNNING"].includes(operation.status);
-        if (["REMOTE_MOVE", "REMOTE_DELETE"].includes(operation.operation)) {
-            const directories = [operation.remoteDir];
-            if (operation.operation === "REMOTE_MOVE") {
-                directories.push(operation.destinationDir);
+        const { destinationDir, id, localDir, operation: type, remoteDir, status } = operation;
+        const active = ["PENDING", "RUNNING"].includes(status);
+        if (["REMOTE_MOVE", "REMOTE_DELETE"].includes(type)) {
+            const directories = [remoteDir];
+            if (type === "REMOTE_MOVE") {
+                directories.push(destinationDir);
             }
 
             directories.forEach((directory) =>
-                this.updateActiveOperations(this.activeRemoteChanges, directory, operation.id, active)
+                this.updateActiveOperations(this.activeRemoteChanges, directory, id, active)
             );
             if (!active) {
                 this.completeOperation(operation, notifyError);
@@ -228,16 +289,16 @@ export default class RemoteFileManager {
             return;
         }
 
-        const directory = operation.operation === "UPLOAD" ? operation.remoteDir : operation.localDir;
-        const operations = operation.operation === "UPLOAD" ? this.activeUploads : this.activeDownloads;
+        const directory = type === "UPLOAD" ? remoteDir : localDir;
+        const operations = type === "UPLOAD" ? this.activeUploads : this.activeDownloads;
         const ids = operations.get(directory) ?? new Set<string>();
         if (active) {
-            ids.add(operation.id);
+            ids.add(id);
             operations.set(directory, ids);
             return;
         }
 
-        ids.delete(operation.id);
+        ids.delete(id);
         if (ids.size > 0) {
             return;
         }
@@ -247,12 +308,13 @@ export default class RemoteFileManager {
     }
 
     private completeOperation(operation: FileOperationSnapshot, notifyError: boolean): void {
-        const completionListener = this.completionListeners.get(operation.id);
+        const { id } = operation;
+        const completionListener = this.completionListeners.get(id);
         if (completionListener) {
-            this.completionListeners.delete(operation.id);
+            this.completionListeners.delete(id);
             completionListener(operation);
         } else if (notifyError) {
-            this.completedOperations.set(operation.id, operation);
+            this.completedOperations.set(id, operation);
         }
     }
 
@@ -290,11 +352,12 @@ export default class RemoteFileManager {
     }
 
     private toApiResponse(operation: FileOperationSnapshot): ApiResponse<FileOperationSnapshot> {
-        if (operation.status === "COMPLETED") {
+        const { error, status } = operation;
+        if (status === "COMPLETED") {
             return { success: true, data: operation };
         }
 
-        return operation.error ? { success: false, error: operation.error } : this.operationError();
+        return error ? { success: false, error } : this.operationError();
     }
 
     private operationError(): ApiResponse<never> {
@@ -305,11 +368,12 @@ export default class RemoteFileManager {
         operation: FileOperationSnapshot,
         type: "REMOTE_MOVE" | "REMOTE_DELETE"
     ): RemoteChangeOperationResult | undefined {
-        if (operation.operation !== type || !operation.result) {
+        const { operation: operationType, result } = operation;
+        if (operationType !== type || !result) {
             return undefined;
         }
 
-        return "changes" in operation.result && "version" in operation.result ? operation.result : undefined;
+        return "changes" in result && "version" in result ? result : undefined;
     }
 
     private async prepareOperation(): Promise<ApiResponse<string>> {
@@ -336,9 +400,8 @@ export default class RemoteFileManager {
 
     private async getUploadEntries(items: LocalModifyElement[]): Promise<NativeUploadEntry[]> {
         const entries: NativeUploadEntry[] = [];
-        for (const item of items) {
-            const localPath = item.path;
-            await this.appendUploadEntries(entries, localPath, item.path.split("/").pop() ?? item.path, item.type);
+        for (const { path: localPath, type } of items) {
+            await this.appendUploadEntries(entries, localPath, localPath.split("/").pop() ?? localPath, type);
         }
 
         return entries;
@@ -363,18 +426,14 @@ export default class RemoteFileManager {
         }
 
         entries.push({ path, type: "DIR" });
-        for (const entry of await this.fileSystem.readDir(localPath)) {
-            await this.appendUploadEntries(
-                entries,
-                entry.path,
-                `${path}/${entry.name}`,
-                entry.isDirectory() ? "dir" : "file"
-            );
+        for (const { isDirectory, name, path: entryPath } of await this.fileSystem.readDir(localPath)) {
+            await this.appendUploadEntries(entries, entryPath, `${path}/${name}`, isDirectory() ? "dir" : "file");
         }
     }
 
     private toFtpEntry(item: FileOperationSelection): FtpEntry {
-        return { name: item.path, type: item.type.toUpperCase() as FtpEntry["type"] };
+        const { path, type } = item;
+        return { name: path, type: type.toUpperCase() as FtpEntry["type"] };
     }
 
     private isRemoteOperation(operation: FileOperationSnapshot): boolean {

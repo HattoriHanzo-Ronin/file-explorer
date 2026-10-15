@@ -72,8 +72,8 @@ export default class FileUtils {
      */
     static hashDirectory(entries: FileSystemEntry[]): string {
         const source = entries
-            .map((entry) =>
-                [entry.name, entry.size, entry.mtime?.getTime() ?? 0, entry.isDirectory() ? "dir" : "file"].join(":")
+            .map(({ isDirectory, mtime, name, size }) =>
+                [name, size, mtime?.getTime() ?? 0, isDirectory() ? "dir" : "file"].join(":")
             )
             .sort()
             .join("|");

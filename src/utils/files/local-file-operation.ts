@@ -5,6 +5,7 @@ import type {
     NativeLocalExtractRequest
 } from "../../types/file-operations";
 
+/** Local background file operation contract */
 export interface LocalFileOperation {
     startCopy(request: NativeLocalCopyMoveRequest): Promise<string>;
 

@@ -17,9 +17,6 @@ import AppDialog from "../../components/dialog";
 import { appDialog } from "../../styles/components/style";
 
 export default function Local() {
-    const context = useAppContext();
-    const { mode, theme } = useTheme();
-    const common = commonStyles[mode];
     const {
         activeStorageRoot,
         executeLocalRequest,
@@ -30,7 +27,9 @@ export default function Local() {
         permission,
         setLocalDirectory,
         setModifyLocalFile
-    } = context;
+    } = useAppContext();
+    const { mode, theme } = useTheme();
+    const common = commonStyles[mode];
     const { content: dirContent, dir: lastLocalDir } = localDirectory;
     const [archiveName, setArchiveName] = React.useState<string | null>(null);
     const isFocused = useIsFocused();
