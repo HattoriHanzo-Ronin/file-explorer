@@ -141,5 +141,6 @@ export const userMenu = StyleSheet.create({
 });
 export const loading = StyleSheet.create({
     parent: { flex: 1, justifyContent: "center", alignItems: "center" },
-    image: { width: 200, height: 200 }
+    image: { width: 200, height: 200 },
+    backgroundImage: { opacity: 0.1 }
 });

@@ -36,6 +36,7 @@ export default class LocalFileManager {
         });
     }
 
+    /** Restores persisted local operations */
     async restore(): Promise<void> {
         const operations = await this.localFileOperation.listOperations();
         operations
@@ -83,6 +84,14 @@ export default class LocalFileManager {
         }
     }
 
+    /**
+     * Creates a local directory
+     *
+     * @param rootPath Storage root path
+     * @param dir Directory path
+     * @param name Directory name
+     * @returns Local operation response
+     */
     async createDirectory(rootPath: string, dir: string, name: string): Promise<LocalResponse<void>> {
         try {
             const destination = this.absolutePath(rootPath, dir);
@@ -93,6 +102,13 @@ export default class LocalFileManager {
         }
     }
 
+    /**
+     * Renames a local entry
+     *
+     * @param entry Entry to rename
+     * @param name New entry name
+     * @returns Local operation response
+     */
     async rename(entry: LocalModifyElement, name: string): Promise<LocalResponse<void>> {
         try {
             const source = entry.path;
@@ -104,6 +120,14 @@ export default class LocalFileManager {
         }
     }
 
+    /**
+     * Opens a local file
+     *
+     * @param rootPath Storage root path
+     * @param dir Directory path
+     * @param name File name
+     * @returns Local operation response
+     */
     async openFile(rootPath: string, dir: string, name: string): Promise<LocalResponse<void>> {
         try {
             await this.localFileOperation.openFile(`${this.absolutePath(rootPath, dir)}/${name}`);
@@ -113,14 +137,34 @@ export default class LocalFileManager {
         }
     }
 
+    /**
+     * Copies local entries
+     *
+     * @param items Entries to copy
+     * @param destination Destination path
+     * @returns Local operation response
+     */
     async copy(items: LocalModifyElement[], destination: string): Promise<LocalResponse<void>> {
         return this.startCopyMove(items, destination, false);
     }
 
+    /**
+     * Moves local entries
+     *
+     * @param items Entries to move
+     * @param destination Destination path
+     * @returns Local operation response
+     */
     async move(items: LocalModifyElement[], destination: string): Promise<LocalResponse<void>> {
         return this.startCopyMove(items, destination, true);
     }
 
+    /**
+     * Deletes local entries
+     *
+     * @param items Entries to delete
+     * @returns Local operation response
+     */
     async delete(items: LocalModifyElement[]): Promise<LocalResponse<void>> {
         const permission = await this.prepareOperation();
         if (!permission.success) {
@@ -128,7 +172,7 @@ export default class LocalFileManager {
         }
 
         try {
-            const sources = items.map((item) => item.path);
+            const sources = items.map(({ path }) => path);
             const id = await this.localFileOperation.startDelete({
                 notificationTexts: FILE_OPERATION_NOTIFICATION_TEXTS,
                 sources,
@@ -140,6 +184,14 @@ export default class LocalFileManager {
         }
     }
 
+    /**
+     * Extracts a local archive
+     *
+     * @param rootPath Storage root path
+     * @param dir Directory path
+     * @param name Archive name
+     * @returns Local operation response
+     */
     async extract(rootPath: string, dir: string, name: string): Promise<LocalResponse<void>> {
         const extension = name.split(".").pop()?.toLowerCase() ?? "";
         if (!EXTRACTABLE_ARCHIVE_EXTENSIONS.includes(extension)) {
@@ -167,6 +219,11 @@ export default class LocalFileManager {
         }
     }
 
+    /**
+     * Cancels a local operation
+     *
+     * @param id Operation identifier
+     */
     cancel(id: string): void {
         this.localFileOperation.cancel(id);
     }
@@ -184,7 +241,7 @@ export default class LocalFileManager {
         try {
             const request = {
                 notificationTexts: FILE_OPERATION_NOTIFICATION_TEXTS,
-                sources: items.map((item) => item.path),
+                sources: items.map(({ path }) => path),
                 destination
             };
             const id = move
@@ -205,12 +262,13 @@ export default class LocalFileManager {
     }
 
     private completeOperation(operation: FileOperationSnapshot): void {
-        const listener = this.completionListeners.get(operation.id);
+        const { id } = operation;
+        const listener = this.completionListeners.get(id);
         if (listener) {
-            this.completionListeners.delete(operation.id);
+            this.completionListeners.delete(id);
             listener(operation);
         } else {
-            this.completedOperations.set(operation.id, operation);
+            this.completedOperations.set(id, operation);
         }
     }
 
@@ -227,11 +285,12 @@ export default class LocalFileManager {
     }
 
     private toLocalResponse(operation: FileOperationSnapshot): LocalResponse<void> {
-        if (operation.status === "COMPLETED") {
+        const { error, status } = operation;
+        if (status === "COMPLETED") {
             return { success: true, data: undefined };
         }
 
-        return operation.error ? { success: false, error: operation.error } : this.operationError();
+        return error ? { success: false, error } : this.operationError();
     }
 
     private operationError(message = ""): LocalResponse<never> {
@@ -247,23 +306,23 @@ export default class LocalFileManager {
     }
 
     private updateActiveDirectories(operation: FileOperationSnapshot): void {
-        if (!["DOWNLOAD", "LOCAL_COPY", "LOCAL_MOVE", "LOCAL_DELETE", "LOCAL_EXTRACT"].includes(operation.operation)) {
+        const { id, localDir: directory, operation: type, status } = operation;
+        if (!["DOWNLOAD", "LOCAL_COPY", "LOCAL_MOVE", "LOCAL_DELETE", "LOCAL_EXTRACT"].includes(type)) {
             return;
         }
 
-        const directory = operation.localDir;
         if (!directory) {
             return;
         }
 
         const ids = this.activeDirectories.get(directory) ?? new Set<string>();
-        if (["PENDING", "RUNNING"].includes(operation.status)) {
-            ids.add(operation.id);
+        if (["PENDING", "RUNNING"].includes(status)) {
+            ids.add(id);
             this.activeDirectories.set(directory, ids);
             return;
         }
 
-        ids.delete(operation.id);
+        ids.delete(id);
         if (ids.size > 0) {
             return;
         }
@@ -289,6 +348,7 @@ export default class LocalFileManager {
     }
 
     private isLocalOperation(operation: FileOperationSnapshot): boolean {
-        return ["LOCAL_COPY", "LOCAL_MOVE", "LOCAL_DELETE", "LOCAL_EXTRACT"].includes(operation.operation);
+        const { operation: type } = operation;
+        return ["LOCAL_COPY", "LOCAL_MOVE", "LOCAL_DELETE", "LOCAL_EXTRACT"].includes(type);
     }
 }

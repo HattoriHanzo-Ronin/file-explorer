@@ -10,6 +10,7 @@ import type { Permission } from "../utils/permissions/permission";
 import type { ThumbnailGenerator } from "../utils/thumbnails/thumbnail-generator";
 import type { FileActionMode, ListViewMode } from "./ui";
 
+/** Shared application state and services */
 export interface AppContextType {
     isAuthenticated: boolean;
     user: AuthUser | null;

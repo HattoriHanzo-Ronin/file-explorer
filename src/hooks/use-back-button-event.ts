@@ -9,23 +9,25 @@ import UiUtils from "../utils/ui-utils";
 import { cancelFileAction } from "../utils/navigation-utils";
 
 function clearSelection(context: AppContextType, storage: StorageType): boolean {
-    const selection = storage === "local" ? context.modifyLocalFile : context.modifyFtpFile;
+    const { modifyFtpFile, modifyLocalFile, setDirSelected, setModifyFtpFile, setModifyLocalFile } = context;
+    const selection = storage === "local" ? modifyLocalFile : modifyFtpFile;
     if (selection.length === 0) {
         return false;
     }
 
     if (storage === "local") {
-        context.setModifyLocalFile([]);
+        setModifyLocalFile([]);
     } else {
-        context.setModifyFtpFile([]);
+        setModifyFtpFile([]);
     }
 
-    context.setDirSelected((current) => !current);
+    setDirSelected((current) => !current);
     return true;
 }
 
 function navigateToParent(context: AppContextType, storage: StorageType): boolean {
-    const lastDir = storage === "local" ? context.localDirectory.dir : context.ftpDirectory.dir;
+    const { ftpDirectory, localDirectory, setFtpDirectory, setLocalDirectory } = context;
+    const lastDir = storage === "local" ? localDirectory.dir : ftpDirectory.dir;
     if (lastDir === " ") {
         return false;
     }
@@ -33,9 +35,9 @@ function navigateToParent(context: AppContextType, storage: StorageType): boolea
     const paths = lastDir.split("/").slice(0, -1);
     const dir = paths.length > 0 ? paths.join("/") : " ";
     if (storage === "local") {
-        context.setLocalDirectory((current) => ({ ...current, dir }));
+        setLocalDirectory((current) => ({ ...current, dir }));
     } else {
-        context.setFtpDirectory((current) => ({ ...current, dir }));
+        setFtpDirectory((current) => ({ ...current, dir }));
     }
 
     return true;

@@ -33,7 +33,7 @@ export default function Loading() {
                 <Image
                     source={require("../../assets/images/background.jpg")}
                     resizeMode="cover"
-                    style={[common.absoluteImage, common.contentBackgroundImage, { opacity: 0.1 }]}
+                    style={[common.absoluteImage, common.contentBackgroundImage, loading.backgroundImage]}
                 />
                 <Animated.Image style={imageStyle} source={require("../../assets/images/icon.png")} />
             </View>

@@ -43,14 +43,24 @@ export default class UiUtils {
      * @returns Storage containing the original selection
      */
     static cancelFileAction(context: AppContextType): StorageType {
+        const {
+            externalRoots,
+            ftpSelectionDir,
+            internalRoot,
+            lastLocalDir,
+            lastLocalRootId,
+            setActiveStorageRoot,
+            setFtpDirectory,
+            setLocalDirectory
+        } = context;
         const target = UiUtils.getFileActionSource(context);
         if (target === "local") {
-            const roots = [context.internalRoot, ...context.externalRoots];
-            const root = roots.find((it) => it.id === context.lastLocalRootId) ?? context.internalRoot;
-            context.setActiveStorageRoot(root);
-            context.setLocalDirectory((current) => ({ ...current, dir: context.lastLocalDir }));
+            const roots = [internalRoot, ...externalRoots];
+            const root = roots.find(({ id }) => id === lastLocalRootId) ?? internalRoot;
+            setActiveStorageRoot(root);
+            setLocalDirectory((current) => ({ ...current, dir: lastLocalDir }));
         } else {
-            context.setFtpDirectory((current) => ({ ...current, dir: context.ftpSelectionDir }));
+            setFtpDirectory((current) => ({ ...current, dir: ftpSelectionDir }));
         }
 
         UiUtils.completeFileAction(context);
@@ -63,12 +73,20 @@ export default class UiUtils {
      * @param context Application context
      */
     static completeFileAction(context: AppContextType): void {
-        context.setFileAction(null);
-        context.setModifyFtpFile([]);
-        context.setModifyLocalFile([]);
-        context.setDirSelected((current) => !current);
+        const { setDirSelected, setFileAction, setModifyFtpFile, setModifyLocalFile } = context;
+        setFileAction(null);
+        setModifyFtpFile([]);
+        setModifyLocalFile([]);
+        setDirSelected((current) => !current);
     }
 
+    /**
+     * Displays a message when an action is blocked
+     *
+     * @param condition Whether the action is blocked
+     * @param message Blocked action message
+     * @returns Whether the action is blocked
+     */
     static isActionBlocked(condition: boolean, message: string): boolean {
         if (condition) {
             UiUtils.showMessage(message);
@@ -79,7 +97,8 @@ export default class UiUtils {
     }
 
     private static getFileActionSource(context: AppContextType): StorageType {
-        if (context.fileAction === "download" || (context.fileAction === "move" && context.modifyFtpFile.length > 0)) {
+        const { fileAction, modifyFtpFile } = context;
+        if (fileAction === "download" || (fileAction === "move" && modifyFtpFile.length > 0)) {
             return "ftp";
         }
 

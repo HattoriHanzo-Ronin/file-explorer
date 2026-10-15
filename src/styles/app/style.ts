@@ -35,6 +35,8 @@ function createAppStyles(theme: ThemeColors, mode: ThemeMode) {
             overflow: "hidden"
         },
         drawerScrollContent: { paddingTop: 8 },
+        drawerItem: { marginHorizontal: 8, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 8 },
+        activeDrawerItem: { backgroundColor: theme.accentMuted },
         drawerItemText: { color: theme.text, fontSize: 20 },
         drawerFooter: { width: "100%" },
         drawerUser: {
