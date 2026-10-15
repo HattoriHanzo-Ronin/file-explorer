@@ -62,6 +62,7 @@ const AppDrawerContent = (props: DrawerContentComponentProps) => {
                         label="FTP"
                         onPress={() => {
                             navigation.navigate("ftp", { screen: "login" });
+                            navigation.closeDrawer();
                             handleNavigationPress(context, "ftp");
                         }}
                     />
@@ -77,7 +78,11 @@ const AppDrawerContent = (props: DrawerContentComponentProps) => {
                         </Pressable>
                     </View>
                 )}
-                <UserMenu visible={userMenuVisible} onClose={() => setUserMenuVisible(false)} />
+                <UserMenu
+                    visible={userMenuVisible}
+                    onClose={() => setUserMenuVisible(false)}
+                    onLogout={() => navigation.closeDrawer()}
+                />
             </View>
         </Background>
     );

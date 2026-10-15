@@ -73,7 +73,8 @@ export const overflowMenu = StyleSheet.create({
     container: { minWidth: 190, paddingVertical: 6, borderRadius: 8, backgroundColor: "white", elevation: 6 },
     item: { paddingHorizontal: 18, paddingVertical: 12 },
     itemText: { color: "black", fontSize: 16 },
-    input: { borderBottomWidth: 1, borderBottomColor: "#777", color: "black", paddingVertical: 6 }
+    input: { borderBottomWidth: 1, borderBottomColor: "#777", color: "black", paddingVertical: 6 },
+    validationError: { marginTop: 6, color: "#a65d66" }
 });
 export const userMenu = StyleSheet.create({
     backdrop: {
@@ -102,6 +103,7 @@ export const userMenu = StyleSheet.create({
     dialogTitle: { color: "black", fontSize: 18, fontWeight: "600" },
     input: { padding: 10, borderWidth: 1, borderColor: "#999", borderRadius: 6, color: "black" },
     fieldLabel: { color: "black", fontSize: 16 },
+    validationError: { marginTop: 6, color: "#a65d66" },
     lineInput: { borderBottomWidth: 1, borderBottomColor: "#777", color: "black", paddingVertical: 6 },
     passwordField: { flexDirection: "row", alignItems: "center", borderBottomWidth: 1, borderBottomColor: "#999" },
     passwordInput: { flex: 1, color: "black" },

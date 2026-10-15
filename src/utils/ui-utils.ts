@@ -1,7 +1,8 @@
 import { ToastAndroid } from "react-native";
 import type { AppContextType } from "../types/context";
 import type { StorageType } from "../types/navigation";
-import type { MessageDuration } from "../types/ui";
+import type { MessageDuration, ValidationErrors } from "../types/ui";
+import type { ApiValidationErrorDetail } from "../types/api-error";
 
 /**
  * Manages application messages
@@ -15,6 +16,24 @@ export default class UiUtils {
      */
     static showMessage(message: string, duration: MessageDuration = "LONG"): void {
         ToastAndroid.show(message, duration === "LONG" ? ToastAndroid.LONG : ToastAndroid.SHORT);
+    }
+
+    /**
+     * Maps API validation details to their input fields
+     *
+     * @param details API validation details
+     * @returns Validation messages by field
+     */
+    static mapValidationErrors<T extends object>(details: ApiValidationErrorDetail[]): ValidationErrors<T> {
+        const validationErrors: ValidationErrors<T> = {};
+        for (const { field, message } of details) {
+            if (field) {
+                const key = field as keyof T;
+                validationErrors[key] = [...(validationErrors[key] ?? []), `- ${message}`];
+            }
+        }
+
+        return validationErrors;
     }
 
     /**
