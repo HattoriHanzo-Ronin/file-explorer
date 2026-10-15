@@ -1,6 +1,5 @@
 import { useEffect, useRef } from "react";
 import { Animated, View } from "react-native";
-import Background from "./background";
 import { loading } from "../styles/components/style";
 
 export default function Loading() {
@@ -25,10 +24,8 @@ export default function Loading() {
     }, [scale]);
 
     return (
-        <Background>
-            <View style={loading.parent}>
+        <View style={loading.parent}>
                 <Animated.Image style={imageStyle} source={require("../../assets/images/icon.png")} />
-            </View>
-        </Background>
+        </View>
     );
 }

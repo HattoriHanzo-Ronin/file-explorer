@@ -15,6 +15,8 @@ const MIME_FILE_TYPES: [string, FileIconType][] = [
     ["powerpoint", "power"]
 ];
 const EXECUTABLE_EXTENSIONS = ["exe", "bat", "sh"];
+const SYSTEM_EXTENSIONS = ["dll", "drv", "dylib", "so", "sys"];
+const TEXT_EXTENSIONS = ["csv", "log", "md", "rtf", "txt"];
 const CODE_EXTENSIONS = [
     "js",
     "ts",
@@ -107,6 +109,14 @@ export default class FileUtils {
 
         if (EXECUTABLE_EXTENSIONS.includes(extension)) {
             return "exe";
+        }
+
+        if (SYSTEM_EXTENSIONS.includes(extension)) {
+            return "system";
+        }
+
+        if (TEXT_EXTENSIONS.includes(extension)) {
+            return "text";
         }
 
         return CODE_EXTENSIONS.includes(extension) ? "code" : "file";

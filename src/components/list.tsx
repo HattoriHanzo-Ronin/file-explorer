@@ -35,6 +35,8 @@ const FILE_ICONS: FileIcons = {
     apk: require("../../assets/images/apk.png"),
     exe: require("../../assets/images/exe.png"),
     code: require("../../assets/images/code.png")
+    text: require("../../assets/images/text.png")
+    system: require("../../assets/images/system.png")
 };
 const THUMBNAIL_RETRY_TIME = 2000;
 const DEFAULT_THUMBNAIL: ThumbnailState = { isLoading: false, source: null };

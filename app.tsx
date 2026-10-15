@@ -13,7 +13,6 @@ import AppContextProvider, { useAppContext } from "./src/components/app-context-
 import type { StorageType } from "./src/types/navigation";
 import { app } from "./src/styles/app/style";
 import { common } from "./src/styles/style";
-import Background from "./src/components/background";
 import { Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Local from "./src/app/local/index";
@@ -34,8 +33,7 @@ const AppDrawerContent = (props: DrawerContentComponentProps) => {
     const storage = state.routes[state.index].name as StorageType;
 
     return (
-        <Background type="nav">
-            <View style={app.drawerContent}>
+        <View style={app.drawerContent}>
                 <DrawerContentScrollView>
                     <DrawerItem
                         label={internalRoot.name}
@@ -83,8 +81,7 @@ const AppDrawerContent = (props: DrawerContentComponentProps) => {
                     onClose={() => setUserMenuVisible(false)}
                     onLogout={() => navigation.closeDrawer()}
                 />
-            </View>
-        </Background>
+        </View>
     );
 };
 const AppHeader = (props: DrawerHeaderProps) => {
