@@ -3,11 +3,11 @@ import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ActivityIndicator, Pressable, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@react-native-vector-icons/ionicons";
-import Background from "../../../components/background";
 import { useAppContext } from "../../../components/app-context-provider";
 import type { ApiValidationErrorDetail } from "../../../types/api-error";
 import type { FtpStackParamList } from "../../../types/navigation";
 import { login } from "../../../styles/app/ftp/style";
+import { common } from "../../../styles/style";
 
 function getValidationMessage(details: ApiValidationErrorDetail[] | undefined, field: string): string {
     return details?.find(({ field: detailField }) => detailField === field)?.message ?? "";
@@ -48,7 +48,7 @@ export default function Login() {
     }, [isAuthenticated, navigation]);
 
     return (
-        <Background>
+        <View style={common.root}>
             <View style={login.container}>
                 <Text style={login.label}>Usuario</Text>
                 <TextInput
@@ -76,6 +76,6 @@ export default function Login() {
                     {isLoading ? <ActivityIndicator color="white" /> : <Text style={login.submitText}>Iniciar sesión</Text>}
                 </Pressable>
             </View>
-        </Background>
+        </View>
     );
 }

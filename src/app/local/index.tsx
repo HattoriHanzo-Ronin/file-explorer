@@ -1,7 +1,6 @@
 import { useCallback, useEffect } from "react";
 import { useIsFocused } from "@react-navigation/native";
 import { Text, View } from "react-native";
-import Background from "../../components/background";
 import { useAppContext } from "../../components/app-context-provider";
 import type { DirContent } from "../../types/files";
 import List from "../../components/list";
@@ -102,7 +101,7 @@ export default function Local() {
     }
 
     return (
-        <Background>
+        <View style={common.root}>
             <View style={contentStyle}>
                 <List
                     storage="local"
@@ -209,6 +208,6 @@ export default function Local() {
             >
                 <Text style={appDialog.message}>Se va a descomprimir el archivo</Text>
             </AppDialog>
-        </Background>
+        </View>
     );
 }

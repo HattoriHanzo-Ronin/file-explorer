@@ -109,11 +109,6 @@ export const userMenu = StyleSheet.create({
     passwordInput: { flex: 1, color: "black" },
     dialogActions: { flexDirection: "row", justifyContent: "flex-end", gap: 20 }
 });
-export const background = StyleSheet.create({
-    parent: { flex: 1 },
-    navImage: { opacity: 0.1 },
-    image: { opacity: 0.2 }
-});
 export const loading = StyleSheet.create({
     parent: { flex: 1, justifyContent: "center", alignItems: "center" },
     image: { width: 200, height: 200 }

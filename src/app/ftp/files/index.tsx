@@ -5,7 +5,6 @@ import { View } from "react-native";
 import { useAppContext } from "../../../components/app-context-provider";
 import type { FtpEntry } from "../../../types/ftp";
 import type { FtpStackParamList } from "../../../types/navigation";
-import Background from "../../../components/background";
 import List from "../../../components/list";
 import Loading from "../../../components/loading";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -89,7 +88,7 @@ export default function Files() {
     }
 
     return (
-        <Background>
+        <View style={common.root}>
             <View style={contentStyle}>
                 <List
                     storage="ftp"
@@ -138,6 +137,6 @@ export default function Files() {
                     }}
                 />
             </View>
-        </Background>
+        </View>
     );
 }

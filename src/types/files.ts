@@ -3,7 +3,20 @@ import type { ImageSourcePropType } from "react-native";
 export type EntryType = "dir" | "file";
 
 export type FileIconType =
-    EntryType | "image" | "video" | "audio" | "compress" | "pdf" | "word" | "excel" | "power" | "apk" | "exe" | "code";
+    | EntryType
+    | "image"
+    | "video"
+    | "audio"
+    | "compress"
+    | "pdf"
+    | "word"
+    | "excel"
+    | "power"
+    | "apk"
+    | "exe"
+    | "code"
+    | "text"
+    | "system";
 
 export type FileIcons = Record<FileIconType, ImageSourcePropType>;
 
