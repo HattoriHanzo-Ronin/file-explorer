@@ -291,8 +291,10 @@ export const MakeDir = (props: MenuProps) => {
             >
                 <TextInput
                     autoFocus
+                    returnKeyType="done"
                     style={[overflowMenu.input, { borderBottomColor: theme.border, color: theme.text }]}
                     value={name}
+                    onSubmitEditing={() => void createDirectory()}
                     onChangeText={(value) => {
                         setName(value);
                         setValidationErrors({});
@@ -324,6 +326,55 @@ export const RenameMenu = (props: MenuProps) => {
     const [show, setShow] = useState<boolean>(false);
     const [name, setName] = useState<string>("");
     const [validationErrors, setValidationErrors] = useState<ValidationErrors<RenameEntryRequest>>({});
+
+    async function rename() {
+        const normalizedName = name.trim();
+        if (storage === "local") {
+            const currentName = toRename[0].path.split("/").pop() ?? "";
+            if (currentName === normalizedName) {
+                setValidationErrors({ newName: ["- El nuevo nombre debe ser diferente"] });
+                return;
+            }
+
+            const validationMessage = FileUtils.validateName(normalizedName);
+            if (validationMessage) {
+                setValidationErrors({ newName: [`- ${validationMessage}`] });
+                return;
+            }
+        }
+
+        if (storage === "ftp") {
+            const entry = modifyFtpFile[0];
+            const result = await executeApiRequest(
+                (apiUtils) =>
+                    apiUtils.renameEntry({
+                        dir: ftpDirectory.dir,
+                        entry: { name: entry.path, type: entry.type },
+                        newName: normalizedName
+                    }),
+                { isBackground: true }
+            );
+            if (!result.success) {
+                setValidationErrors(UiUtils.mapValidationErrors<RenameEntryRequest>(result.error.details ?? []));
+                return;
+            }
+
+            setFtpDirectory((current) =>
+                current.dir === ftpDirectory.dir ? { ...current, content: result.data } : current
+            );
+        } else {
+            await executeLocalRequest((localFileManager) => localFileManager.rename(toRename[0], normalizedName), {
+                isBackground: true
+            });
+        }
+
+        setShow(false);
+        setVisible(false);
+        setDirSelected((current) => !current);
+        setModifyFtpFile([]);
+        setModifyLocalFile([]);
+    }
+
     return (
         <>
             <MenuItem
@@ -346,63 +397,14 @@ export const RenameMenu = (props: MenuProps) => {
                     setModifyFtpFile([]);
                     setModifyLocalFile([]);
                 }}
-                onAccept={async () => {
-                    const normalizedName = name.trim();
-                    if (storage === "local") {
-                        const currentName = toRename[0].path.split("/").pop() ?? "";
-                        if (currentName === normalizedName) {
-                            setValidationErrors({ newName: ["- El nuevo nombre debe ser diferente"] });
-                            return;
-                        }
-
-                        const validationMessage = FileUtils.validateName(normalizedName);
-                        if (validationMessage) {
-                            setValidationErrors({ newName: [`- ${validationMessage}`] });
-                            return;
-                        }
-                    }
-
-                    if (storage === "ftp") {
-                        const entry = modifyFtpFile[0];
-                        const result = await executeApiRequest(
-                            (apiUtils) =>
-                                apiUtils.renameEntry({
-                                    dir: ftpDirectory.dir,
-                                    entry: { name: entry.path, type: entry.type },
-                                    newName: normalizedName
-                                }),
-                            { isBackground: true }
-                        );
-                        if (!result.success) {
-                            setValidationErrors(
-                                UiUtils.mapValidationErrors<RenameEntryRequest>(result.error.details ?? [])
-                            );
-                            return;
-                        }
-
-                        setFtpDirectory((current) =>
-                            current.dir === ftpDirectory.dir ? { ...current, content: result.data } : current
-                        );
-                    } else {
-                        await executeLocalRequest(
-                            (localFileManager) => localFileManager.rename(toRename[0], normalizedName),
-                            {
-                                isBackground: true
-                            }
-                        );
-                    }
-
-                    setShow(false);
-                    setVisible(false);
-                    setDirSelected((current) => !current);
-                    setModifyFtpFile([]);
-                    setModifyLocalFile([]);
-                }}
+                onAccept={() => void rename()}
             >
                 <TextInput
                     autoFocus
+                    returnKeyType="done"
                     style={[overflowMenu.input, { borderBottomColor: theme.border, color: theme.text }]}
                     value={name}
+                    onSubmitEditing={() => void rename()}
                     onChangeText={(value) => {
                         setName(value);
                         setValidationErrors({});
