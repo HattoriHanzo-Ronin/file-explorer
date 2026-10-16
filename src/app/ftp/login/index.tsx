@@ -69,6 +69,8 @@ export default function Login() {
                         style={login.passwordInput}
                         value={password}
                         onChangeText={setPassword}
+                        returnKeyType="done"
+                        onSubmitEditing={() => void handleLogin()}
                         secureTextEntry={!showPassword}
                     />
                     <Pressable onPress={() => setShowPassword((current) => !current)}>

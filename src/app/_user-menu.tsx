@@ -70,6 +70,15 @@ export default function UserMenu(props: UserMenuProps) {
         setPasswordErrors(UiUtils.mapValidationErrors<UpdatePasswordRequest>(result.error.details ?? []));
     }
 
+    function acceptDialog(): void {
+        if (dialog === "username") {
+            void saveUsername();
+            return;
+        }
+
+        void savePassword();
+    }
+
     return (
         <>
             <Modal animationType="fade" transparent visible={visible} onRequestClose={onClose}>
@@ -94,13 +103,15 @@ export default function UserMenu(props: UserMenuProps) {
                 visible={dialog !== null}
                 title={dialog === "username" ? "Nuevo nombre de usuario" : undefined}
                 onCancel={closeDialog}
-                onAccept={() => void (dialog === "username" ? saveUsername() : savePassword())}
+                onAccept={acceptDialog}
             >
                 {dialog === "username" ? (
                     <>
                         <TextInput
                             style={[userMenu.lineInput, { borderBottomColor: theme.border, color: theme.text }]}
                             value={username}
+                            returnKeyType="done"
+                            onSubmitEditing={acceptDialog}
                             onChangeText={(value) => {
                                 setUsername(value);
                                 setUsernameErrors({});
@@ -144,6 +155,8 @@ export default function UserMenu(props: UserMenuProps) {
                             <TextInput
                                 style={[userMenu.passwordInput, { color: theme.text }]}
                                 value={newPassword}
+                                returnKeyType="done"
+                                onSubmitEditing={acceptDialog}
                                 onChangeText={(value) => {
                                     setNewPassword(value);
                                     setPasswordErrors((current) => ({ ...current, newPassword: undefined }));
