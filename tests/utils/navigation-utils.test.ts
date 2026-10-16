@@ -1,6 +1,6 @@
-import type { AppContextType } from "../src/types/context";
-import type { FileSystemEntry, StorageRoot } from "../src/types/files";
-import { handleNavigationPress, openStorage } from "../src/utils/navigation-utils";
+import type { AppContextType } from "../../src/types/context";
+import type { FileSystemEntry, StorageRoot } from "../../src/types/files";
+import { handleNavigationPress, openStorage } from "../../src/utils/navigation-utils";
 
 test("keeps the current root content when its drawer item is pressed again", () => {
     const root: StorageRoot = { id: "internal", name: "Internal", path: "/storage", type: "INTERNAL" };
