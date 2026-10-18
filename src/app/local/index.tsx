@@ -126,6 +126,10 @@ export default function Local() {
                             }));
                         }
 
+                        if (type === "file" && modifyLocalFile.length === 0) {
+                            void openFile(name);
+                        }
+
                         if (modifyLocalFile.length > 0 && !fileAction) {
                             setModifyLocalFile([]);
                         }
@@ -155,14 +159,10 @@ export default function Local() {
                             );
                         }
                     }}
-                    oneTapAction={async (name: string, type: DirContent["type"]) => {
+                    oneTapAction={(name: string, type: DirContent["type"]) => {
                         const size = modifyLocalFile.length;
                         const relativePath = `${lastLocalDir}/${name}`;
                         const absolutePath = `${activeStorageRoot.path}/${lastLocalDir === " " ? name : relativePath}`;
-                        if (type === "file" && size === 0) {
-                            await openFile(name);
-                        }
-
                         if (size > 0) {
                             const isRestrictedDir = UiUtils.isActionBlocked(
                                 relativePath.includes("Android/data") || relativePath.includes("Android/obb"),
