@@ -12,19 +12,81 @@ import com.facebook.react.bridge.ReactMethod
 import java.io.File
 import java.io.FileOutputStream
 import java.security.MessageDigest
+import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledFuture
+import java.util.concurrent.TimeUnit
 import kotlin.math.max
 
 class ThumbnailGeneratorModule(reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {
 
+    private val executor = Executors.newFixedThreadPool(2)
+    private val cleanupExecutor = Executors.newSingleThreadScheduledExecutor()
+    private val locks = Array(32) { Any() }
+    private val cacheLock = Any()
+    private val cacheDirectory = File(reactContext.cacheDir, "thumbnails")
+    private var maxBytes = 0L
+    private var idleTimeoutMs = 0L
+    private var cleanupTask: ScheduledFuture<*>? = null
+    private var pendingRequests = 0
+
     override fun getName() = "ThumbnailGenerator"
 
     @ReactMethod
+    fun configure(maxBytes: Double, idleTimeoutMs: Double) {
+        synchronized(cacheLock) {
+            this.maxBytes = maxBytes.toLong()
+            this.idleTimeoutMs = idleTimeoutMs.toLong()
+        }
+        cleanupExecutor.execute { cleanupExpiredCache() }
+    }
+
+    @ReactMethod
     fun generate(path: String, promise: Promise) {
+        synchronized(cacheLock) {
+            pendingRequests++
+            cleanupTask?.cancel(false)
+        }
+        executor.execute {
+            try {
+                synchronized(locks[(path.hashCode() and Int.MAX_VALUE) % locks.size]) {
+                    generateThumbnail(path, promise)
+                }
+            } finally {
+                synchronized(cacheLock) {
+                    pendingRequests--
+                    if (pendingRequests == 0 && idleTimeoutMs > 0) {
+                        cleanupTask = cleanupExecutor.schedule({ clearIdleCache() }, idleTimeoutMs, TimeUnit.MILLISECONDS)
+                    }
+                }
+            }
+        }
+    }
+
+    override fun invalidate() {
+        executor.shutdownNow()
+        cleanupExecutor.shutdownNow()
+        super.invalidate()
+    }
+
+    private fun generateThumbnail(path: String, promise: Promise) {
         try {
             val source = File(path)
             if (!source.isFile) {
                 promise.resolve(null)
+                return
+            }
+
+            val thumbnail = getThumbnailFile(source)
+            val cached = synchronized(cacheLock) {
+                val valid = thumbnail.exists() && thumbnail.lastModified() >= source.lastModified()
+                if (valid) {
+                    thumbnail.parentFile?.setLastModified(System.currentTimeMillis())
+                }
+                valid
+            }
+            if (cached) {
+                promise.resolve(Uri.fromFile(thumbnail).toString())
                 return
             }
 
@@ -39,11 +101,13 @@ class ThumbnailGeneratorModule(reactContext: ReactApplicationContext) :
                 return
             }
 
-            val thumbnail = getThumbnailFile(source)
-            if (!thumbnail.exists() || thumbnail.lastModified() < source.lastModified()) {
+            synchronized(cacheLock) {
+                thumbnail.parentFile?.mkdirs()
                 FileOutputStream(thumbnail).use { output ->
                     bitmap.compress(Bitmap.CompressFormat.JPEG, 85, output)
                 }
+                thumbnail.parentFile?.setLastModified(System.currentTimeMillis())
+                trimCache()
             }
 
             bitmap.recycle()
@@ -99,11 +163,43 @@ class ThumbnailGeneratorModule(reactContext: ReactApplicationContext) :
     }
 
     private fun getThumbnailFile(source: File): File {
-        val cacheDirectory = File(reactApplicationContext.cacheDir, "thumbnails")
-        cacheDirectory.mkdirs()
-        val digest = MessageDigest.getInstance("SHA-256").digest(source.path.toByteArray())
-        val name = digest.joinToString("") { byte -> "%02x".format(byte) }
-        return File(cacheDirectory, "$name.jpg")
+        val directory = File(cacheDirectory, hashPath(source.parent.orEmpty()))
+        return File(directory, "${hashPath(source.path)}.jpg")
+    }
+
+    private fun hashPath(path: String): String {
+        val digest = MessageDigest.getInstance("SHA-256").digest(path.toByteArray())
+        return digest.joinToString("") { byte -> "%02x".format(byte) }
+    }
+
+    private fun trimCache() {
+        if (maxBytes <= 0) return
+        val directories = cacheDirectory.listFiles()?.sortedBy { it.lastModified() }.orEmpty()
+        var total = directories.sumOf { cacheSize(it) }
+        for (directory in directories) {
+            if (total <= maxBytes) break
+            val size = cacheSize(directory)
+            if (directory.deleteRecursively()) total -= size
+        }
+    }
+
+    private fun cacheSize(file: File): Long {
+        return if (file.isDirectory) file.listFiles()?.sumOf { cacheSize(it) } ?: 0L else file.length()
+    }
+
+    private fun cleanupExpiredCache() {
+        synchronized(cacheLock) {
+            if (idleTimeoutMs <= 0 || pendingRequests > 0) return
+            val cutoff = System.currentTimeMillis() - idleTimeoutMs
+            cacheDirectory.listFiles()?.filter { it.lastModified() <= cutoff }?.forEach { it.deleteRecursively() }
+            trimCache()
+        }
+    }
+
+    private fun clearIdleCache() {
+        synchronized(cacheLock) {
+            if (pendingRequests == 0) cacheDirectory.listFiles()?.forEach { it.deleteRecursively() }
+        }
     }
 
     private fun getMimeType(file: File): String {
