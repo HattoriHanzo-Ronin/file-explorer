@@ -2,6 +2,7 @@ import { NativeModules } from "react-native";
 import type { ThumbnailGenerator } from "../thumbnail-generator";
 
 interface NativeThumbnailModule {
+    configure(maxBytes: number, idleTimeoutMs: number): void;
     generate(path: string): Promise<string | null>;
 }
 
@@ -12,6 +13,11 @@ interface NativeThumbnailModule {
  */
 export default class NativeThumbnailGenerator implements ThumbnailGenerator {
     private readonly thumbnailModule = NativeModules.ThumbnailGenerator as NativeThumbnailModule;
+
+    constructor(options: { maxBytes: number; idleTimeoutMs: number }) {
+        const { maxBytes, idleTimeoutMs } = options;
+        this.thumbnailModule.configure(maxBytes, idleTimeoutMs);
+    }
 
     /**
      * Returns a cached thumbnail for a local image or video

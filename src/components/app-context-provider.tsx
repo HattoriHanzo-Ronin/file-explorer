@@ -2,6 +2,7 @@ import { createContext, PropsWithChildren, useCallback, useContext, useEffect, u
 import Config from "react-native-config";
 import { STORAGE_KEYS } from "../constants/storage";
 import { STORAGE_ROOT_NAMES } from "../constants/storage-roots";
+import { THUMBNAIL_CACHE } from "../constants/thumbnails";
 import type { ApiRequestOptions, ApiResponse } from "../types/api-response";
 import type { AuthUser } from "../types/auth";
 import type { AppContextType } from "../types/context";
@@ -51,7 +52,7 @@ export default function AppContextProvider(props: PropsWithChildren) {
     const [storage] = useState<KeychainStorage>(() => new KeychainStorage());
     const [preferenceStorage] = useState<AsyncStorageStorage>(() => new AsyncStorageStorage());
     const [permission] = useState<ReactNativePermission>(() => new ReactNativePermission());
-    const [thumbnailGenerator] = useState<NativeThumbnailGenerator>(() => new NativeThumbnailGenerator());
+    const [thumbnailGenerator] = useState<NativeThumbnailGenerator>(() => new NativeThumbnailGenerator(THUMBNAIL_CACHE));
     const [localFileOperation] = useState<NativeLocalFileOperation>(() => new NativeLocalFileOperation());
     const [remoteFileOperation] = useState<NativeRemoteFileOperation>(() => new NativeRemoteFileOperation());
     const [localFileManager] = useState<LocalFileManager>(
