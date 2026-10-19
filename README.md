@@ -29,9 +29,9 @@ The Android application is the client of that system. Deployment, exposure to th
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | Local storage         | Browse internal and removable storage; create folders; rename, copy, move and delete entries; open compatible files; extract supported archives |
 | Network workspace     | Authenticate and browse remote directories through the API; create folders; rename, move and delete entries; upload and download files          |
-| Background operations | Native Android operations keep long-running transfers and file operations active and expose progress through notifications                      |
+| Background operations | Native Android operations report progress and completion through notifications and in-app messages                                              |
 | File views            | List, compact-icon and large-icon modes, with the selected mode persisted between launches                                                      |
-| Thumbnails            | Local image and video thumbnails, plus remote thumbnail availability checks                                                                     |
+| Thumbnails            | Background generation and bounded caching of local image and video thumbnails, plus remote thumbnail availability checks                        |
 | Synchronization       | Directory versions avoid replacing visible content when nothing has changed                                                                     |
 | Authentication        | JWT login, session restoration, refresh flow and secure token storage through the Android keychain                                              |
 | Interface             | System light/dark theme, selection mode, path navigation, contextual actions and Android back-button handling                                   |
@@ -111,7 +111,7 @@ flowchart TD
 | `AuthUtils`                    | Log in, restore or clear a session, refresh tokens and manage the Axios authorization interceptor           |
 | `ApiUtils`                     | Encapsulate the HTTP contract and normalize successful and failed responses                                 |
 | `LocalFileManager`             | Coordinate local listing, file operations, directory versions and restoration                               |
-| `RemoteFileManager`            | Coordinate uploads, downloads, remote moves/deletions, progress and completion                              |
+| `RemoteFileManager`            | Coordinate uploads, downloads and remote file operations, progress and completion                           |
 | Interfaces and implementations | Isolate the filesystem, secure storage, permissions, thumbnails and native operations from React components |
 
 ### RemoteFileManager and local writes
@@ -190,6 +190,7 @@ The Jest suite runs the application shell with native navigation adapters mocked
 - `AuthUtils`: login, token persistence, session restoration and cleanup.
 - `LoadingUtils` and `FileUtils`: concurrent loading state, validation, hashing and file classification.
 - `LocalFileManager` and `RemoteFileManager`: local and remote operations, collisions, background-operation state and completion handling.
+- `UiUtils` and the overflow menu: operation messages, dialog submission and validation feedback.
 
 Run the complete suite with `pnpm test --runInBand`. The tests are located outside `src` under `tests`, mirroring the source structure; the app-shell mounting test remains under `__tests__`.
 
@@ -233,6 +234,7 @@ file-explorer/
 - **Secure cross-component session state:** Axios keeps the active authorization interceptor in memory, while Keychain-backed storage makes tokens available to native operations and session restoration.
 - **Native background work:** Android owns long-running file operations and reports their progress through persistent notifications.
 - **All-or-nothing transfers:** interrupted or failed transfers restart from zero rather than resuming partial data.
+- **Local operation recovery:** coordinated paths, staged writes and persisted operation records support cleanup and recovery after failures or interruptions, including downloads written to local storage.
 - **Version-based refresh:** lightweight directory versions avoid unnecessary content reloads.
 - **Separate preference storage:** the selected directory view mode belongs in AsyncStorage; authentication secrets do not. The application theme follows the system setting.
 
