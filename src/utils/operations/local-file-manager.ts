@@ -85,8 +85,21 @@ export default class LocalFileManager {
     async createDirectory(rootPath: string, dir: string, name: string): Promise<LocalResponse<LocalDirectoryUpdate[]>> {
         try {
             const destination = this.absolutePath(rootPath, dir);
-            await this.fileSystem.mkdir(`${destination}/${await this.availableName(destination, name)}`);
-            return this.getDirectoryUpdates([destination]);
+            if (await this.localFileOperation.tryCreateDirectory(destination, name)) {
+                return this.getDirectoryUpdates([destination]);
+            }
+
+            const permission = await this.prepareOperation();
+            if (!permission.success) {
+                return permission;
+            }
+            const id = await this.localFileOperation.createDirectory({
+                destination,
+                name,
+                notificationTexts: FILE_OPERATION_NOTIFICATION_TEXTS
+            });
+            const result = await this.waitForCompletion(id);
+            return result.success ? this.getDirectoryUpdates([destination]) : result;
         } catch {
             return this.operationError("Error al crear carpeta");
         }
@@ -103,8 +116,21 @@ export default class LocalFileManager {
         try {
             const source = entry.path;
             const destination = source.substring(0, source.lastIndexOf("/"));
-            await this.fileSystem.moveFile(source, `${destination}/${await this.availableName(destination, name)}`);
-            return this.getDirectoryUpdates([destination]);
+            if (await this.localFileOperation.tryRename(source, name)) {
+                return this.getDirectoryUpdates([destination]);
+            }
+
+            const permission = await this.prepareOperation();
+            if (!permission.success) {
+                return permission;
+            }
+            const id = await this.localFileOperation.rename({
+                source,
+                name,
+                notificationTexts: FILE_OPERATION_NOTIFICATION_TEXTS
+            });
+            const result = await this.waitForCompletion(id);
+            return result.success ? this.getDirectoryUpdates([destination]) : result;
         } catch {
             return this.operationError("Error al renombrar");
         }
@@ -355,25 +381,10 @@ export default class LocalFileManager {
         this.activeDirectories.delete(directory);
     }
 
-    private async availableName(destination: string, name: string): Promise<string> {
-        if (!(await this.fileSystem.exists(`${destination}/${name}`))) {
-            return name;
-        }
-
-        const extensionIndex = name.lastIndexOf(".");
-        const hasExtension = extensionIndex > 0;
-        const extension = hasExtension ? name.substring(extensionIndex) : "";
-        const baseName = (hasExtension ? name.substring(0, extensionIndex) : name).replace(/ \(\d+\)$/, "");
-        let copy = 1;
-        while (await this.fileSystem.exists(`${destination}/${baseName} (${copy})${extension}`)) {
-            copy += 1;
-        }
-
-        return `${baseName} (${copy})${extension}`;
-    }
-
     private isLocalOperation(operation: FileOperationSnapshot): boolean {
         const { operation: type } = operation;
-        return ["LOCAL_COPY", "LOCAL_MOVE", "LOCAL_DELETE", "LOCAL_EXTRACT"].includes(type);
+        return ["LOCAL_MKDIR", "LOCAL_RENAME", "LOCAL_COPY", "LOCAL_MOVE", "LOCAL_DELETE", "LOCAL_EXTRACT"].includes(
+            type
+        );
     }
 }

@@ -12,6 +12,10 @@ function createManager() {
         moveFile: jest.fn()
     };
     const localFileOperation = {
+        tryCreateDirectory: jest.fn(),
+        tryRename: jest.fn(),
+        createDirectory: jest.fn(),
+        rename: jest.fn(),
         addChangeListener: jest.fn((callback) => {
             listener = callback;
             return jest.fn();
@@ -56,14 +60,32 @@ describe("LocalFileManager", () => {
     });
 
     it("creates a non-colliding directory name", async () => {
-        const { fileSystem, manager } = createManager();
-        fileSystem.exists.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+        const { fileSystem, localFileOperation, manager } = createManager();
+        localFileOperation.tryCreateDirectory.mockResolvedValue(true);
         fileSystem.readDir.mockResolvedValue([]);
         await expect(manager.createDirectory("/storage", "docs", "Report")).resolves.toEqual({
             success: true,
             data: [{ path: "/storage/docs", entries: [] }]
         });
-        expect(fileSystem.mkdir).toHaveBeenCalledWith("/storage/docs/Report (1)");
+        expect(localFileOperation.tryCreateDirectory).toHaveBeenCalledWith("/storage/docs", "Report");
+        expect(localFileOperation.createDirectory).not.toHaveBeenCalled();
+    });
+
+    it("starts a foreground operation when creating a directory is blocked", async () => {
+        const { fileSystem, listener, localFileOperation, manager } = createManager();
+        fileSystem.readDir.mockResolvedValue([]);
+        localFileOperation.tryCreateDirectory.mockResolvedValue(false);
+        localFileOperation.createDirectory.mockImplementation(async () => {
+            void Promise.resolve().then(() => listener()({
+                id: "mkdir-1", operation: "LOCAL_MKDIR", status: "COMPLETED", bytesTransferred: 0,
+                totalBytes: 0, revision: 1, remoteDir: "", destinationDir: "", localDir: "/storage/docs"
+            }));
+            return "mkdir-1";
+        });
+        await expect(manager.createDirectory("/storage", "docs", "Report")).resolves.toEqual({
+            success: true, data: [{ path: "/storage/docs", entries: [] }]
+        });
+        expect(localFileOperation.createDirectory).toHaveBeenCalledTimes(1);
     });
 
     it("rejects unsupported archive formats before starting a native operation", async () => {

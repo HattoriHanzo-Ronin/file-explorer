@@ -68,12 +68,15 @@ export default class ApiUtils {
      * @returns Updated remote directory
      */
     async upload(items: LocalModifyElement[], remoteDir: string): Promise<ApiResponse<RemoteDirectoryOperationResult>> {
-        const result = await this.remoteFileManager.upload(items, remoteDir);
-        if (result.success) {
-            this.updateFtpVersion(result.data.version);
-        }
+        return this.executeRequest(async () => {
+            const result = await this.remoteFileManager.upload(items, remoteDir);
+            if (!result.success) {
+                throw result.error;
+            }
 
-        return result;
+            this.updateFtpVersion(result.data.version);
+            return result.data;
+        });
     }
 
     /**
@@ -91,7 +94,14 @@ export default class ApiUtils {
         localRoot: string,
         localDir: string
     ): Promise<ApiResponse<void>> {
-        return this.remoteFileManager.download(items, remoteDir, localRoot, localDir);
+        return this.executeRequest(async () => {
+            const result = await this.remoteFileManager.download(items, remoteDir, localRoot, localDir);
+            if (!result.success) {
+                throw result.error;
+            }
+
+            return result.data;
+        });
     }
 
     /**
@@ -235,8 +245,13 @@ export default class ApiUtils {
      */
     async getThumbnail(request: ThumbnailRequest): Promise<ApiResponse<ThumbnailResponse>> {
         const result = await this.getThumbnailStatus(request);
-        if (!result.success || result.data !== "AVAILABLE") {
-            return result.success ? { success: true, data: { status: result.data } } : result;
+        if (!result.success) {
+            return result;
+        }
+
+        const { data: status } = result;
+        if (status !== "AVAILABLE") {
+            return { success: true, data: { status } };
         }
 
         const accessToken = await this.storage.get<string>(STORAGE_KEYS.accessToken);
@@ -261,13 +276,14 @@ export default class ApiUtils {
      */
     async createDirectory(request: CreateDirectoryRequest): Promise<ApiResponse<CreateDirectoryResponse>> {
         return this.executeRequest(async () => {
-            const { name, dir } = request;
-            const { data, headers } = await axios.post<CreateDirectoryResponse>(this.buildUrl("ftp/mkdir"), {
-                name,
-                dir: this.normalizeDir(dir)
-            });
-            this.updateFtpVersion(headers["data-version"]);
-            return data;
+            const result = await this.remoteFileManager.createDirectory(request);
+            if (!result.success) {
+                throw result.error;
+            }
+
+            const { version, entries } = result.data;
+            this.updateFtpVersion(version);
+            return entries;
         });
     }
 
@@ -278,13 +294,16 @@ export default class ApiUtils {
      * @returns Confirmed moved entries
      */
     async moveEntries(request: MoveEntriesRequest): Promise<ApiResponse<MoveEntriesResponse>> {
-        const result = await this.remoteFileManager.move(request);
-        if (!result.success) {
-            return result;
-        }
+        return this.executeRequest(async () => {
+            const result = await this.remoteFileManager.move(request);
+            if (!result.success) {
+                throw result.error;
+            }
 
-        this.updateFtpVersion(result.data.version);
-        return { success: true, data: result.data.changes };
+            const { version, changes } = result.data;
+            this.updateFtpVersion(version);
+            return changes;
+        });
     }
 
     /**
@@ -295,14 +314,14 @@ export default class ApiUtils {
      */
     async renameEntry(request: RenameEntryRequest): Promise<ApiResponse<RenameEntryResponse>> {
         return this.executeRequest(async () => {
-            const { entry, newName, dir } = request;
-            const { data, headers } = await axios.post<RenameEntryResponse>(this.buildUrl("ftp/rename"), {
-                entry,
-                newName,
-                dir: this.normalizeDir(dir)
-            });
-            this.updateFtpVersion(headers["data-version"]);
-            return data;
+            const result = await this.remoteFileManager.rename(request);
+            if (!result.success) {
+                throw result.error;
+            }
+
+            const { version, entries } = result.data;
+            this.updateFtpVersion(version);
+            return entries;
         });
     }
 
@@ -313,13 +332,16 @@ export default class ApiUtils {
      * @returns Confirmed deleted entries
      */
     async deleteEntries(request: DeleteEntriesRequest): Promise<ApiResponse<DeleteEntriesResponse>> {
-        const result = await this.remoteFileManager.delete(request);
-        if (!result.success) {
-            return result;
-        }
+        return this.executeRequest(async () => {
+            const result = await this.remoteFileManager.delete(request);
+            if (!result.success) {
+                throw result.error;
+            }
 
-        this.updateFtpVersion(result.data.version);
-        return { success: true, data: result.data.changes };
+            const { version, changes } = result.data;
+            this.updateFtpVersion(version);
+            return changes;
+        });
     }
 
     private buildUrl(entity: string): string {
@@ -347,6 +369,17 @@ export default class ApiUtils {
             return { success: true, data: await callback() };
         } catch (err) {
             let error: ApiError = { code: "NETWORK_ERROR", message: "No se pudo conectar con el servidor" };
+            if (
+                typeof err === "object" &&
+                err !== null &&
+                "code" in err &&
+                typeof err.code === "string" &&
+                "message" in err &&
+                typeof err.message === "string"
+            ) {
+                error = err as ApiError;
+            }
+
             if (isAxiosError<ApiError>(err) && err.response) {
                 error = err.response.data;
             }

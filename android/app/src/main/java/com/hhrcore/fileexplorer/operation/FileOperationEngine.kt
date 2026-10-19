@@ -1,6 +1,9 @@
 package com.hhrcore.fileexplorer.operation
 
 import android.util.Log
+import android.system.ErrnoException
+import android.system.Os
+import android.system.OsConstants
 import okhttp3.Call
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
@@ -23,6 +26,7 @@ import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+import java.util.UUID
 
 class FileOperationEngine(private val store: FileOperationStore, private val onChange: (FileOperationRecord) -> Unit) {
     private val client = OkHttpClient.Builder()
@@ -39,13 +43,20 @@ class FileOperationEngine(private val store: FileOperationStore, private val onC
 
     fun execute(record: FileOperationRecord, accessToken: String?) {
         try {
+            LocalPathLocks.acquire(record.id, localClaims(record)) { checkCancelled(record.id) }
             record.status = FileOperationRecord.STATUS_RUNNING
             persist(record)
             when (record.operation) {
                 FileOperationRecord.OPERATION_UPLOAD -> upload(record, requireToken(accessToken))
                 FileOperationRecord.OPERATION_DOWNLOAD -> download(record, requireToken(accessToken))
+                FileOperationRecord.OPERATION_REMOTE_MKDIR, FileOperationRecord.OPERATION_REMOTE_RENAME -> remoteDirectoryChange(record, requireToken(accessToken))
                 FileOperationRecord.OPERATION_REMOTE_MOVE -> remoteMove(record, requireToken(accessToken))
                 FileOperationRecord.OPERATION_REMOTE_DELETE -> remoteDelete(record, requireToken(accessToken))
+                FileOperationRecord.OPERATION_LOCAL_MKDIR -> AtomicFiles.reserve(File(record.request.getString("destination")), record.request.getString("name"), true, record.id)
+                FileOperationRecord.OPERATION_LOCAL_RENAME -> {
+                    val source = File(record.request.getString("source"))
+                    AtomicFiles.rename(source, source.parentFile ?: throw IllegalArgumentException("Ruta no válida"), record.request.getString("name"), record.id)
+                }
                 FileOperationRecord.OPERATION_LOCAL_COPY -> localCopyMove(record, false)
                 FileOperationRecord.OPERATION_LOCAL_MOVE -> localCopyMove(record, true)
                 FileOperationRecord.OPERATION_LOCAL_DELETE -> localDelete(record)
@@ -73,6 +84,7 @@ class FileOperationEngine(private val store: FileOperationStore, private val onC
             cancelled.remove(record.id)
             committing.remove(record.id)
             lastProgressAt.remove(record.id)
+            LocalPathLocks.release(record.id)
         }
     }
 
@@ -86,10 +98,26 @@ class FileOperationEngine(private val store: FileOperationStore, private val onC
     }
 
     fun reconcile(record: FileOperationRecord) {
+        val paths = record.createdPaths + record.ownedIdentities.keys().asSequence().toList() + listOfNotNull(record.pendingStagePath)
+        val claims = localClaims(record) + paths.map { LocalPathLocks.claim(File(it), true) }
+        LocalPathLocks.acquire(record.id, claims)
+        try {
+            reconcileLocked(record)
+        } finally {
+            LocalPathLocks.release(record.id)
+        }
+    }
+
+    private fun reconcileLocked(record: FileOperationRecord) {
         if (record.status in setOf(FileOperationRecord.STATUS_PENDING, FileOperationRecord.STATUS_RUNNING)) {
             record.status = FileOperationRecord.STATUS_INTERRUPTED
         }
         record.error = null
+        if (!cleanupPendingStage(record)) {
+            record.cleanupPending = true
+            persist(record)
+            return
+        }
         if (record.operation == FileOperationRecord.OPERATION_LOCAL_MOVE && record.moveCommitStarted) {
             rollbackMove(record)
         } else if (record.operation == FileOperationRecord.OPERATION_DOWNLOAD ||
@@ -174,26 +202,28 @@ class FileOperationEngine(private val store: FileOperationStore, private val onC
         record.totalBytes = validateDownloadManifest(session, entries)
         persist(record)
         val destination = File(request.getString("destination"))
-        val roots = mutableMapOf<String, String>()
+        val roots = mutableMapOf<String, File>()
         for (index in 0 until entries.length()) {
             checkCancelled(record.id)
             val entry = entries.getJSONObject(index)
             val relativePath = safeRelativePath(entry.getString("path"))
             val parts = relativePath.split("/")
-            val localRoot = roots.getOrPut(parts.first()) { availableName(destination, parts.first()) }
-            val localFile = File(destination, listOf(localRoot).plus(parts.drop(1)).joinToString("/"))
+            val localRoot = roots.getOrPut(parts.first()) {
+                reserveOwnedPath(record, destination, parts.first(), parts.size > 1 || entry.getString("type") == "DIR")
+            }
+            val localFile = if (parts.size == 1) localRoot else File(localRoot, parts.drop(1).joinToString("/"))
             if (entry.getString("type") == "DIR") {
-                registerOwnedPath(record, localFile)
                 if (!localFile.mkdirs() && !localFile.isDirectory) throw IllegalStateException("No se pudo crear ${localFile.path}")
             } else {
                 val size = entry.getLong("size")
                 localFile.parentFile?.let { parent ->
                     if (!parent.exists()) {
-                        registerOwnedPath(record, parent)
                         if (!parent.mkdirs() && !parent.isDirectory) throw IllegalStateException("No se pudo crear ${parent.path}")
                     }
                 }
-                registerOwnedPath(record, localFile)
+                if (parts.size > 1 && !localFile.createNewFile()) {
+                    throw IllegalStateException("El archivo ya existe: ${localFile.path}")
+                }
                 downloadFile(record, token, relativePath, localFile, size)
             }
         }
@@ -246,6 +276,34 @@ class FileOperationEngine(private val store: FileOperationStore, private val onC
             if (fileBytesTransferred != expectedSize) {
                 throw IllegalStateException("La descarga terminó antes del tamaño declarado")
             }
+        }
+    }
+
+    private fun remoteDirectoryChange(record: FileOperationRecord, token: String) {
+        val request = record.request
+        val rename = record.operation == FileOperationRecord.OPERATION_REMOTE_RENAME
+        val body = JSONObject().apply {
+            request.optString("remoteDir").takeIf { it.isNotEmpty() }?.let { put("dir", it) }
+            if (rename) {
+                put("entry", request.getJSONObject("entry"))
+                put("newName", request.getString("newName"))
+            } else {
+                put("name", request.getString("name"))
+            }
+        }
+        val endpoint = if (rename) "rename" else "mkdir"
+        val httpRequest = Request.Builder()
+            .url("${request.getString("apiUrl")}/ftp/$endpoint")
+            .header("Authorization", "Bearer $token")
+            .post(body.toString().toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+        val call = client.newBuilder().readTimeout(0, TimeUnit.MILLISECONDS).build().newCall(httpRequest)
+        calls[record.id] = call
+        call.execute().use { response ->
+            val responseBody = response.body?.string().orEmpty()
+            if (!response.isSuccessful) throw ApiException(responseBody, response.code)
+            val version = response.header("Data-Version") ?: throw IllegalStateException("Falta la versión del directorio")
+            record.result = JSONObject().put("entries", JSONArray(responseBody)).put("version", version)
         }
     }
 
@@ -339,6 +397,36 @@ class FileOperationEngine(private val store: FileOperationStore, private val onC
         }
     }
 
+    private fun localClaims(record: FileOperationRecord): List<LocalPathLocks.Claim> {
+        val request = record.request
+        val claims = mutableListOf<LocalPathLocks.Claim>()
+        when (record.operation) {
+            FileOperationRecord.OPERATION_DOWNLOAD -> claims.add(LocalPathLocks.claim(File(request.getString("destination")), false, false))
+            FileOperationRecord.OPERATION_LOCAL_COPY, FileOperationRecord.OPERATION_LOCAL_MOVE,
+            FileOperationRecord.OPERATION_LOCAL_DELETE -> {
+                val sources = request.getJSONArray("sources")
+                val write = record.operation != FileOperationRecord.OPERATION_LOCAL_COPY
+                for (index in 0 until sources.length()) {
+                    claims.add(LocalPathLocks.claim(File(sources.getString(index)), write))
+                }
+                if (record.operation != FileOperationRecord.OPERATION_LOCAL_DELETE) {
+                    claims.add(LocalPathLocks.claim(File(request.getString("destination")), false, false))
+                }
+            }
+            FileOperationRecord.OPERATION_LOCAL_MKDIR -> claims.add(LocalPathLocks.claim(File(request.getString("destination")), false, false))
+            FileOperationRecord.OPERATION_LOCAL_RENAME -> {
+                val source = File(request.getString("source"))
+                claims.add(LocalPathLocks.claim(source, true))
+                claims.add(LocalPathLocks.claim(source.parentFile ?: throw IllegalArgumentException("Ruta no válida"), false, false))
+            }
+            FileOperationRecord.OPERATION_LOCAL_EXTRACT -> {
+                claims.add(LocalPathLocks.claim(File(request.getString("source")), false))
+                claims.add(LocalPathLocks.claim(File(request.getString("destination")), false, false))
+            }
+        }
+        return claims
+    }
+
     private fun localCopyMove(record: FileOperationRecord, move: Boolean) {
         val request = record.request
         val sources = request.getJSONArray("sources")
@@ -351,8 +439,7 @@ class FileOperationEngine(private val store: FileOperationStore, private val onC
         for (index in 0 until sources.length()) {
             checkCancelled(record.id)
             val source = File(sources.getString(index))
-            val target = File(destination, availableName(destination, source.name))
-            registerOwnedPath(record, target)
+            val target = reserveOwnedPath(record, destination, source.name, source.isDirectory)
             copyLocal(record, source, target)
             if (trackEntries) {
                 record.bytesTransferred = (index + 1).toLong()
@@ -399,19 +486,23 @@ class FileOperationEngine(private val store: FileOperationStore, private val onC
         }
     }
 
-    private fun copyLocal(record: FileOperationRecord, source: File, destination: File) {
+    private fun copyLocal(record: FileOperationRecord, source: File, destination: File, reserved: Boolean = true) {
         checkCancelled(record.id)
         record.currentFileName = source.name
         if (source.isDirectory) {
-            if (!destination.mkdirs() && !destination.isDirectory) {
+            if (!reserved && !destination.mkdir()) {
                 throw IllegalStateException("No se pudo crear ${destination.path}")
             }
-            source.listFiles()?.forEach { copyLocal(record, it, File(destination, it.name)) }
+            val children = source.listFiles() ?: throw IllegalStateException("No se pudo leer ${source.path}")
+            children.forEach { copyLocal(record, it, File(destination, it.name), false) }
             return
         }
 
         destination.parentFile?.let {
             if (!it.exists() && !it.mkdirs()) throw IllegalStateException("No se pudo crear ${it.path}")
+        }
+        if (!reserved && !destination.createNewFile()) {
+            throw IllegalStateException("El archivo ya existe: ${destination.path}")
         }
         source.inputStream().buffered().use { input ->
             destination.outputStream().buffered().use { output ->
@@ -443,9 +534,7 @@ class FileOperationEngine(private val store: FileOperationStore, private val onC
     private fun localExtract(record: FileOperationRecord) {
         val source = File(record.request.getString("source"))
         val destination = File(record.request.getString("destination"))
-        val temporary = File(destination, ".file-explorer-${record.id}")
-        if (!temporary.mkdirs()) throw IllegalStateException("No se pudo preparar la extracción")
-        registerOwnedPath(record, temporary)
+        val temporary = createOwnedStage(record, destination, true)
         record.currentFileName = source.name
         persist(record)
 
@@ -457,12 +546,13 @@ class FileOperationEngine(private val store: FileOperationStore, private val onC
 
         temporary.listFiles()?.forEach { extracted ->
             checkCancelled(record.id)
-            val target = File(destination, availableName(destination, extracted.name))
-            registerOwnedPath(record, target)
-            if (!extracted.renameTo(target)) {
-                extracted.copyRecursively(target, overwrite = false)
-                if (!extracted.deleteRecursively()) throw IllegalStateException("No se pudo finalizar la extracción")
+            val target = reserveOwnedPath(record, destination, extracted.name, extracted.isDirectory)
+            if (extracted.isDirectory) {
+                check(extracted.copyRecursively(target, overwrite = false)) { "No se pudo finalizar la extracción" }
+            } else {
+                extracted.inputStream().use { input -> target.outputStream().use { output -> input.copyTo(output) } }
             }
+            if (!extracted.deleteRecursively()) throw IllegalStateException("No se pudo finalizar la extracción")
         }
         if (!temporary.deleteRecursively()) throw IllegalStateException("No se pudo limpiar la extracción temporal")
     }
@@ -643,7 +733,10 @@ class FileOperationEngine(private val store: FileOperationStore, private val onC
                 val sources = record.request.getJSONArray("sources")
                 check(sources.length() == record.createdPaths.size) { "Faltan rutas para restaurar el movimiento" }
                 for (index in 0 until sources.length()) {
-                    restoreMoveSource(record.id, File(record.createdPaths[index]), File(sources.getString(index)))
+                    val copy = File(record.createdPaths[index])
+                    val expected = record.ownedIdentities.optString(copy.path)
+                    check(expected.isNotEmpty() && identity(copy) == expected) { "No se pudo identificar ${copy.path}" }
+                    restoreMoveSource(record, copy, File(sources.getString(index)))
                 }
 
                 record.moveRollbackRestored = true
@@ -652,8 +745,13 @@ class FileOperationEngine(private val store: FileOperationStore, private val onC
 
             record.createdPaths.asReversed().forEach { path ->
                 val target = File(path)
-                check(!target.exists() || target.deleteRecursively()) { "No se pudo limpiar ${target.path}" }
+                val expected = record.ownedIdentities.optString(path)
+                check(!target.exists() || (expected.isNotEmpty() && identity(target) == expected && target.deleteRecursively())) {
+                    "No se pudo limpiar ${target.path}"
+                }
             }
+            cleanupLocal(record)
+            check(!record.cleanupPending) { "No se pudieron limpiar los archivos temporales" }
             record.moveCommitStarted = false
             record.moveRollbackRestored = false
         }.onFailure { error ->
@@ -661,35 +759,73 @@ class FileOperationEngine(private val store: FileOperationStore, private val onC
         }
     }
 
-    private fun restoreMoveSource(id: String, copy: File, source: File) {
+    private fun restoreMoveSource(record: FileOperationRecord, copy: File, source: File) {
         check(copy.exists()) { "No se encuentra la copia ${copy.path}" }
         if (copy.isDirectory) {
             check(source.isDirectory || (!source.exists() && source.mkdirs())) { "No se pudo restaurar ${source.path}" }
             val children = copy.listFiles() ?: throw IllegalStateException("No se pudo leer ${copy.path}")
-            children.forEach { child -> restoreMoveSource(id, child, File(source, child.name)) }
+            children.forEach { child -> restoreMoveSource(record, child, File(source, child.name)) }
             return
         }
 
-        val temporary = File(source.parentFile, ".file-explorer-restore-$id")
         if (source.exists()) {
             check(source.isFile) { "No se pudo restaurar ${source.path}" }
-            check(!temporary.exists() || temporary.delete()) { "No se pudo limpiar ${temporary.path}" }
             return
         }
 
-        source.parentFile?.let { parent ->
-            check(parent.isDirectory || parent.mkdirs()) { "No se pudo crear ${parent.path}" }
-        }
+        val parent = source.parentFile ?: throw IllegalStateException("No se pudo restaurar ${source.path}")
+        check(parent.isDirectory || parent.mkdirs()) { "No se pudo crear ${parent.path}" }
+        val temporary = createOwnedStage(record, parent, false)
         try {
             copy.copyTo(temporary, overwrite = true)
-            check(!source.exists() && temporary.renameTo(source)) { "No se pudo restaurar ${source.path}" }
+            check(AtomicRename.rename(temporary.path, source.path) == 0) { "No se pudo restaurar ${source.path}" }
         } finally {
             temporary.delete()
         }
     }
 
     private fun cleanupLocal(record: FileOperationRecord) {
-        record.createdPaths.asReversed().forEach { File(it).deleteRecursively() }
+        var cleaned = cleanupPendingStage(record)
+        record.ownedIdentities.keys().asSequence().toList().asReversed().forEach { path ->
+            val expected = record.ownedIdentities.optString(path)
+            val file = File(path)
+            val stat = try {
+                Os.lstat(path)
+            } catch (error: ErrnoException) {
+                if (error.errno != OsConstants.ENOENT) cleaned = false
+                return@forEach
+            }
+            val actual = if (stat.st_ino > 0) "${stat.st_dev}:${stat.st_ino}" else ""
+            if (expected.isEmpty() || actual.isEmpty()) {
+                cleaned = false
+            } else if (actual == expected && !file.deleteRecursively()) {
+                cleaned = false
+            }
+        }
+        if (record.createdPaths.any { !record.ownedIdentities.has(it) && File(it).exists() }) cleaned = false
+        record.cleanupPending = !cleaned
+    }
+
+    private fun cleanupPendingStage(record: FileOperationRecord): Boolean {
+        val path = record.pendingStagePath ?: return true
+        val file = File(path)
+        val prefix = ".file-explorer-${record.id}-"
+        if (!file.name.startsWith(prefix) || runCatching { UUID.fromString(file.name.removePrefix(prefix)) }.isFailure) return false
+        val stat = try {
+            Os.lstat(path)
+        } catch (error: ErrnoException) {
+            if (error.errno != OsConstants.ENOENT) return false
+            record.pendingStagePath = null
+            return true
+        }
+        val empty = when {
+            OsConstants.S_ISREG(stat.st_mode) -> stat.st_size == 0L
+            OsConstants.S_ISDIR(stat.st_mode) -> file.list()?.isEmpty() == true
+            else -> false
+        }
+        if (!empty || !file.delete()) return false
+        record.pendingStagePath = null
+        return true
     }
 
     private fun cancelRemoteSession(record: FileOperationRecord, token: String) {
@@ -756,21 +892,73 @@ class FileOperationEngine(private val store: FileOperationStore, private val onC
         }
     }
 
-    private fun registerOwnedPath(record: FileOperationRecord, file: File) {
-        if (!record.createdPaths.contains(file.path)) {
-            record.createdPaths.add(file.path)
+    private fun createOwnedStage(record: FileOperationRecord, directory: File, isDirectory: Boolean): File {
+        while (true) {
+            val file = File(directory, ".file-explorer-${record.id}-${UUID.randomUUID()}")
+            record.pendingStagePath = file.path
             persist(record)
+            val created = if (isDirectory) file.mkdir() else file.createNewFile()
+            if (!created) {
+                record.pendingStagePath = null
+                persist(record)
+                if (file.exists()) continue
+                throw IllegalStateException("No se pudo preparar ${file.path}")
+            }
+
+            val expected = identity(file)
+            check(expected.isNotEmpty()) { "No se pudo identificar ${file.path}" }
+            record.ownedIdentities.put(file.path, expected)
+            record.pendingStagePath = null
+            persist(record)
+            return file
         }
     }
 
-    private fun availableName(destination: File, requestedName: String): String {
-        if (!File(destination, requestedName).exists()) return requestedName
-        val extensionIndex = requestedName.lastIndexOf('.').takeIf { it > 0 } ?: requestedName.length
-        val base = requestedName.substring(0, extensionIndex).replace(Regex(" \\(\\d+\\)$"), "")
-        val extension = requestedName.substring(extensionIndex)
-        var index = 1
-        while (File(destination, "$base ($index)$extension").exists()) index++
-        return "$base ($index)$extension"
+    private fun reserveOwnedPath(record: FileOperationRecord, directory: File, name: String, isDirectory: Boolean): File {
+        val file = createOwnedStage(record, directory, isDirectory)
+        val expected = identity(file)
+        try {
+            check(expected.isNotEmpty()) { "No se pudo identificar ${file.path}" }
+            record.ownedIdentities.put(file.path, expected)
+            persist(record)
+            var index = 0
+            while (true) {
+                val target = File(directory, AtomicFiles.candidate(name, index))
+                if (record.ownedIdentities.has(target.path)) {
+                    index++
+                    continue
+                }
+                if (!LocalPathLocks.tryAcquire(record.id, listOf(LocalPathLocks.claim(target, true)))) {
+                    index++
+                    continue
+                }
+                record.ownedIdentities.put(target.path, expected)
+                persist(record)
+                when (val error = AtomicRename.rename(file.path, target.path)) {
+                    0 -> {
+                        record.createdPaths.add(target.path)
+                        persist(record)
+                        return target
+                    }
+                    OsConstants.EEXIST, OsConstants.ENOTEMPTY -> {
+                        record.ownedIdentities.remove(target.path)
+                        persist(record)
+                        LocalPathLocks.releaseClaim(record.id, LocalPathLocks.claim(target, true))
+                        index++
+                    }
+                    else -> throw IllegalStateException("No se pudo reservar ${target.path} ($error)")
+                }
+            }
+        } catch (error: Throwable) {
+            if (expected.isNotEmpty() && identity(file) == expected) file.deleteRecursively()
+            throw error
+        }
+    }
+
+    private fun identity(file: File): String {
+        return runCatching {
+            Os.lstat(file.path).let { if (it.st_ino > 0) "${it.st_dev}:${it.st_ino}" else "" }
+        }.getOrDefault("")
     }
 
     private fun safeRelativePath(path: String): String {

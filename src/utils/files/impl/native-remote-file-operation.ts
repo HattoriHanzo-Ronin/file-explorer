@@ -4,6 +4,8 @@ import type {
     NativeDownloadRequest,
     NativeRemoteDeleteRequest,
     NativeRemoteMoveRequest,
+    NativeRemoteMkdirRequest,
+    NativeRemoteRenameRequest,
     NativeUploadRequest
 } from "../../../types/file-operations";
 import type { RemoteFileOperation } from "../remote-file-operation";
@@ -12,6 +14,8 @@ interface NativeFileOperationModule {
     startUpload(request: NativeUploadRequest): Promise<string>;
     startDownload(request: NativeDownloadRequest): Promise<string>;
     startRemoteDelete(request: NativeRemoteDeleteRequest): Promise<string>;
+    startRemoteMkdir(request: NativeRemoteMkdirRequest): Promise<string>;
+    startRemoteRename(request: NativeRemoteRenameRequest): Promise<string>;
     startRemoteMove(request: NativeRemoteMoveRequest): Promise<string>;
     cancel(id: string): void;
     listOperations(): Promise<string>;
@@ -55,6 +59,16 @@ export default class NativeRemoteFileOperation implements RemoteFileOperation {
      */
     async startDelete(request: NativeRemoteDeleteRequest): Promise<string> {
         return this.module.startRemoteDelete(request);
+    }
+
+    /** Starts a remote directory creation */
+    async startMkdir(request: NativeRemoteMkdirRequest): Promise<string> {
+        return this.module.startRemoteMkdir(request);
+    }
+
+    /** Starts a remote rename operation */
+    async startRename(request: NativeRemoteRenameRequest): Promise<string> {
+        return this.module.startRemoteRename(request);
     }
 
     /**

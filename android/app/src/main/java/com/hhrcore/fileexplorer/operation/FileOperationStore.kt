@@ -34,15 +34,15 @@ class FileOperationStore(context: Context) {
             .sortedBy { it.revision }
     }
 
-    fun reconcileInterrupted(engine: FileOperationEngine): String = synchronized(lock) {
-        list().filter { (it.status in ACTIVE_STATUSES || it.moveCommitStarted) && it.id !in activeIds }
+    fun reconcileInterrupted(engine: FileOperationEngine): String = synchronized(reconciliationLock) {
+        list().filter { (it.status in ACTIVE_STATUSES || it.moveCommitStarted || it.cleanupPending || it.pendingStagePath != null) && it.id !in activeIds }
             .forEach(engine::reconcile)
         JSONArray(list().map { it.toJson() }).toString()
     }
 
     fun removeSettled() = synchronized(lock) {
         val settledIds = list()
-            .filter { it.status !in ACTIVE_STATUSES && !it.moveCommitStarted }
+            .filter { it.status !in ACTIVE_STATUSES && !it.moveCommitStarted && !it.cleanupPending && it.pendingStagePath == null }
             .map(FileOperationRecord::id)
         if (settledIds.isEmpty()) {
             return@synchronized
@@ -56,6 +56,7 @@ class FileOperationStore(context: Context) {
     companion object {
         private const val REVISION_KEY = "__revision__"
         private val lock = Any()
+        private val reconciliationLock = Any()
         private val activeIds = ConcurrentHashMap.newKeySet<String>()
         private val ACTIVE_STATUSES = setOf(FileOperationRecord.STATUS_PENDING, FileOperationRecord.STATUS_RUNNING)
 

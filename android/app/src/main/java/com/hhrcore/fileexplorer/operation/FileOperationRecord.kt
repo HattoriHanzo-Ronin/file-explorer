@@ -18,9 +18,12 @@ data class FileOperationRecord(
     var revision: Long = 0,
     var moveCommitStarted: Boolean = false,
     var moveRollbackRestored: Boolean = false,
+    var pendingStagePath: String? = null,
+    var cleanupPending: Boolean = false,
     val createdAt: Long = System.currentTimeMillis(),
     var updatedAt: Long = createdAt,
-    val createdPaths: MutableList<String> = mutableListOf()
+    val createdPaths: MutableList<String> = mutableListOf(),
+    val ownedIdentities: JSONObject = JSONObject()
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("id", id)
@@ -37,15 +40,22 @@ data class FileOperationRecord(
         .put("revision", revision)
         .put("moveCommitStarted", moveCommitStarted)
         .put("moveRollbackRestored", moveRollbackRestored)
+        .put("pendingStagePath", pendingStagePath)
+        .put("cleanupPending", cleanupPending)
         .put("createdAt", createdAt)
         .put("updatedAt", updatedAt)
         .put("createdPaths", JSONArray(createdPaths))
+        .put("ownedIdentities", ownedIdentities)
 
     companion object {
         const val OPERATION_UPLOAD = "UPLOAD"
         const val OPERATION_DOWNLOAD = "DOWNLOAD"
+        const val OPERATION_REMOTE_MKDIR = "REMOTE_MKDIR"
+        const val OPERATION_REMOTE_RENAME = "REMOTE_RENAME"
         const val OPERATION_REMOTE_MOVE = "REMOTE_MOVE"
         const val OPERATION_REMOTE_DELETE = "REMOTE_DELETE"
+        const val OPERATION_LOCAL_MKDIR = "LOCAL_MKDIR"
+        const val OPERATION_LOCAL_RENAME = "LOCAL_RENAME"
         const val OPERATION_LOCAL_COPY = "LOCAL_COPY"
         const val OPERATION_LOCAL_MOVE = "LOCAL_MOVE"
         const val OPERATION_LOCAL_DELETE = "LOCAL_DELETE"
@@ -79,9 +89,12 @@ data class FileOperationRecord(
                 revision = source.optLong("revision"),
                 moveCommitStarted = source.optBoolean("moveCommitStarted"),
                 moveRollbackRestored = source.optBoolean("moveRollbackRestored"),
+                pendingStagePath = source.optString("pendingStagePath").takeIf { it.isNotEmpty() && it != "null" },
+                cleanupPending = source.optBoolean("cleanupPending"),
                 createdAt = source.optLong("createdAt", System.currentTimeMillis()),
                 updatedAt = source.optLong("updatedAt", System.currentTimeMillis()),
-                createdPaths = MutableList(paths.length()) { paths.getString(it) }
+                createdPaths = MutableList(paths.length()) { paths.getString(it) },
+                ownedIdentities = source.optJSONObject("ownedIdentities") ?: JSONObject()
             )
         }
     }

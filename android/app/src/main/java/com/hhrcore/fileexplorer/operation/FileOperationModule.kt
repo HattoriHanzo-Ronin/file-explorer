@@ -6,12 +6,57 @@ import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.ReadableMap
 import org.json.JSONObject
+import java.io.File
 import java.util.UUID
 
 class FileOperationModule(private val context: ReactApplicationContext) : ReactContextBaseJavaModule(context) {
     private val store = FileOperationStore(context)
 
     override fun getName() = "FileOperation"
+
+    @ReactMethod
+    fun tryLocalMkdir(destination: String, name: String, promise: Promise) {
+        val owner = UUID.randomUUID().toString()
+        try {
+            val folder = File(destination)
+            if (!LocalPathLocks.tryAcquire(owner, listOf(LocalPathLocks.claim(folder, false, false)))) {
+                promise.resolve(false)
+                return
+            }
+            AtomicFiles.reserve(folder, name, true, owner)
+            promise.resolve(true)
+        } catch (error: Throwable) {
+            promise.reject("LOCAL_MKDIR_FAILED", error.message, error)
+        } finally {
+            LocalPathLocks.release(owner)
+        }
+    }
+
+    @ReactMethod
+    fun tryLocalRename(path: String, name: String, promise: Promise) {
+        val owner = UUID.randomUUID().toString()
+        try {
+            val source = File(path)
+            val destination = source.parentFile ?: throw IllegalArgumentException("Ruta no válida")
+            val claims = listOf(LocalPathLocks.claim(source, true), LocalPathLocks.claim(destination, false, false))
+            if (!LocalPathLocks.tryAcquire(owner, claims)) {
+                promise.resolve(false)
+                return
+            }
+            AtomicFiles.rename(source, destination, name, owner)
+            promise.resolve(true)
+        } catch (error: Throwable) {
+            promise.reject("LOCAL_RENAME_FAILED", error.message, error)
+        } finally {
+            LocalPathLocks.release(owner)
+        }
+    }
+
+    @ReactMethod
+    fun startLocalMkdir(options: ReadableMap, promise: Promise) = start(options, FileOperationRecord.OPERATION_LOCAL_MKDIR, promise)
+
+    @ReactMethod
+    fun startLocalRename(options: ReadableMap, promise: Promise) = start(options, FileOperationRecord.OPERATION_LOCAL_RENAME, promise)
 
     override fun initialize() {
         super.initialize()
@@ -23,6 +68,12 @@ class FileOperationModule(private val context: ReactApplicationContext) : ReactC
 
     @ReactMethod
     fun startDownload(options: ReadableMap, promise: Promise) = start(options, FileOperationRecord.OPERATION_DOWNLOAD, promise)
+
+    @ReactMethod
+    fun startRemoteMkdir(options: ReadableMap, promise: Promise) = start(options, FileOperationRecord.OPERATION_REMOTE_MKDIR, promise)
+
+    @ReactMethod
+    fun startRemoteRename(options: ReadableMap, promise: Promise) = start(options, FileOperationRecord.OPERATION_REMOTE_RENAME, promise)
 
     @ReactMethod
     fun startRemoteDelete(options: ReadableMap, promise: Promise) =
@@ -84,6 +135,8 @@ class FileOperationModule(private val context: ReactApplicationContext) : ReactC
             if (operation in setOf(
                     FileOperationRecord.OPERATION_UPLOAD,
                     FileOperationRecord.OPERATION_DOWNLOAD,
+                    FileOperationRecord.OPERATION_REMOTE_MKDIR,
+                    FileOperationRecord.OPERATION_REMOTE_RENAME,
                     FileOperationRecord.OPERATION_REMOTE_MOVE,
                     FileOperationRecord.OPERATION_REMOTE_DELETE
                 ) && token == null
