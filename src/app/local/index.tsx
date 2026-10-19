@@ -4,7 +4,7 @@ import { Text, View } from "react-native";
 import { useAppContext } from "../../components/app-context-provider";
 import type { DirContent } from "../../types/files";
 import List from "../../components/list";
-import Loading from "../../components/loading";
+import LoadingWindow from "../../components/loading-window";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import React from "react";
 import UiUtils from "../../utils/ui-utils";
@@ -101,12 +101,9 @@ export default function Local() {
         return () => clearInterval(interval);
     }, [activeStorageRoot.path, executeLocalRequest, isLoading, lastLocalDir, loadDirectory]);
 
-    if (isLoading) {
-        return <Loading />;
-    }
-
     return (
         <View style={common.root}>
+            {isFocused && <LoadingWindow />}
             <View style={contentStyle}>
                 <List
                     storage="local"

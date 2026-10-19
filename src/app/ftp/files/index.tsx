@@ -1,12 +1,12 @@
 import { useCallback, useEffect } from "react";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useIsFocused, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { View } from "react-native";
 import { useAppContext } from "../../../components/app-context-provider";
 import type { FtpEntry } from "../../../types/ftp";
 import type { FtpStackParamList } from "../../../types/navigation";
 import List from "../../../components/list";
-import Loading from "../../../components/loading";
+import LoadingWindow from "../../../components/loading-window";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import React from "react";
 import useBackButtonEvent from "../../../hooks/use-back-button-event";
@@ -30,6 +30,7 @@ export default function Files() {
     const common = commonStyles[mode];
     const { content: ftpDirContent, dir: lastFtpDir } = ftpDirectory;
     const navigation = useNavigation<NativeStackNavigationProp<FtpStackParamList>>();
+    const isFocused = useIsFocused();
     const safeBottom = useSafeAreaInsets().bottom;
     const contentStyle = [common.explorerContent, { paddingBottom: safeBottom }];
 
@@ -75,12 +76,9 @@ export default function Files() {
         }, [executeApiRequest, isLoading, lastFtpDir, loadDirectory])
     );
 
-    if (isLoading) {
-        return <Loading />;
-    }
-
     return (
         <View style={common.root}>
+            {isFocused && <LoadingWindow />}
             <View style={contentStyle}>
                 <List
                     storage="ftp"
