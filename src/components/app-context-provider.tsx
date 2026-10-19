@@ -37,7 +37,11 @@ export default function AppContextProvider(props: PropsWithChildren) {
     const [lastLocalRootId, setLastLocalRootId] = useState<string>(fileSystem.internalRoot.id);
     const [lastLocalDir, setLastLocalDir] = useState<string>(" ");
     const [ftpDirectory, setFtpDirectory] = useState<FtpDirectoryState>({ dir: " ", content: [] });
-    const [localDirectory, setLocalDirectory] = useState<LocalDirectoryState>({ dir: " ", content: [] });
+    const [localDirectory, setLocalDirectory] = useState<LocalDirectoryState>({
+        rootPath: fileSystem.internalRoot.path,
+        dir: " ",
+        content: []
+    });
     const [modifyLocalFile, setModifyLocalFile] = useState<LocalModifyElement[]>([]);
     const [fileAction, setFileAction] = useState<FileActionMode>(null);
     const [modifyFtpFile, setModifyFtpFile] = useState<ModifyElement<FtpEntryType>[]>([]);
@@ -52,7 +56,9 @@ export default function AppContextProvider(props: PropsWithChildren) {
     const [storage] = useState<KeychainStorage>(() => new KeychainStorage());
     const [preferenceStorage] = useState<AsyncStorageStorage>(() => new AsyncStorageStorage());
     const [permission] = useState<ReactNativePermission>(() => new ReactNativePermission());
-    const [thumbnailGenerator] = useState<NativeThumbnailGenerator>(() => new NativeThumbnailGenerator(THUMBNAIL_CACHE));
+    const [thumbnailGenerator] = useState<NativeThumbnailGenerator>(
+        () => new NativeThumbnailGenerator(THUMBNAIL_CACHE)
+    );
     const [localFileOperation] = useState<NativeLocalFileOperation>(() => new NativeLocalFileOperation());
     const [remoteFileOperation] = useState<NativeRemoteFileOperation>(() => new NativeRemoteFileOperation());
     const [localFileManager] = useState<LocalFileManager>(
@@ -199,7 +205,7 @@ export default function AppContextProvider(props: PropsWithChildren) {
         const { id: activeRootId, type: activeRootType } = activeStorageRoot;
         if (activeRootType === "REMOVABLE" && !externalRoots.some(({ id }) => id === activeRootId)) {
             setActiveStorageRoot(fileSystem.internalRoot);
-            setLocalDirectory({ dir: " ", content: [] });
+            setLocalDirectory({ rootPath: fileSystem.internalRoot.path, dir: " ", content: [] });
         }
 
         const rootPaths = [fileSystem.internalRoot.path, ...externalRoots.map(({ path }) => path)];

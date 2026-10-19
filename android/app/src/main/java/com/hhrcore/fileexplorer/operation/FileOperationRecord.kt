@@ -16,6 +16,8 @@ data class FileOperationRecord(
     var error: JSONObject? = null,
     var result: JSONObject? = null,
     var revision: Long = 0,
+    var moveCommitStarted: Boolean = false,
+    var moveRollbackRestored: Boolean = false,
     val createdAt: Long = System.currentTimeMillis(),
     var updatedAt: Long = createdAt,
     val createdPaths: MutableList<String> = mutableListOf()
@@ -33,6 +35,8 @@ data class FileOperationRecord(
         .put("error", error ?: JSONObject.NULL)
         .put("result", result ?: JSONObject.NULL)
         .put("revision", revision)
+        .put("moveCommitStarted", moveCommitStarted)
+        .put("moveRollbackRestored", moveRollbackRestored)
         .put("createdAt", createdAt)
         .put("updatedAt", updatedAt)
         .put("createdPaths", JSONArray(createdPaths))
@@ -73,6 +77,8 @@ data class FileOperationRecord(
                 error = source.optJSONObject("error"),
                 result = source.optJSONObject("result"),
                 revision = source.optLong("revision"),
+                moveCommitStarted = source.optBoolean("moveCommitStarted"),
+                moveRollbackRestored = source.optBoolean("moveRollbackRestored"),
                 createdAt = source.optLong("createdAt", System.currentTimeMillis()),
                 updatedAt = source.optLong("updatedAt", System.currentTimeMillis()),
                 createdPaths = MutableList(paths.length()) { paths.getString(it) }

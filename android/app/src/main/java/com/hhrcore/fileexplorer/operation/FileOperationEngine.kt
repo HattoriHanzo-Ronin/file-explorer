@@ -34,12 +34,13 @@ class FileOperationEngine(private val store: FileOperationStore, private val onC
     private val calls = ConcurrentHashMap<String, Call>()
     private val cancelled = ConcurrentHashMap.newKeySet<String>()
     private val committing = ConcurrentHashMap.newKeySet<String>()
+    private val cancellationLock = Any()
     private val lastProgressAt = ConcurrentHashMap<String, Long>()
 
     fun execute(record: FileOperationRecord, accessToken: String?) {
-        record.status = FileOperationRecord.STATUS_RUNNING
-        persist(record)
         try {
+            record.status = FileOperationRecord.STATUS_RUNNING
+            persist(record)
             when (record.operation) {
                 FileOperationRecord.OPERATION_UPLOAD -> upload(record, requireToken(accessToken))
                 FileOperationRecord.OPERATION_DOWNLOAD -> download(record, requireToken(accessToken))
@@ -53,7 +54,14 @@ class FileOperationEngine(private val store: FileOperationStore, private val onC
             }
             checkCancelled(record.id)
             record.status = FileOperationRecord.STATUS_COMPLETED
-            persist(record)
+            val moveCommitStarted = record.moveCommitStarted
+            record.moveCommitStarted = false
+            try {
+                persist(record)
+            } catch (error: Throwable) {
+                record.moveCommitStarted = moveCommitStarted
+                throw error
+            }
         } catch (error: Throwable) {
             Log.e(LOG_TAG, "File operation ${record.id} (${record.operation}) failed", error)
             record.status = if (cancelled.contains(record.id)) FileOperationRecord.STATUS_CANCELLED else FileOperationRecord.STATUS_FAILED
@@ -70,15 +78,21 @@ class FileOperationEngine(private val store: FileOperationStore, private val onC
 
     fun cancel(id: String) {
         val record = store.get(id) ?: return
-        if (!FileOperationRecord.isCancellable(record.operation) || committing.contains(id)) return
-        cancelled.add(id)
-        calls[id]?.cancel()
+        synchronized(cancellationLock) {
+            if (!FileOperationRecord.isCancellable(record.operation) || committing.contains(id)) return
+            cancelled.add(id)
+            calls[id]?.cancel()
+        }
     }
 
     fun reconcile(record: FileOperationRecord) {
-        record.status = FileOperationRecord.STATUS_INTERRUPTED
+        if (record.status in setOf(FileOperationRecord.STATUS_PENDING, FileOperationRecord.STATUS_RUNNING)) {
+            record.status = FileOperationRecord.STATUS_INTERRUPTED
+        }
         record.error = null
-        if (record.operation == FileOperationRecord.OPERATION_DOWNLOAD ||
+        if (record.operation == FileOperationRecord.OPERATION_LOCAL_MOVE && record.moveCommitStarted) {
+            rollbackMove(record)
+        } else if (record.operation == FileOperationRecord.OPERATION_DOWNLOAD ||
             record.operation == FileOperationRecord.OPERATION_LOCAL_COPY ||
             record.operation == FileOperationRecord.OPERATION_LOCAL_MOVE ||
             record.operation == FileOperationRecord.OPERATION_LOCAL_EXTRACT
@@ -346,12 +360,28 @@ class FileOperationEngine(private val store: FileOperationStore, private val onC
             }
         }
         if (move) {
-            committing.add(record.id)
-            cancelled.remove(record.id)
+            synchronized(cancellationLock) {
+                checkCancelled(record.id)
+                record.moveCommitStarted = true
+                persist(record)
+                committing.add(record.id)
+            }
             for (index in 0 until sources.length()) {
-                File(sources.getString(index)).deleteRecursively()
+                val source = File(sources.getString(index))
+                if (!deleteMoveSource(source)) {
+                    throw IllegalStateException("No se pudo eliminar ${source.path}")
+                }
             }
         }
+    }
+
+    private fun deleteMoveSource(source: File): Boolean {
+        repeat(MOVE_DELETE_ATTEMPTS) { attempt ->
+            if (!source.exists() || source.deleteRecursively()) return true
+            if (attempt < MOVE_DELETE_ATTEMPTS - 1) Thread.sleep(MOVE_DELETE_RETRY_DELAY)
+        }
+
+        return false
     }
 
     private fun validateLocalDestination(sources: JSONArray, destination: File) {
@@ -592,16 +622,69 @@ class FileOperationEngine(private val store: FileOperationStore, private val onC
     }
 
     private fun rollback(record: FileOperationRecord, token: String?) {
-        if (record.operation == FileOperationRecord.OPERATION_DOWNLOAD ||
+        if (record.operation == FileOperationRecord.OPERATION_LOCAL_MOVE && record.moveCommitStarted) {
+            rollbackMove(record)
+        } else if (record.operation == FileOperationRecord.OPERATION_DOWNLOAD ||
             record.operation == FileOperationRecord.OPERATION_LOCAL_COPY ||
             record.operation == FileOperationRecord.OPERATION_LOCAL_MOVE ||
             record.operation == FileOperationRecord.OPERATION_LOCAL_EXTRACT
-        && !committing.contains(record.id)) {
+        ) {
             cleanupLocal(record)
         }
 
         if (token != null && runCatching { cancelRemoteSession(record, token) }.isSuccess) {
             record.apiSessionId = null
+        }
+    }
+
+    private fun rollbackMove(record: FileOperationRecord) {
+        runCatching {
+            if (!record.moveRollbackRestored) {
+                val sources = record.request.getJSONArray("sources")
+                check(sources.length() == record.createdPaths.size) { "Faltan rutas para restaurar el movimiento" }
+                for (index in 0 until sources.length()) {
+                    restoreMoveSource(record.id, File(record.createdPaths[index]), File(sources.getString(index)))
+                }
+
+                record.moveRollbackRestored = true
+                persist(record)
+            }
+
+            record.createdPaths.asReversed().forEach { path ->
+                val target = File(path)
+                check(!target.exists() || target.deleteRecursively()) { "No se pudo limpiar ${target.path}" }
+            }
+            record.moveCommitStarted = false
+            record.moveRollbackRestored = false
+        }.onFailure { error ->
+            Log.e(LOG_TAG, "No se pudo revertir el movimiento ${record.id}", error)
+        }
+    }
+
+    private fun restoreMoveSource(id: String, copy: File, source: File) {
+        check(copy.exists()) { "No se encuentra la copia ${copy.path}" }
+        if (copy.isDirectory) {
+            check(source.isDirectory || (!source.exists() && source.mkdirs())) { "No se pudo restaurar ${source.path}" }
+            val children = copy.listFiles() ?: throw IllegalStateException("No se pudo leer ${copy.path}")
+            children.forEach { child -> restoreMoveSource(id, child, File(source, child.name)) }
+            return
+        }
+
+        val temporary = File(source.parentFile, ".file-explorer-restore-$id")
+        if (source.exists()) {
+            check(source.isFile) { "No se pudo restaurar ${source.path}" }
+            check(!temporary.exists() || temporary.delete()) { "No se pudo limpiar ${temporary.path}" }
+            return
+        }
+
+        source.parentFile?.let { parent ->
+            check(parent.isDirectory || parent.mkdirs()) { "No se pudo crear ${parent.path}" }
+        }
+        try {
+            copy.copyTo(temporary, overwrite = true)
+            check(!source.exists() && temporary.renameTo(source)) { "No se pudo restaurar ${source.path}" }
+        } finally {
+            temporary.delete()
         }
     }
 
@@ -761,6 +844,8 @@ class FileOperationEngine(private val store: FileOperationStore, private val onC
         private const val CHUNK_SIZE = 90L * 1024 * 1024
         private const val BUFFER_SIZE = 64 * 1024
         private const val PROGRESS_INTERVAL = 1000L
+        private const val MOVE_DELETE_ATTEMPTS = 3
+        private const val MOVE_DELETE_RETRY_DELAY = 200L
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
         private val EMPTY_BODY = ByteArray(0).toRequestBody(null)
         private fun encode(value: String): String = URLEncoder.encode(value, StandardCharsets.UTF_8.toString())

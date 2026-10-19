@@ -31,6 +31,7 @@ export default class RemoteFileManager {
     private readonly activeUploads = new Map<string, Set<string>>();
     private readonly activeDownloads = new Map<string, Set<string>>();
     private readonly activeRemoteChanges = new Map<string, Set<string>>();
+    private readonly operationRevisions = new Map<string, { revision: number; unclaimed: boolean }>();
     private readonly listeners = new Set<(operation: FileOperationSnapshot) => void>();
     private readonly completionListeners = new Map<string, (operation: FileOperationSnapshot) => void>();
     private readonly completedOperations = new Map<string, FileOperationSnapshot>();
@@ -52,8 +53,9 @@ export default class RemoteFileManager {
                 return;
             }
 
-            this.handleChange(operation, true);
-            this.listeners.forEach((listener) => listener(operation));
+            if (this.handleChange(operation, true)) {
+                this.listeners.forEach((listener) => listener(operation));
+            }
         });
     }
 
@@ -270,9 +272,17 @@ export default class RemoteFileManager {
         return (this.activeDownloads.get(dir)?.size ?? 0) > 0;
     }
 
-    private handleChange(operation: FileOperationSnapshot, notifyError: boolean): void {
-        const { destinationDir, id, localDir, operation: type, remoteDir, status } = operation;
+    private handleChange(operation: FileOperationSnapshot, notifyError: boolean): boolean {
+        const { destinationDir, id, operation: type, remoteDir, revision, status } = operation;
+        if (!this.acceptRevision(id, revision, notifyError)) {
+            return false;
+        }
+
         const active = ["PENDING", "RUNNING"].includes(status);
+        this.operationRevisions.set(id, {
+            revision,
+            unclaimed: !active && !notifyError && !this.completionListeners.has(id)
+        });
         if (["REMOTE_MOVE", "REMOTE_DELETE"].includes(type)) {
             const directories = [remoteDir];
             if (type === "REMOTE_MOVE") {
@@ -286,9 +296,19 @@ export default class RemoteFileManager {
                 this.completeOperation(operation, notifyError);
             }
 
-            return;
+            return true;
         }
 
+        this.updateTransfer(operation, active);
+        if (!active) {
+            this.completeOperation(operation, notifyError);
+        }
+
+        return true;
+    }
+
+    private updateTransfer(operation: FileOperationSnapshot, active: boolean): void {
+        const { id, localDir, operation: type, remoteDir } = operation;
         const directory = type === "UPLOAD" ? remoteDir : localDir;
         const operations = type === "UPLOAD" ? this.activeUploads : this.activeDownloads;
         const ids = operations.get(directory) ?? new Set<string>();
@@ -299,12 +319,18 @@ export default class RemoteFileManager {
         }
 
         ids.delete(id);
-        if (ids.size > 0) {
-            return;
+        if (ids.size === 0) {
+            operations.delete(directory);
+        }
+    }
+
+    private acceptRevision(id: string, revision: number, notifyError: boolean): boolean {
+        const previous = this.operationRevisions.get(id);
+        if (!previous) {
+            return true;
         }
 
-        operations.delete(directory);
-        this.completeOperation(operation, notifyError);
+        return revision > previous.revision || (revision === previous.revision && notifyError && previous.unclaimed);
     }
 
     private completeOperation(operation: FileOperationSnapshot, notifyError: boolean): void {

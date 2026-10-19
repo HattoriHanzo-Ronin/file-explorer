@@ -47,8 +47,14 @@ export interface StorageRootNames {
 }
 
 export interface LocalDirectoryState {
+    rootPath: string;
     dir: string;
     content: FileSystemEntry[];
+}
+
+export interface LocalDirectoryUpdate {
+    path: string;
+    entries: FileSystemEntry[];
 }
 
 export interface ModifyElement<T extends string = EntryType> {

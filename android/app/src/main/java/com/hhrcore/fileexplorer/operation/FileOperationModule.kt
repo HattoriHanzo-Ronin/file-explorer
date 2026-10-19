@@ -57,13 +57,7 @@ class FileOperationModule(private val context: ReactApplicationContext) : ReactC
         Thread {
             try {
                 val engine = FileOperationEngine(store) {}
-                store.list()
-                    .filter {
-                        it.status == FileOperationRecord.STATUS_PENDING ||
-                            it.status == FileOperationRecord.STATUS_RUNNING
-                    }
-                    .forEach(engine::reconcile)
-                val snapshot = store.snapshot()
+                val snapshot = store.reconcileInterrupted(engine)
                 promise.resolve(snapshot)
             } catch (error: Throwable) {
                 promise.reject("FILE_OPERATION_RESTORE_FAILED", error.message, error)
@@ -83,6 +77,7 @@ class FileOperationModule(private val context: ReactApplicationContext) : ReactC
     fun removeListeners(count: Double) = Unit
 
     private fun start(options: ReadableMap, operation: String, promise: Promise) {
+        var operationId: String? = null
         try {
             val request = JSONObject(options.toHashMap())
             val token = request.remove("accessToken") as? String
@@ -103,11 +98,14 @@ class FileOperationModule(private val context: ReactApplicationContext) : ReactC
                 request = request,
                 notificationTexts = notificationTexts
             )
+            operationId = record.id
+            FileOperationStore.markActive(record.id)
             store.save(record)
             FileOperationEvents.emit(record)
             FileOperationService.start(context, record.id, token)
             promise.resolve(record.id)
         } catch (error: Throwable) {
+            operationId?.let(FileOperationStore::markInactive)
             promise.reject("FILE_OPERATION_START_FAILED", error.message, error)
         }
     }

@@ -15,7 +15,9 @@ export function openStorage(context: StorageContext, root: StorageRoot): void {
     const { activeStorageRoot, setActiveStorageRoot, setLocalDirectory } = context;
     const isCurrentRoot = activeStorageRoot.id === root.id;
     setActiveStorageRoot(root);
-    setLocalDirectory((current) => (isCurrentRoot && current.dir === " " ? current : { dir: " ", content: [] }));
+    setLocalDirectory((current) =>
+        isCurrentRoot && current.dir === " " ? current : { rootPath: root.path, dir: " ", content: [] }
+    );
 }
 
 /**
