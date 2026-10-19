@@ -27,6 +27,8 @@ export default function UserMenu(props: UserMenuProps) {
     const [showNewPassword, setShowNewPassword] = React.useState<boolean>(false);
     const [usernameErrors, setUsernameErrors] = React.useState<ValidationErrors<UpdateUsernameRequest>>({});
     const [passwordErrors, setPasswordErrors] = React.useState<ValidationErrors<UpdatePasswordRequest>>({});
+    const [isSubmitting, setIsSubmitting] = React.useState<boolean>(false);
+    const submitting = React.useRef<boolean>(false);
 
     function closeDialog() {
         setDialog(null);
@@ -46,9 +48,7 @@ export default function UserMenu(props: UserMenuProps) {
     }
 
     async function saveUsername() {
-        const result = await executeApiRequest((apiUtils) =>
-            apiUtils.updateUsername({ id: user?.id ?? "", username: username.trim() })
-        );
+        const result = await executeApiRequest((apiUtils) => apiUtils.updateUsername({ id: user?.id ?? "", username }));
         if (result.success) {
             setUser((current) => (current ? { ...current, username: result.data.username } : null));
             closeDialog();
@@ -70,13 +70,23 @@ export default function UserMenu(props: UserMenuProps) {
         setPasswordErrors(UiUtils.mapValidationErrors<UpdatePasswordRequest>(result.error.details ?? []));
     }
 
-    function acceptDialog(): void {
-        if (dialog === "username") {
-            void saveUsername();
+    async function acceptDialog(): Promise<void> {
+        if (submitting.current || dialog === null) {
             return;
         }
 
-        void savePassword();
+        submitting.current = true;
+        setIsSubmitting(true);
+        try {
+            if (dialog === "username") {
+                await saveUsername();
+            } else {
+                await savePassword();
+            }
+        } finally {
+            submitting.current = false;
+            setIsSubmitting(false);
+        }
     }
 
     return (
@@ -102,8 +112,9 @@ export default function UserMenu(props: UserMenuProps) {
             <AppDialog
                 visible={dialog !== null}
                 title={dialog === "username" ? "Nuevo nombre de usuario" : undefined}
+                acceptDisabled={isSubmitting}
                 onCancel={closeDialog}
-                onAccept={acceptDialog}
+                onAccept={() => void acceptDialog()}
             >
                 {dialog === "username" ? (
                     <>
@@ -111,7 +122,7 @@ export default function UserMenu(props: UserMenuProps) {
                             style={[userMenu.lineInput, { borderBottomColor: theme.border, color: theme.text }]}
                             value={username}
                             returnKeyType="done"
-                            onSubmitEditing={acceptDialog}
+                            onSubmitEditing={() => void acceptDialog()}
                             onChangeText={(value) => {
                                 setUsername(value);
                                 setUsernameErrors({});
@@ -156,7 +167,7 @@ export default function UserMenu(props: UserMenuProps) {
                                 style={[userMenu.passwordInput, { color: theme.text }]}
                                 value={newPassword}
                                 returnKeyType="done"
-                                onSubmitEditing={acceptDialog}
+                                onSubmitEditing={() => void acceptDialog()}
                                 onChangeText={(value) => {
                                     setNewPassword(value);
                                     setPasswordErrors((current) => ({ ...current, newPassword: undefined }));

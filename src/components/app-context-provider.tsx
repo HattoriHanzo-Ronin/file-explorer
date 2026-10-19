@@ -222,6 +222,10 @@ export default function AppContextProvider(props: PropsWithChildren) {
     }, [activeStorageRoot.id, localDirectory.dir, modifyLocalFile.length]);
 
     useEffect(() => {
+        return localFileOperation.addChangeListener(UiUtils.createFileOperationMessageListener());
+    }, [localFileOperation]);
+
+    useEffect(() => {
         void (async () => {
             await apiUtils.restoreOperations();
             await localFileManager.restore();

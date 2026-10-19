@@ -1,4 +1,4 @@
-import type { FileOperationNotificationTexts } from "../types/file-operations";
+import type { FileOperationNotificationTexts, FileOperationType } from "../types/file-operations";
 
 export const FILE_OPERATION_NOTIFICATION_TEXTS: FileOperationNotificationTexts = {
     channelName: "Operaciones de archivos",
@@ -62,4 +62,19 @@ export const FILE_OPERATION_NOTIFICATION_TEXTS: FileOperationNotificationTexts =
     cancelled: "Operación cancelada",
     interrupted: "Operación interrumpida",
     cancelAction: "Cancelar"
+};
+
+export const FILE_OPERATION_COMPLETED_MESSAGES: Record<FileOperationType, string> = {
+    UPLOAD: FILE_OPERATION_NOTIFICATION_TEXTS.uploadCompleted,
+    DOWNLOAD: FILE_OPERATION_NOTIFICATION_TEXTS.downloadCompleted,
+    REMOTE_MKDIR: FILE_OPERATION_NOTIFICATION_TEXTS.remoteMkdirCompleted,
+    REMOTE_RENAME: FILE_OPERATION_NOTIFICATION_TEXTS.remoteRenameCompleted,
+    REMOTE_MOVE: FILE_OPERATION_NOTIFICATION_TEXTS.remoteMoveCompleted,
+    REMOTE_DELETE: FILE_OPERATION_NOTIFICATION_TEXTS.remoteDeleteCompleted,
+    LOCAL_MKDIR: FILE_OPERATION_NOTIFICATION_TEXTS.localMkdirCompleted,
+    LOCAL_RENAME: FILE_OPERATION_NOTIFICATION_TEXTS.localRenameCompleted,
+    LOCAL_COPY: FILE_OPERATION_NOTIFICATION_TEXTS.localCopyCompleted,
+    LOCAL_MOVE: FILE_OPERATION_NOTIFICATION_TEXTS.localMoveCompleted,
+    LOCAL_DELETE: FILE_OPERATION_NOTIFICATION_TEXTS.localDeleteCompleted,
+    LOCAL_EXTRACT: FILE_OPERATION_NOTIFICATION_TEXTS.localExtractCompleted
 };

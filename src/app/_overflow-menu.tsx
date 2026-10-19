@@ -1,10 +1,9 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@react-native-vector-icons/ionicons";
 import { Modal, Pressable, Text, TextInput, View } from "react-native";
 import { useAppContext } from "../components/app-context-provider";
 import AppDialog from "../components/dialog";
-import FileUtils from "../utils/file-utils";
 import UiUtils from "../utils/ui-utils";
 import { cancelFileAction } from "../utils/navigation-utils";
 import type {
@@ -19,6 +18,7 @@ import type { FileActionMode, ValidationErrors } from "../types/ui";
 import type { CreateDirectoryRequest, RenameEntryRequest } from "../types/ftp";
 import { overflowMenu } from "../styles/components/style";
 import { useTheme } from "../components/theme-provider";
+import { FILE_OPERATION_COMPLETED_MESSAGES } from "../constants/file-operations";
 
 interface MenuItemProps {
     title: string;
@@ -116,7 +116,6 @@ export const DownloadMenu = (props: TransferMenuProps) => {
             if (updates.success) {
                 UiUtils.applyLocalDirectoryUpdates(setLocalDirectory, updates.data);
             }
-            UiUtils.showMessage("Descarga finalizada");
         }
     }
 
@@ -178,11 +177,6 @@ const CopyMoveAction = (props: CopyMoveActionProps) => {
 
     async function moveRemote() {
         const destination = ftpDirectory.dir;
-        if (ftpSelectionDir === destination) {
-            UiUtils.showMessage("El directorio de origen y destino es el mismo");
-            return;
-        }
-
         const entries = modifyFtpFile.map(({ path, type }) => ({ name: path, type }));
         const result = await executeApiRequest(
             (apiUtils) => apiUtils.moveEntries({ dir: ftpSelectionDir, entries, destination }),
@@ -229,8 +223,8 @@ const CopyMoveAction = (props: CopyMoveActionProps) => {
 
     return <MenuItem title={fileAction === action ? "Pegar" : copy ? "Copiar" : "Mover"} onPress={handlePress} />;
 };
-export const MakeDir = (props: MenuProps) => {
-    const { setVisible, storage } = props;
+export const MakeDir = (props: MenuProps & { onFinish: () => void }) => {
+    const { onFinish, setVisible, storage } = props;
     const { theme } = useTheme();
     const {
         dirSelected,
@@ -244,70 +238,90 @@ export const MakeDir = (props: MenuProps) => {
         setLocalDirectory,
         setModifyLocalFile
     } = useAppContext();
-    const [show, setShow] = useState<boolean>(false);
+    const [show, setShow] = useState<boolean>(true);
     const [name, setName] = useState<string>("");
     const [validationErrors, setValidationErrors] = useState<ValidationErrors<CreateDirectoryRequest>>({});
+    const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+    const submitting = useRef<boolean>(false);
 
     async function createDirectory() {
-        const normalizedName = name.trim();
-        if (storage === "local") {
-            const validationMessage = FileUtils.validateName(normalizedName);
-            if (validationMessage) {
-                setValidationErrors({ name: [`- ${validationMessage}`] });
-                return;
-            }
+        if (submitting.current) {
+            return;
         }
 
-        if (storage === "ftp") {
-            const result = await executeApiRequest(
-                (apiUtils) => apiUtils.createDirectory({ name: normalizedName, dir: ftpDirectory.dir }),
-                { isBackground: true }
-            );
-            if (!result.success) {
-                setValidationErrors(UiUtils.mapValidationErrors<CreateDirectoryRequest>(result.error.details ?? []));
-                return;
-            }
-
-            setFtpDirectory((current) =>
-                current.dir === ftpDirectory.dir ? { ...current, content: result.data } : current
-            );
-        } else {
-            const result = await executeLocalRequest(
-                (localFileManager) =>
-                    localFileManager.createDirectory(activeStorageRoot.path, localDirectory.dir, normalizedName),
-                { isBackground: true }
-            );
-            if (result.success) {
-                UiUtils.applyLocalDirectoryUpdates(setLocalDirectory, result.data);
-            }
-        }
-
+        submitting.current = true;
+        setIsSubmitting(true);
         setShow(false);
         setVisible(false);
+
+        try {
+            if (storage === "ftp") {
+                const result = await executeApiRequest(
+                    (apiUtils) => apiUtils.createDirectory({ name, dir: ftpDirectory.dir }),
+                    { isBackground: true }
+                );
+                if (!result.success) {
+                    const errors = UiUtils.mapValidationErrors<CreateDirectoryRequest>(result.error.details ?? []);
+                    if (Object.keys(errors).length > 0) {
+                        setValidationErrors(errors);
+                        setShow(true);
+                    } else {
+                        onFinish();
+                    }
+
+                    return;
+                }
+
+                setFtpDirectory((current) =>
+                    current.dir === ftpDirectory.dir ? { ...current, content: result.data } : current
+                );
+            } else {
+                const result = await executeLocalRequest(
+                    (localFileManager) =>
+                        localFileManager.createDirectory(activeStorageRoot.path, localDirectory.dir, name),
+                    { isBackground: true }
+                );
+                if (result.success) {
+                    UiUtils.applyLocalDirectoryUpdates(setLocalDirectory, result.data);
+                    UiUtils.showMessage(FILE_OPERATION_COMPLETED_MESSAGES.LOCAL_MKDIR);
+                } else {
+                    const errors = UiUtils.mapValidationErrors<CreateDirectoryRequest>(result.error.details ?? []);
+                    if (Object.keys(errors).length > 0) {
+                        setValidationErrors(errors);
+                        setShow(true);
+                        return;
+                    }
+                }
+            }
+
+            setName("");
+            onFinish();
+        } finally {
+            submitting.current = false;
+            setIsSubmitting(false);
+        }
     }
 
     return (
         <>
-            <MenuItem
-                title="Crear carpeta"
-                onPress={() => {
-                    setShow(true);
-                }}
-            />
             <AppDialog
                 title="Nueva carpeta"
                 visible={show}
+                acceptDisabled={isSubmitting}
                 onCancel={() => {
+                    setName("");
                     setValidationErrors({});
                     setShow(false);
                     setVisible(false);
                     setDirSelected(!dirSelected);
                     setModifyLocalFile([]);
+                    onFinish();
                 }}
-                onAccept={createDirectory}
+                onAccept={() => void createDirectory()}
             >
                 <TextInput
                     autoFocus
+                    editable={!isSubmitting}
                     returnKeyType="done"
                     style={[overflowMenu.input, { borderBottomColor: theme.border, color: theme.text }]}
                     value={name}
@@ -326,8 +340,8 @@ export const MakeDir = (props: MenuProps) => {
         </>
     );
 };
-export const RenameMenu = (props: MenuProps) => {
-    const { setVisible, storage } = props;
+export const RenameMenu = (props: MenuProps & { onFinish: () => void }) => {
+    const { onFinish, setVisible, storage } = props;
     const { theme } = useTheme();
     const {
         executeApiRequest,
@@ -341,90 +355,118 @@ export const RenameMenu = (props: MenuProps) => {
         setModifyFtpFile,
         setModifyLocalFile
     } = useAppContext();
-    const [show, setShow] = useState<boolean>(false);
-    const [name, setName] = useState<string>("");
+    const [show, setShow] = useState<boolean>(true);
+    const [name, setName] = useState<string>(
+        () => (storage === "ftp" ? modifyFtpFile[0] : toRename[0])?.path.split("/").pop() ?? ""
+    );
     const [validationErrors, setValidationErrors] = useState<ValidationErrors<RenameEntryRequest>>({});
+    const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+    const submitting = useRef<boolean>(false);
+    const ftpEntry = useRef(storage === "ftp" ? modifyFtpFile[0] : undefined);
+    const localEntry = useRef(storage !== "ftp" ? toRename[0] : undefined);
+    const ftpDir = useRef<string>(ftpDirectory.dir);
 
     async function rename() {
-        const normalizedName = name.trim();
-        if (storage === "local") {
-            const currentName = toRename[0].path.split("/").pop() ?? "";
-            if (currentName === normalizedName) {
-                setValidationErrors({ newName: ["- El nuevo nombre debe ser diferente"] });
-                return;
-            }
-
-            const validationMessage = FileUtils.validateName(normalizedName);
-            if (validationMessage) {
-                setValidationErrors({ newName: [`- ${validationMessage}`] });
-                return;
-            }
+        if (submitting.current) {
+            return;
         }
 
-        if (storage === "ftp") {
-            const entry = modifyFtpFile[0];
-            const result = await executeApiRequest(
-                (apiUtils) =>
-                    apiUtils.renameEntry({
-                        dir: ftpDirectory.dir,
-                        entry: { name: entry.path, type: entry.type },
-                        newName: normalizedName
-                    }),
-                { isBackground: true }
-            );
-            if (!result.success) {
-                setValidationErrors(UiUtils.mapValidationErrors<RenameEntryRequest>(result.error.details ?? []));
-                return;
-            }
-
-            setFtpDirectory((current) =>
-                current.dir === ftpDirectory.dir ? { ...current, content: result.data } : current
-            );
-        } else {
-            const result = await executeLocalRequest(
-                (localFileManager) => localFileManager.rename(toRename[0], normalizedName),
-                {
-                    isBackground: true
-                }
-            );
-            if (result.success) {
-                UiUtils.applyLocalDirectoryUpdates(setLocalDirectory, result.data);
-            }
+        const entry = storage === "ftp" ? ftpEntry.current : localEntry.current;
+        if (!entry) {
+            setShow(false);
+            onFinish();
+            return;
         }
 
+        submitting.current = true;
+        setIsSubmitting(true);
         setShow(false);
         setVisible(false);
-        setDirSelected((current) => !current);
-        setModifyFtpFile([]);
-        setModifyLocalFile([]);
+
+        try {
+            if (storage === "ftp" && ftpEntry.current) {
+                const selectedEntry = ftpEntry.current;
+                const dir = ftpDir.current;
+                const request = executeApiRequest(
+                    (apiUtils) =>
+                        apiUtils.renameEntry({
+                            dir,
+                            entry: { name: selectedEntry.path, type: selectedEntry.type },
+                            newName: name
+                        }),
+                    { isBackground: true }
+                );
+                setDirSelected(false);
+                setModifyFtpFile([]);
+                setModifyLocalFile([]);
+                const result = await request;
+                if (!result.success) {
+                    const errors = UiUtils.mapValidationErrors<RenameEntryRequest>(result.error.details ?? []);
+                    if (Object.keys(errors).length > 0) {
+                        setValidationErrors(errors);
+                        setShow(true);
+                    } else {
+                        onFinish();
+                    }
+
+                    return;
+                }
+
+                setFtpDirectory((current) => (current.dir === dir ? { ...current, content: result.data } : current));
+            } else if (localEntry.current) {
+                const selectedEntry = localEntry.current;
+                const request = executeLocalRequest(
+                    (localFileManager) => localFileManager.rename(selectedEntry, name),
+                    {
+                        isBackground: true
+                    }
+                );
+                setDirSelected(false);
+                setModifyFtpFile([]);
+                setModifyLocalFile([]);
+                const result = await request;
+                if (result.success) {
+                    UiUtils.applyLocalDirectoryUpdates(setLocalDirectory, result.data);
+                    UiUtils.showMessage(FILE_OPERATION_COMPLETED_MESSAGES.LOCAL_RENAME);
+                } else {
+                    const errors = UiUtils.mapValidationErrors<RenameEntryRequest>(result.error.details ?? []);
+                    if (Object.keys(errors).length > 0) {
+                        setValidationErrors(errors);
+                        setShow(true);
+                        return;
+                    }
+                }
+            }
+
+            setName("");
+            onFinish();
+        } finally {
+            submitting.current = false;
+            setIsSubmitting(false);
+        }
     }
 
     return (
         <>
-            <MenuItem
-                title="Renombrar"
-                onPress={() => {
-                    const selected = storage === "ftp" ? modifyFtpFile : toRename;
-                    setName(selected[0].path.split("/").pop() ?? "");
-                    setValidationErrors({});
-                    setShow(true);
-                }}
-            />
             <AppDialog
                 title="Nuevo nombre"
                 visible={show}
+                acceptDisabled={isSubmitting}
                 onCancel={() => {
+                    setName("");
                     setValidationErrors({});
                     setShow(false);
                     setVisible(false);
-                    setDirSelected((current) => !current);
+                    setDirSelected(false);
                     setModifyFtpFile([]);
                     setModifyLocalFile([]);
+                    onFinish();
                 }}
                 onAccept={() => void rename()}
             >
                 <TextInput
                     autoFocus
+                    editable={!isSubmitting}
                     returnKeyType="done"
                     style={[overflowMenu.input, { borderBottomColor: theme.border, color: theme.text }]}
                     value={name}
@@ -563,6 +605,9 @@ function getDefaultMenuVisibility(storage: "local" | "ftp", localSelectionCount:
 export default function OverflowMenu(props: OverflowMenuProps) {
     const { storage } = props;
     const [visible, setVisible] = useState<boolean>(false);
+    const [makeDirDialogs, setMakeDirDialogs] = useState<number[]>([]);
+    const [renameDialogs, setRenameDialogs] = useState<number[]>([]);
+    const dialogId = useRef<number>(0);
     const { theme } = useTheme();
     const context = useAppContext();
     const { fileAction, modifyFtpFile, modifyLocalFile } = context;
@@ -594,13 +639,47 @@ export default function OverflowMenu(props: OverflowMenuProps) {
                         )}
                         {showCopy && <CopyMenu setVisible={setVisible} storage={storage} />}
                         {showMove && <MoveMenu setVisible={setVisible} storage={storage} />}
-                        {showMakeDir && <MakeDir setVisible={setVisible} storage={storage} />}
-                        {showRename && <RenameMenu setVisible={setVisible} storage={storage} />}
+                        {showMakeDir && (
+                            <MenuItem
+                                title="Crear carpeta"
+                                onPress={() => {
+                                    setVisible(false);
+                                    const id = ++dialogId.current;
+                                    setMakeDirDialogs((current) => [...current, id]);
+                                }}
+                            />
+                        )}
+                        {showRename && (
+                            <MenuItem
+                                title="Renombrar"
+                                onPress={() => {
+                                    setVisible(false);
+                                    const id = ++dialogId.current;
+                                    setRenameDialogs((current) => [...current, id]);
+                                }}
+                            />
+                        )}
                         {showRemove && <RemoveMenu setVisible={setVisible} storage={storage} />}
                         {fileAction && <MenuItem title="Cancelar" onPress={handleCancelFileAction} />}
                     </View>
                 </Pressable>
             </Modal>
+            {makeDirDialogs.map((id) => (
+                <MakeDir
+                    key={id}
+                    setVisible={setVisible}
+                    storage={storage}
+                    onFinish={() => setMakeDirDialogs((current) => current.filter((value) => value !== id))}
+                />
+            ))}
+            {renameDialogs.map((id) => (
+                <RenameMenu
+                    key={id}
+                    setVisible={setVisible}
+                    storage={storage}
+                    onFinish={() => setRenameDialogs((current) => current.filter((value) => value !== id))}
+                />
+            ))}
         </>
     );
 }
