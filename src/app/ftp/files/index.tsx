@@ -62,19 +62,9 @@ export default function Files() {
             const interval = setInterval(() => {
                 void (async () => {
                     if (!isLoading) {
-                        const result = await executeApiRequest(
-                            async (apiUtils) => {
-                                if (apiUtils.isRemoteDirectoryBusy(lastFtpDir)) {
-                                    return {
-                                        success: true,
-                                        data: { version: ApiUtils.FTP_VERSION }
-                                    };
-                                }
-
-                                return apiUtils.getVersion({ dir: lastFtpDir });
-                            },
-                            { isBackground: true }
-                        );
+                        const result = await executeApiRequest((apiUtils) => apiUtils.getVersion({ dir: lastFtpDir }), {
+                            isBackground: true
+                        });
                         if (result.success && result.data.version !== ApiUtils.FTP_VERSION) {
                             void loadDirectory(true);
                         }

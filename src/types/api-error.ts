@@ -1,7 +1,6 @@
-export interface ApiValidationErrorDetail {
-    field?: string;
-    message: string;
-}
+import type { ValidationErrorDetail } from "./response";
+
+export type ApiValidationErrorDetail = ValidationErrorDetail;
 
 /**
  * API error

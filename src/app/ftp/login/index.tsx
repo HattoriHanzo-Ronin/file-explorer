@@ -27,16 +27,7 @@ export default function Login() {
     const [showPassword, setShowPassword] = useState<boolean>(false);
 
     async function handleLogin() {
-        const normalizedUsername = username.trim();
-        setUsernameError(normalizedUsername ? "" : "Introduce el usuario");
-        setPasswordError(password ? "" : "Introduce la contraseña");
-        if (!normalizedUsername || !password) {
-            return;
-        }
-
-        const validationDetails = await loadingUtils.run(() =>
-            authUtils.login({ username: normalizedUsername, password })
-        );
+        const validationDetails = await loadingUtils.run(() => authUtils.login({ username, password }));
         setUsernameError(getValidationMessage(validationDetails, "username"));
         setPasswordError(getValidationMessage(validationDetails, "password"));
     }

@@ -76,16 +76,40 @@ describe("LocalFileManager", () => {
         fileSystem.readDir.mockResolvedValue([]);
         localFileOperation.tryCreateDirectory.mockResolvedValue(false);
         localFileOperation.createDirectory.mockImplementation(async () => {
-            void Promise.resolve().then(() => listener()({
-                id: "mkdir-1", operation: "LOCAL_MKDIR", status: "COMPLETED", bytesTransferred: 0,
-                totalBytes: 0, revision: 1, remoteDir: "", destinationDir: "", localDir: "/storage/docs"
-            }));
+            void Promise.resolve().then(() =>
+                listener()({
+                    id: "mkdir-1",
+                    operation: "LOCAL_MKDIR",
+                    status: "COMPLETED",
+                    bytesTransferred: 0,
+                    totalBytes: 0,
+                    revision: 1,
+                    remoteDir: "",
+                    destinationDir: "",
+                    localDir: "/storage/docs"
+                })
+            );
             return "mkdir-1";
         });
         await expect(manager.createDirectory("/storage", "docs", "Report")).resolves.toEqual({
-            success: true, data: [{ path: "/storage/docs", entries: [] }]
+            success: true,
+            data: [{ path: "/storage/docs", entries: [] }]
         });
         expect(localFileOperation.createDirectory).toHaveBeenCalledTimes(1);
+    });
+
+    it("rejects invalid names and unchanged renames before starting an operation", async () => {
+        const { localFileOperation, manager } = createManager();
+        const invalid = await manager.createDirectory("/storage", " ", "bad/name");
+        const unchanged = await manager.rename({ path: "/storage/report.txt", type: "file" }, " report.txt ");
+        expect(invalid.success).toBe(false);
+        expect(unchanged.success).toBe(false);
+        if (!invalid.success && !unchanged.success) {
+            expect(invalid.error.details?.[0].field).toBe("name");
+            expect(unchanged.error.details?.[0].field).toBe("newName");
+        }
+        expect(localFileOperation.tryCreateDirectory).not.toHaveBeenCalled();
+        expect(localFileOperation.tryRename).not.toHaveBeenCalled();
     });
 
     it("rejects unsupported archive formats before starting a native operation", async () => {

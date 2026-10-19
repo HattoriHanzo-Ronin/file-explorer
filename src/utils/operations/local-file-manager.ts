@@ -83,6 +83,12 @@ export default class LocalFileManager {
      * @returns Local operation response
      */
     async createDirectory(rootPath: string, dir: string, name: string): Promise<LocalResponse<LocalDirectoryUpdate[]>> {
+        const error = FileUtils.validateOperationName(name, "name");
+        if (error) {
+            return { success: false, error };
+        }
+
+        name = name.trim();
         try {
             const destination = this.absolutePath(rootPath, dir);
             if (await this.localFileOperation.tryCreateDirectory(destination, name)) {
@@ -113,6 +119,12 @@ export default class LocalFileManager {
      * @returns Local operation response
      */
     async rename(entry: LocalModifyElement, name: string): Promise<LocalResponse<LocalDirectoryUpdate[]>> {
+        const error = FileUtils.validateOperationName(name, "newName", entry.path.split("/").pop());
+        if (error) {
+            return { success: false, error };
+        }
+
+        name = name.trim();
         try {
             const source = entry.path;
             const destination = source.substring(0, source.lastIndexOf("/"));

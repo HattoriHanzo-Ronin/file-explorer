@@ -39,6 +39,14 @@ describe("ApiUtils", () => {
         expect(axios.get).toHaveBeenCalledWith(`${API_URL}/data-versions/ftp`, { params: { dir: undefined } });
     });
 
+    it("does not check the remote version while the directory is busy", async () => {
+        const { apiUtils, remoteFileManager } = createApiUtils();
+        remoteFileManager.isRemoteDirectoryBusy.mockReturnValue(true);
+        ApiUtils.FTP_VERSION = "4";
+        await expect(apiUtils.getVersion({ dir: "docs" })).resolves.toEqual({ success: true, data: { version: "4" } });
+        expect(axios.get).not.toHaveBeenCalled();
+    });
+
     it("updates the FTP version after listing a directory", async () => {
         const { apiUtils } = createApiUtils();
         jest.mocked(axios.get).mockResolvedValue({ data: ENTRIES, headers: { "data-version": "4" } });
@@ -106,6 +114,20 @@ describe("ApiUtils", () => {
         expect(ApiUtils.FTP_VERSION).toBe("previous");
     });
 
+    it("validates names before starting remote directory operations", async () => {
+        const { apiUtils, remoteFileManager } = createApiUtils();
+        const invalid = await apiUtils.createDirectory({ name: "bad/name" });
+        const unchanged = await apiUtils.renameEntry({ entry: ENTRIES[0], newName: " photo.jpg " });
+        expect(invalid.success).toBe(false);
+        expect(unchanged.success).toBe(false);
+        if (!invalid.success && !unchanged.success) {
+            expect(invalid.error.details?.[0].field).toBe("name");
+            expect(unchanged.error.details?.[0].field).toBe("newName");
+        }
+        expect(remoteFileManager.createDirectory).not.toHaveBeenCalled();
+        expect(remoteFileManager.rename).not.toHaveBeenCalled();
+    });
+
     it("updates the version from remote move results", async () => {
         const { apiUtils, remoteFileManager } = createApiUtils();
         remoteFileManager.move.mockResolvedValue({
@@ -119,5 +141,12 @@ describe("ApiUtils", () => {
             }
         );
         expect(ApiUtils.FTP_VERSION).toBe("8");
+    });
+
+    it("rejects a remote move to the source directory", async () => {
+        const { apiUtils, remoteFileManager } = createApiUtils();
+        const result = await apiUtils.moveEntries({ dir: " ", destination: "", entries: ENTRIES });
+        expect(result.success).toBe(false);
+        expect(remoteFileManager.move).not.toHaveBeenCalled();
     });
 });
