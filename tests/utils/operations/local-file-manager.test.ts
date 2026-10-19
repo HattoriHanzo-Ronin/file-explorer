@@ -58,9 +58,10 @@ describe("LocalFileManager", () => {
     it("creates a non-colliding directory name", async () => {
         const { fileSystem, manager } = createManager();
         fileSystem.exists.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+        fileSystem.readDir.mockResolvedValue([]);
         await expect(manager.createDirectory("/storage", "docs", "Report")).resolves.toEqual({
             success: true,
-            data: undefined
+            data: [{ path: "/storage/docs", entries: [] }]
         });
         expect(fileSystem.mkdir).toHaveBeenCalledWith("/storage/docs/Report (1)");
     });
@@ -75,9 +76,21 @@ describe("LocalFileManager", () => {
     });
 
     it("waits for a native delete completion", async () => {
-        const { listener, localFileOperation, manager } = createManager();
+        const { fileSystem, listener, localFileOperation, manager } = createManager();
+        fileSystem.readDir.mockResolvedValue([]);
+        listener()({
+            id: "download-1",
+            operation: "DOWNLOAD",
+            status: "RUNNING",
+            bytesTransferred: 0,
+            totalBytes: 1,
+            revision: 1,
+            remoteDir: "",
+            destinationDir: "",
+            localDir: "/storage/docs"
+        });
         localFileOperation.startDelete.mockImplementation(async () => {
-            queueMicrotask(() =>
+            void Promise.resolve().then(() =>
                 listener()({
                     id: "delete-1",
                     operation: "LOCAL_DELETE",
@@ -94,7 +107,11 @@ describe("LocalFileManager", () => {
         });
         await expect(manager.delete([{ path: "/storage/docs/a.txt", type: "file" }])).resolves.toEqual({
             success: true,
-            data: undefined
+            data: [{ path: "/storage/docs", entries: [] }]
         });
+        expect(fileSystem.readDir).toHaveBeenCalledWith("/storage/docs");
+        fileSystem.readDir.mockClear();
+        await manager.getVersion("/storage", "docs");
+        expect(fileSystem.readDir).not.toHaveBeenCalled();
     });
 });

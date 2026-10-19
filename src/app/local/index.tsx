@@ -51,10 +51,13 @@ export default function Local() {
     );
 
     async function extractArchive(name: string) {
-        await executeLocalRequest(
+        const result = await executeLocalRequest(
             (localFileManager) => localFileManager.extract(activeStorageRoot.path, lastLocalDir, name),
             { isBackground: true, showError: true }
         );
+        if (result.success) {
+            UiUtils.applyLocalDirectoryUpdates(setLocalDirectory, result.data);
+        }
     }
 
     async function openFile(name: string) {

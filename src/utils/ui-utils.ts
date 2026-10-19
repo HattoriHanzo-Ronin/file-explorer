@@ -3,11 +3,24 @@ import type { AppContextType } from "../types/context";
 import type { StorageType } from "../types/navigation";
 import type { MessageDuration, ValidationErrors } from "../types/ui";
 import type { ApiValidationErrorDetail } from "../types/api-error";
+import type { LocalDirectoryUpdate } from "../types/files";
 
 /**
  * Manages application messages
  */
 export default class UiUtils {
+    /** Applies a directory result only when it matches the current local directory */
+    static applyLocalDirectoryUpdates(
+        setLocalDirectory: AppContextType["setLocalDirectory"],
+        updates: LocalDirectoryUpdate[]
+    ): void {
+        setLocalDirectory((current) => {
+            const path = current.dir === " " ? current.rootPath : `${current.rootPath}/${current.dir}`;
+            const update = updates.find(({ path: updatePath }) => updatePath === path);
+            return update ? { ...current, content: update.entries } : current;
+        });
+    }
+
     /**
      * Displays a message
      *
@@ -58,7 +71,7 @@ export default class UiUtils {
             const roots = [internalRoot, ...externalRoots];
             const root = roots.find(({ id }) => id === lastLocalRootId) ?? internalRoot;
             setActiveStorageRoot(root);
-            setLocalDirectory((current) => ({ ...current, dir: lastLocalDir }));
+            setLocalDirectory((current) => ({ ...current, rootPath: root.path, dir: lastLocalDir }));
         } else {
             setFtpDirectory((current) => ({ ...current, dir: ftpSelectionDir }));
         }

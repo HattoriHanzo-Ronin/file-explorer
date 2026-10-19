@@ -90,12 +90,14 @@ export const DownloadMenu = (props: TransferMenuProps) => {
     const {
         activeStorageRoot,
         executeApiRequest,
+        executeLocalRequest,
         fileAction,
         ftpDirectory,
         localDirectory,
         modifyFtpFile: toDownload,
         setDirSelected,
-        setFileAction
+        setFileAction,
+        setLocalDirectory
     } = context;
 
     async function download(remoteDir: string, localDir: string) {
@@ -107,6 +109,13 @@ export const DownloadMenu = (props: TransferMenuProps) => {
             }
         );
         if (result.success) {
+            const destination = localDir === " " ? activeStorageRoot.path : `${activeStorageRoot.path}/${localDir}`;
+            const updates = await executeLocalRequest((manager) => manager.getDirectoryUpdates([destination]), {
+                isBackground: true
+            });
+            if (updates.success) {
+                UiUtils.applyLocalDirectoryUpdates(setLocalDirectory, updates.data);
+            }
             UiUtils.showMessage("Descarga finalizada");
         }
     }
@@ -147,20 +156,24 @@ const CopyMoveAction = (props: CopyMoveActionProps) => {
         modifyLocalFile,
         setDirSelected,
         setFileAction,
-        setFtpDirectory
+        setFtpDirectory,
+        setLocalDirectory
     } = context;
     const action = copy ? "copy" : "move";
 
     async function copyMoveLocal() {
         const destination =
             localDirectory.dir === " " ? activeStorageRoot.path : `${activeStorageRoot.path}/${localDirectory.dir}`;
-        await executeLocalRequest(
+        const result = await executeLocalRequest(
             (localFileManager) =>
                 copy
                     ? localFileManager.copy(modifyLocalFile, destination)
                     : localFileManager.move(modifyLocalFile, destination),
             { isBackground: true, showError: true }
         );
+        if (result.success) {
+            UiUtils.applyLocalDirectoryUpdates(setLocalDirectory, result.data);
+        }
     }
 
     async function moveRemote() {
@@ -228,6 +241,7 @@ export const MakeDir = (props: MenuProps) => {
         localDirectory,
         setDirSelected,
         setFtpDirectory,
+        setLocalDirectory,
         setModifyLocalFile
     } = useAppContext();
     const [show, setShow] = useState<boolean>(false);
@@ -258,11 +272,14 @@ export const MakeDir = (props: MenuProps) => {
                 current.dir === ftpDirectory.dir ? { ...current, content: result.data } : current
             );
         } else {
-            await executeLocalRequest(
+            const result = await executeLocalRequest(
                 (localFileManager) =>
                     localFileManager.createDirectory(activeStorageRoot.path, localDirectory.dir, normalizedName),
                 { isBackground: true }
             );
+            if (result.success) {
+                UiUtils.applyLocalDirectoryUpdates(setLocalDirectory, result.data);
+            }
         }
 
         setShow(false);
@@ -320,6 +337,7 @@ export const RenameMenu = (props: MenuProps) => {
         modifyLocalFile: toRename,
         setDirSelected,
         setFtpDirectory,
+        setLocalDirectory,
         setModifyFtpFile,
         setModifyLocalFile
     } = useAppContext();
@@ -363,9 +381,15 @@ export const RenameMenu = (props: MenuProps) => {
                 current.dir === ftpDirectory.dir ? { ...current, content: result.data } : current
             );
         } else {
-            await executeLocalRequest((localFileManager) => localFileManager.rename(toRename[0], normalizedName), {
-                isBackground: true
-            });
+            const result = await executeLocalRequest(
+                (localFileManager) => localFileManager.rename(toRename[0], normalizedName),
+                {
+                    isBackground: true
+                }
+            );
+            if (result.success) {
+                UiUtils.applyLocalDirectoryUpdates(setLocalDirectory, result.data);
+            }
         }
 
         setShow(false);
@@ -428,15 +452,19 @@ export const RemoveMenu = (props: MenuProps) => {
         modifyFtpFile,
         modifyLocalFile,
         setFtpDirectory,
+        setLocalDirectory,
         setModifyFtpFile,
         setModifyLocalFile
     } = useAppContext();
 
     async function removeLocalEntries() {
-        await executeLocalRequest((localFileManager) => localFileManager.delete(modifyLocalFile), {
+        const result = await executeLocalRequest((localFileManager) => localFileManager.delete(modifyLocalFile), {
             isBackground: true,
             showError: true
         });
+        if (result.success) {
+            UiUtils.applyLocalDirectoryUpdates(setLocalDirectory, result.data);
+        }
     }
 
     async function removeRemoteEntries() {

@@ -83,6 +83,7 @@ class FileOperationService : Service() {
                         .onFailure { Log.e(LOG_TAG, "Could not save operation failure", it) }
                 }
                 val snapshot = FileOperationRecord.fromJson(JSONObject(record.toJson().toString()))
+                FileOperationStore.markInactive(id)
                 handler.post { finishOperation(snapshot) }
             }
         }

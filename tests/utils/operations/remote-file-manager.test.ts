@@ -85,7 +85,7 @@ describe("RemoteFileManager", () => {
     it("normalizes root paths and returns completed remote move changes", async () => {
         const { listener, manager, remoteFileOperation } = createManager();
         remoteFileOperation.startMove.mockImplementation(async () => {
-            queueMicrotask(() => listener()(completedOperation("REMOTE_MOVE")));
+            void Promise.resolve().then(() => listener()(completedOperation("REMOTE_MOVE")));
             return "REMOTE_MOVE-1";
         });
         await expect(
@@ -117,11 +117,95 @@ describe("RemoteFileManager", () => {
             id: "upload-1",
             operation: "UPLOAD",
             status: "COMPLETED",
+            revision: 2,
             remoteDir: "photos",
             destinationDir: "",
             localDir: "/storage/photos",
             result: { entries: [], version: "10" }
         });
+        expect(manager.isRemoteDirectoryBusy("photos")).toBe(false);
+    });
+
+    it("completes each download independently when they share a destination", async () => {
+        const { listener, manager, remoteFileOperation } = createManager();
+        remoteFileOperation.startDownload.mockResolvedValueOnce("download-1").mockResolvedValueOnce("download-2");
+        const first = manager.download([{ path: "one.txt", type: "FILE" }], " ", "/storage", " ");
+        const second = manager.download([{ path: "two.txt", type: "FILE" }], " ", "/storage", " ");
+        await new Promise<void>((resolve) => setImmediate(resolve));
+
+        const running: FileOperationSnapshot = {
+            id: "download-1",
+            operation: "DOWNLOAD",
+            status: "RUNNING",
+            bytesTransferred: 0,
+            totalBytes: 1,
+            revision: 1,
+            remoteDir: "",
+            destinationDir: "/storage",
+            localDir: "/storage"
+        };
+        listener()(running);
+        listener()({ ...running, id: "download-2", revision: 2 });
+        listener()({ ...running, status: "COMPLETED", bytesTransferred: 1, revision: 3 });
+        await expect(first).resolves.toEqual({ success: true, data: undefined });
+        expect(manager.isLocalDirectoryBusy("/storage")).toBe(true);
+
+        listener()({ ...running, id: "download-2", status: "COMPLETED", bytesTransferred: 1, revision: 4 });
+        await expect(second).resolves.toEqual({ success: true, data: undefined });
+        expect(manager.isLocalDirectoryBusy("/storage")).toBe(false);
+    });
+
+    it("accepts a completion event already observed during restoration before the operation ID arrives", async () => {
+        const { listener, manager, remoteFileOperation } = createManager();
+        let resolveStart!: (id: string) => void;
+        remoteFileOperation.startDownload.mockReturnValue(
+            new Promise<string>((resolve) => {
+                resolveStart = resolve;
+            })
+        );
+        const completed: FileOperationSnapshot = {
+            id: "download-1",
+            operation: "DOWNLOAD",
+            status: "COMPLETED",
+            bytesTransferred: 1,
+            totalBytes: 1,
+            revision: 2,
+            remoteDir: "",
+            destinationDir: "/storage",
+            localDir: "/storage"
+        };
+        remoteFileOperation.listOperations.mockResolvedValue([completed]);
+        const download = manager.download([{ path: "one.txt", type: "FILE" }], " ", "/storage", " ");
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        await manager.restore();
+        listener()(completed);
+        resolveStart(completed.id);
+        await expect(download).resolves.toEqual({ success: true, data: undefined });
+    });
+
+    it("does not mark a directory busy again when a restored snapshot is older than a completion event", async () => {
+        const { listener, manager, remoteFileOperation } = createManager();
+        let resolveList!: (operations: FileOperationSnapshot[]) => void;
+        remoteFileOperation.listOperations.mockReturnValue(
+            new Promise<FileOperationSnapshot[]>((resolve) => {
+                resolveList = resolve;
+            })
+        );
+        const running: FileOperationSnapshot = {
+            id: "upload-1",
+            operation: "UPLOAD",
+            status: "RUNNING",
+            bytesTransferred: 0,
+            totalBytes: 1,
+            revision: 1,
+            remoteDir: "photos",
+            destinationDir: "",
+            localDir: "/storage"
+        };
+        const restore = manager.restore();
+        listener()({ ...running, status: "COMPLETED", revision: 2, result: { entries: [], version: "1" } });
+        resolveList([running]);
+        await restore;
         expect(manager.isRemoteDirectoryBusy("photos")).toBe(false);
     });
 });

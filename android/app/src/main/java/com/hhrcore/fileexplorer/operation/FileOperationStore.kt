@@ -2,45 +2,50 @@ package com.hhrcore.fileexplorer.operation
 
 import android.content.Context
 import org.json.JSONArray
+import java.util.concurrent.ConcurrentHashMap
 
 class FileOperationStore(context: Context) {
     private val preferences = context.getSharedPreferences("file_transfers", Context.MODE_PRIVATE)
 
-    @Synchronized
-    fun save(record: FileOperationRecord) {
+    fun save(record: FileOperationRecord) = synchronized(lock) {
         record.revision = preferences.getLong(REVISION_KEY, 0) + 1
         record.updatedAt = System.currentTimeMillis()
-        preferences.edit()
+        val saved = preferences.edit()
             .putLong(REVISION_KEY, record.revision)
             .putString(record.id, record.toJson().toString())
             .commit()
-    }
-
-    @Synchronized
-    fun get(id: String): FileOperationRecord? {
-        val source = preferences.getString(id, null) ?: return null
-        return runCatching { FileOperationRecord.fromJson(org.json.JSONObject(source)) }.getOrNull()
-    }
-
-    @Synchronized
-    fun list(): List<FileOperationRecord> = preferences.all
-        .filterKeys { it != REVISION_KEY }
-        .values
-        .mapNotNull { value ->
-            (value as? String)?.let { runCatching { FileOperationRecord.fromJson(org.json.JSONObject(it)) }.getOrNull() }
+        if (!saved) {
+            throw IllegalStateException("No se pudo guardar el estado de la operación")
         }
-        .sortedBy { it.revision }
+    }
 
-    @Synchronized
-    fun snapshot(): String = JSONArray(list().map { it.toJson() }).toString()
+    fun get(id: String): FileOperationRecord? = synchronized(lock) {
+        val source = preferences.getString(id, null) ?: return@synchronized null
+        runCatching { FileOperationRecord.fromJson(org.json.JSONObject(source)) }.getOrNull()
+    }
 
-    @Synchronized
-    fun removeSettled() {
+    fun list(): List<FileOperationRecord> = synchronized(lock) {
+        preferences.all
+            .filterKeys { it != REVISION_KEY }
+            .values
+            .mapNotNull { value ->
+                (value as? String)?.let { runCatching { FileOperationRecord.fromJson(org.json.JSONObject(it)) }.getOrNull() }
+            }
+            .sortedBy { it.revision }
+    }
+
+    fun reconcileInterrupted(engine: FileOperationEngine): String = synchronized(lock) {
+        list().filter { (it.status in ACTIVE_STATUSES || it.moveCommitStarted) && it.id !in activeIds }
+            .forEach(engine::reconcile)
+        JSONArray(list().map { it.toJson() }).toString()
+    }
+
+    fun removeSettled() = synchronized(lock) {
         val settledIds = list()
-            .filter { it.status !in ACTIVE_STATUSES }
+            .filter { it.status !in ACTIVE_STATUSES && !it.moveCommitStarted }
             .map(FileOperationRecord::id)
         if (settledIds.isEmpty()) {
-            return
+            return@synchronized
         }
 
         val editor = preferences.edit()
@@ -50,6 +55,16 @@ class FileOperationStore(context: Context) {
 
     companion object {
         private const val REVISION_KEY = "__revision__"
+        private val lock = Any()
+        private val activeIds = ConcurrentHashMap.newKeySet<String>()
         private val ACTIVE_STATUSES = setOf(FileOperationRecord.STATUS_PENDING, FileOperationRecord.STATUS_RUNNING)
+
+        fun markActive(id: String) {
+            activeIds.add(id)
+        }
+
+        fun markInactive(id: String) {
+            activeIds.remove(id)
+        }
     }
 }

@@ -1,6 +1,6 @@
 import { FILE_OPERATION_NOTIFICATION_TEXTS } from "../../constants/file-operations";
 import { EXTRACTABLE_ARCHIVE_EXTENSIONS } from "../../constants/archives";
-import type { LocalModifyElement } from "../../types/files";
+import type { LocalDirectoryUpdate, LocalModifyElement } from "../../types/files";
 import type { FileOperationSnapshot } from "../../types/file-operations";
 import type { LocalResponse } from "../../types/local-response";
 import type { FileSystem, FileSystemEntry } from "../files/file-system";
@@ -19,6 +19,7 @@ export default class LocalFileManager {
     private readonly localFileOperation: LocalFileOperation;
     private readonly permission: Permission;
     private readonly activeDirectories = new Map<string, Set<string>>();
+    private readonly operationRevisions = new Map<string, number>();
     private readonly completionListeners = new Map<string, (operation: FileOperationSnapshot) => void>();
     private readonly completedOperations = new Map<string, FileOperationSnapshot>();
 
@@ -26,24 +27,13 @@ export default class LocalFileManager {
         this.fileSystem = fileSystem;
         this.localFileOperation = localFileOperation;
         this.permission = permission;
-        this.localFileOperation.addChangeListener((operation) => {
-            this.updateActiveDirectories(operation);
-            if (!this.isLocalOperation(operation) || ["PENDING", "RUNNING"].includes(operation.status)) {
-                return;
-            }
-
-            this.completeOperation(operation);
-        });
+        this.localFileOperation.addChangeListener((operation) => this.handleChange(operation));
     }
 
     /** Restores persisted local operations */
     async restore(): Promise<void> {
         const operations = await this.localFileOperation.listOperations();
-        operations
-            .filter(
-                (operation) => this.isLocalOperation(operation) && !["PENDING", "RUNNING"].includes(operation.status)
-            )
-            .forEach((operation) => this.completeOperation(operation));
+        operations.forEach((operation) => this.handleChange(operation));
     }
 
     /**
@@ -92,11 +82,11 @@ export default class LocalFileManager {
      * @param name Directory name
      * @returns Local operation response
      */
-    async createDirectory(rootPath: string, dir: string, name: string): Promise<LocalResponse<void>> {
+    async createDirectory(rootPath: string, dir: string, name: string): Promise<LocalResponse<LocalDirectoryUpdate[]>> {
         try {
             const destination = this.absolutePath(rootPath, dir);
             await this.fileSystem.mkdir(`${destination}/${await this.availableName(destination, name)}`);
-            return { success: true, data: undefined };
+            return this.getDirectoryUpdates([destination]);
         } catch {
             return this.operationError("Error al crear carpeta");
         }
@@ -109,12 +99,12 @@ export default class LocalFileManager {
      * @param name New entry name
      * @returns Local operation response
      */
-    async rename(entry: LocalModifyElement, name: string): Promise<LocalResponse<void>> {
+    async rename(entry: LocalModifyElement, name: string): Promise<LocalResponse<LocalDirectoryUpdate[]>> {
         try {
             const source = entry.path;
             const destination = source.substring(0, source.lastIndexOf("/"));
             await this.fileSystem.moveFile(source, `${destination}/${await this.availableName(destination, name)}`);
-            return { success: true, data: undefined };
+            return this.getDirectoryUpdates([destination]);
         } catch {
             return this.operationError("Error al renombrar");
         }
@@ -144,7 +134,7 @@ export default class LocalFileManager {
      * @param destination Destination path
      * @returns Local operation response
      */
-    async copy(items: LocalModifyElement[], destination: string): Promise<LocalResponse<void>> {
+    async copy(items: LocalModifyElement[], destination: string): Promise<LocalResponse<LocalDirectoryUpdate[]>> {
         return this.startCopyMove(items, destination, false);
     }
 
@@ -155,7 +145,7 @@ export default class LocalFileManager {
      * @param destination Destination path
      * @returns Local operation response
      */
-    async move(items: LocalModifyElement[], destination: string): Promise<LocalResponse<void>> {
+    async move(items: LocalModifyElement[], destination: string): Promise<LocalResponse<LocalDirectoryUpdate[]>> {
         return this.startCopyMove(items, destination, true);
     }
 
@@ -165,7 +155,7 @@ export default class LocalFileManager {
      * @param items Entries to delete
      * @returns Local operation response
      */
-    async delete(items: LocalModifyElement[]): Promise<LocalResponse<void>> {
+    async delete(items: LocalModifyElement[]): Promise<LocalResponse<LocalDirectoryUpdate[]>> {
         const permission = await this.prepareOperation();
         if (!permission.success) {
             return permission;
@@ -178,7 +168,10 @@ export default class LocalFileManager {
                 sources,
                 destination: sources[0]?.substring(0, sources[0].lastIndexOf("/")) ?? this.fileSystem.internalRoot.path
             });
-            return this.waitForCompletion(id);
+            const result = await this.waitForCompletion(id);
+            return result.success
+                ? this.getDirectoryUpdates(sources.map((path) => path.substring(0, path.lastIndexOf("/"))))
+                : result;
         } catch {
             return this.operationError();
         }
@@ -192,7 +185,7 @@ export default class LocalFileManager {
      * @param name Archive name
      * @returns Local operation response
      */
-    async extract(rootPath: string, dir: string, name: string): Promise<LocalResponse<void>> {
+    async extract(rootPath: string, dir: string, name: string): Promise<LocalResponse<LocalDirectoryUpdate[]>> {
         const extension = name.split(".").pop()?.toLowerCase() ?? "";
         if (!EXTRACTABLE_ARCHIVE_EXTENSIONS.includes(extension)) {
             return {
@@ -213,7 +206,8 @@ export default class LocalFileManager {
                 source: `${destination}/${name}`,
                 destination
             });
-            return this.waitForCompletion(id);
+            const result = await this.waitForCompletion(id);
+            return result.success ? this.getDirectoryUpdates([destination]) : result;
         } catch {
             return this.operationError();
         }
@@ -228,11 +222,25 @@ export default class LocalFileManager {
         this.localFileOperation.cancel(id);
     }
 
+    /** Returns the current contents of the affected directories */
+    async getDirectoryUpdates(paths: string[]): Promise<LocalResponse<LocalDirectoryUpdate[]>> {
+        const updates = await Promise.all(
+            [...new Set(paths)].map(async (path) => {
+                try {
+                    return { path, entries: await this.fileSystem.readDir(path) };
+                } catch {
+                    return null;
+                }
+            })
+        );
+        return { success: true, data: updates.filter((update) => update !== null) };
+    }
+
     private async startCopyMove(
         items: LocalModifyElement[],
         destination: string,
         move: boolean
-    ): Promise<LocalResponse<void>> {
+    ): Promise<LocalResponse<LocalDirectoryUpdate[]>> {
         const permission = await this.prepareOperation();
         if (!permission.success) {
             return permission;
@@ -247,7 +255,11 @@ export default class LocalFileManager {
             const id = move
                 ? await this.localFileOperation.startMove(request)
                 : await this.localFileOperation.startCopy(request);
-            return this.waitForCompletion(id);
+            const result = await this.waitForCompletion(id);
+            const paths = move
+                ? [destination, ...request.sources.map((path) => path.substring(0, path.lastIndexOf("/")))]
+                : [destination];
+            return result.success ? this.getDirectoryUpdates(paths) : result;
         } catch {
             return this.operationError();
         }
@@ -259,6 +271,19 @@ export default class LocalFileManager {
         }
 
         return { success: true, data: undefined };
+    }
+
+    private handleChange(operation: FileOperationSnapshot): void {
+        const { id, revision, status } = operation;
+        if (revision <= (this.operationRevisions.get(id) ?? -1)) {
+            return;
+        }
+
+        this.operationRevisions.set(id, revision);
+        this.updateActiveDirectories(operation);
+        if (this.isLocalOperation(operation) && !["PENDING", "RUNNING"].includes(status)) {
+            this.completeOperation(operation);
+        }
     }
 
     private completeOperation(operation: FileOperationSnapshot): void {
