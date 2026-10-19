@@ -3,11 +3,17 @@ import type {
     FileOperationSnapshot,
     NativeLocalCopyMoveRequest,
     NativeLocalDeleteRequest,
+    NativeLocalMkdirRequest,
+    NativeLocalRenameRequest,
     NativeLocalExtractRequest
 } from "../../../types/file-operations";
 import type { LocalFileOperation } from "../local-file-operation";
 
 interface NativeFileOperationModule {
+    tryLocalMkdir(destination: string, name: string): Promise<boolean>;
+    tryLocalRename(source: string, name: string): Promise<boolean>;
+    startLocalMkdir(request: NativeLocalMkdirRequest): Promise<string>;
+    startLocalRename(request: NativeLocalRenameRequest): Promise<string>;
     startLocalCopy(request: NativeLocalCopyMoveRequest): Promise<string>;
     startLocalMove(request: NativeLocalCopyMoveRequest): Promise<string>;
     startLocalDelete(request: NativeLocalDeleteRequest): Promise<string>;
@@ -24,6 +30,38 @@ interface NativeFileOperationModule {
 export default class NativeLocalFileOperation implements LocalFileOperation {
     private readonly module = NativeModules.FileOperation as NativeFileOperationModule;
     private readonly eventEmitter = new NativeEventEmitter(NativeModules.FileOperation);
+
+    /**
+     * Creates a directory immediately if its path is available
+     *
+     * @param destination Parent directory
+     * @param name Directory name
+     * @returns Whether the operation was executed
+     */
+    async tryCreateDirectory(destination: string, name: string): Promise<boolean> {
+        return this.module.tryLocalMkdir(destination, name);
+    }
+
+    /**
+     * Renames an entry immediately if its path is available
+     *
+     * @param source Entry path
+     * @param name New name
+     * @returns Whether the operation was executed
+     */
+    async tryRename(source: string, name: string): Promise<boolean> {
+        return this.module.tryLocalRename(source, name);
+    }
+
+    /** Creates a uniquely named directory */
+    async createDirectory(request: NativeLocalMkdirRequest): Promise<string> {
+        return this.module.startLocalMkdir(request);
+    }
+
+    /** Renames an entry to a uniquely named destination */
+    async rename(request: NativeLocalRenameRequest): Promise<string> {
+        return this.module.startLocalRename(request);
+    }
 
     /**
      * Starts a local copy operation

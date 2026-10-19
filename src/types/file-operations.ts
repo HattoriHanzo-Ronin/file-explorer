@@ -5,8 +5,12 @@ import type { ResponseError } from "./response";
 export type FileOperationType =
     | "UPLOAD"
     | "DOWNLOAD"
+    | "REMOTE_MKDIR"
+    | "REMOTE_RENAME"
     | "REMOTE_MOVE"
     | "REMOTE_DELETE"
+    | "LOCAL_MKDIR"
+    | "LOCAL_RENAME"
     | "LOCAL_COPY"
     | "LOCAL_MOVE"
     | "LOCAL_DELETE"
@@ -32,16 +36,30 @@ export interface FileOperationNotificationTexts {
     downloadFailed: string;
     downloadCancelled: string;
     downloadInterrupted: string;
+    remoteMkdirActive: string;
+    remoteMkdirCompleted: string;
+    remoteMkdirFailed: string;
+    remoteMkdirInterrupted: string;
+    remoteRenameActive: string;
+    remoteRenameCompleted: string;
+    remoteRenameFailed: string;
+    remoteRenameInterrupted: string;
     remoteMoveActive: string;
     remoteMoveCompleted: string;
     remoteMoveFailed: string;
-    remoteMoveCancelled: string;
     remoteMoveInterrupted: string;
     remoteDeleteActive: string;
     remoteDeleteCompleted: string;
     remoteDeleteFailed: string;
-    remoteDeleteCancelled: string;
     remoteDeleteInterrupted: string;
+    localMkdirActive: string;
+    localMkdirCompleted: string;
+    localMkdirFailed: string;
+    localMkdirInterrupted: string;
+    localRenameActive: string;
+    localRenameCompleted: string;
+    localRenameFailed: string;
+    localRenameInterrupted: string;
     localCopyActive: string;
     localCopyCompleted: string;
     localCopyFailed: string;
@@ -55,7 +73,6 @@ export interface FileOperationNotificationTexts {
     localDeleteActive: string;
     localDeleteCompleted: string;
     localDeleteFailed: string;
-    localDeleteCancelled: string;
     localDeleteInterrupted: string;
     localExtractActive: string;
     localExtractCompleted: string;
@@ -122,6 +139,15 @@ export interface NativeDownloadRequest extends NativeRemoteRequest {
     entries: FtpEntry[];
 }
 
+export interface NativeRemoteMkdirRequest extends NativeRemoteRequest {
+    name: string;
+}
+
+export interface NativeRemoteRenameRequest extends NativeRemoteRequest {
+    entry: FtpEntry;
+    newName: string;
+}
+
 export interface NativeRemoteDeleteRequest extends NativeRemoteRequest {
     entries: FtpEntry[];
 }
@@ -148,4 +174,16 @@ export interface NativeLocalExtractRequest {
     notificationTexts: FileOperationNotificationTexts;
     source: string;
     destination: string;
+}
+
+export interface NativeLocalMkdirRequest {
+    notificationTexts: FileOperationNotificationTexts;
+    destination: string;
+    name: string;
+}
+
+export interface NativeLocalRenameRequest {
+    notificationTexts: FileOperationNotificationTexts;
+    source: string;
+    name: string;
 }

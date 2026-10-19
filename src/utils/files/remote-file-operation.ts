@@ -3,6 +3,8 @@ import type {
     NativeDownloadRequest,
     NativeRemoteDeleteRequest,
     NativeRemoteMoveRequest,
+    NativeRemoteMkdirRequest,
+    NativeRemoteRenameRequest,
     NativeUploadRequest
 } from "../../types/file-operations";
 
@@ -13,6 +15,10 @@ export interface RemoteFileOperation {
     startDownload(request: NativeDownloadRequest): Promise<string>;
 
     startDelete(request: NativeRemoteDeleteRequest): Promise<string>;
+
+    startMkdir(request: NativeRemoteMkdirRequest): Promise<string>;
+
+    startRename(request: NativeRemoteRenameRequest): Promise<string>;
 
     startMove(request: NativeRemoteMoveRequest): Promise<string>;
 

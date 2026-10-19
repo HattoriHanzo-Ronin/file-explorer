@@ -3,7 +3,12 @@ import { STORAGE_KEYS } from "../../constants/storage";
 import { FILE_OPERATION_NOTIFICATION_TEXTS } from "../../constants/file-operations";
 import type { EntryType, LocalModifyElement } from "../../types/files";
 import type { FtpEntry } from "../../types/ftp";
-import type { DeleteEntriesRequest, MoveEntriesRequest } from "../../types/ftp";
+import type {
+    CreateDirectoryRequest,
+    DeleteEntriesRequest,
+    MoveEntriesRequest,
+    RenameEntryRequest
+} from "../../types/ftp";
 import type { ApiResponse } from "../../types/api-response";
 import type {
     NativeUploadEntry,
@@ -139,6 +144,51 @@ export default class RemoteFileManager {
             });
             const result = await this.waitForCompletion(id);
             return result.success ? { success: true, data: undefined } : result;
+        } catch {
+            return this.operationError();
+        }
+    }
+
+    /** Creates a remote directory */
+    async createDirectory(request: CreateDirectoryRequest): Promise<ApiResponse<RemoteDirectoryOperationResult>> {
+        const accessToken = await this.prepareOperation();
+        if (!accessToken.success) {
+            return accessToken;
+        }
+
+        try {
+            const { dir, name } = request;
+            const id = await this.remoteFileOperation.startMkdir({
+                apiUrl: this.apiUrl,
+                accessToken: accessToken.data,
+                notificationTexts: FILE_OPERATION_NOTIFICATION_TEXTS,
+                ...(dir === undefined || dir === " " ? {} : { remoteDir: dir }),
+                name
+            });
+            return this.waitForDirectoryResult(id, "REMOTE_MKDIR");
+        } catch {
+            return this.operationError();
+        }
+    }
+
+    /** Renames a remote entry */
+    async rename(request: RenameEntryRequest): Promise<ApiResponse<RemoteDirectoryOperationResult>> {
+        const accessToken = await this.prepareOperation();
+        if (!accessToken.success) {
+            return accessToken;
+        }
+
+        try {
+            const { dir, entry, newName } = request;
+            const id = await this.remoteFileOperation.startRename({
+                apiUrl: this.apiUrl,
+                accessToken: accessToken.data,
+                notificationTexts: FILE_OPERATION_NOTIFICATION_TEXTS,
+                ...(dir === undefined || dir === " " ? {} : { remoteDir: dir }),
+                entry,
+                newName
+            });
+            return this.waitForDirectoryResult(id, "REMOTE_RENAME");
         } catch {
             return this.operationError();
         }
@@ -283,7 +333,7 @@ export default class RemoteFileManager {
             revision,
             unclaimed: !active && !notifyError && !this.completionListeners.has(id)
         });
-        if (["REMOTE_MOVE", "REMOTE_DELETE"].includes(type)) {
+        if (["REMOTE_MOVE", "REMOTE_DELETE", "REMOTE_MKDIR", "REMOTE_RENAME"].includes(type)) {
             const directories = [remoteDir];
             if (type === "REMOTE_MOVE") {
                 directories.push(destinationDir);
@@ -363,6 +413,23 @@ export default class RemoteFileManager {
         }
 
         operations.delete(directory);
+    }
+
+    private async waitForDirectoryResult(
+        id: string,
+        type: "REMOTE_MKDIR" | "REMOTE_RENAME"
+    ): Promise<ApiResponse<RemoteDirectoryOperationResult>> {
+        const result = await this.waitForCompletion(id);
+        if (!result.success) {
+            return result;
+        }
+
+        const operation = result.data;
+        if (operation.operation !== type || !operation.result || !("entries" in operation.result)) {
+            return this.operationError();
+        }
+
+        return { success: true, data: operation.result };
     }
 
     private waitForCompletion(id: string): Promise<ApiResponse<FileOperationSnapshot>> {
@@ -463,6 +530,8 @@ export default class RemoteFileManager {
     }
 
     private isRemoteOperation(operation: FileOperationSnapshot): boolean {
-        return ["UPLOAD", "DOWNLOAD", "REMOTE_MOVE", "REMOTE_DELETE"].includes(operation.operation);
+        return ["UPLOAD", "DOWNLOAD", "REMOTE_MOVE", "REMOTE_DELETE", "REMOTE_MKDIR", "REMOTE_RENAME"].includes(
+            operation.operation
+        );
     }
 }

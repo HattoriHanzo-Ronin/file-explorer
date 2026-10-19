@@ -151,8 +151,12 @@ class FileOperationService : Service() {
         val prefix = when (record.operation) {
             FileOperationRecord.OPERATION_UPLOAD -> "upload"
             FileOperationRecord.OPERATION_DOWNLOAD -> "download"
+            FileOperationRecord.OPERATION_REMOTE_MKDIR -> "remoteMkdir"
+            FileOperationRecord.OPERATION_REMOTE_RENAME -> "remoteRename"
             FileOperationRecord.OPERATION_REMOTE_MOVE -> "remoteMove"
             FileOperationRecord.OPERATION_REMOTE_DELETE -> "remoteDelete"
+            FileOperationRecord.OPERATION_LOCAL_MKDIR -> "localMkdir"
+            FileOperationRecord.OPERATION_LOCAL_RENAME -> "localRename"
             FileOperationRecord.OPERATION_LOCAL_COPY -> "localCopy"
             FileOperationRecord.OPERATION_LOCAL_MOVE -> "localMove"
             FileOperationRecord.OPERATION_LOCAL_DELETE -> "localDelete"

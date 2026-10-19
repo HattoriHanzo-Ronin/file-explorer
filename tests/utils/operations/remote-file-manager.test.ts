@@ -15,6 +15,8 @@ function createManager() {
         startDownload: jest.fn(),
         startDelete: jest.fn(),
         startMove: jest.fn(),
+        startMkdir: jest.fn(),
+        startRename: jest.fn(),
         cancel: jest.fn()
     };
     const storage = { get: jest.fn().mockResolvedValue("access-token"), set: jest.fn(), delete: jest.fn() };
@@ -57,6 +59,38 @@ function completedOperation(operation: "REMOTE_MOVE" | "REMOTE_DELETE"): FileOpe
 }
 
 describe("RemoteFileManager", () => {
+    it.each(["REMOTE_MKDIR", "REMOTE_RENAME"] as const)(
+        "returns the native directory result for %s",
+        async (operation) => {
+            const { listener, manager, remoteFileOperation } = createManager();
+            const start =
+                operation === "REMOTE_MKDIR" ? remoteFileOperation.startMkdir : remoteFileOperation.startRename;
+            start.mockImplementation(async () => {
+                void Promise.resolve().then(() =>
+                    listener()({
+                        id: "operation-1",
+                        operation,
+                        status: "COMPLETED",
+                        bytesTransferred: 0,
+                        totalBytes: 0,
+                        revision: 1,
+                        remoteDir: "",
+                        destinationDir: "",
+                        localDir: "",
+                        result: { entries: [], version: "12" }
+                    })
+                );
+                return "operation-1";
+            });
+            const result =
+                operation === "REMOTE_MKDIR"
+                    ? await manager.createDirectory({ name: "folder", dir: " " })
+                    : await manager.rename({ entry: { name: "old", type: "FILE" }, newName: "new", dir: " " });
+            expect(result).toEqual({ success: true, data: { entries: [], version: "12" } });
+            expect(start.mock.calls[0][0]).not.toHaveProperty("remoteDir");
+        }
+    );
+
     it("does not start an operation without a session token", async () => {
         const { manager, remoteFileOperation, storage } = createManager();
         storage.get.mockResolvedValue(null);

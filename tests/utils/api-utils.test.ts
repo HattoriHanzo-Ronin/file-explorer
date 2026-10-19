@@ -12,6 +12,8 @@ function createApiUtils() {
         clearSettled: jest.fn(),
         upload: jest.fn(),
         download: jest.fn(),
+        createDirectory: jest.fn(),
+        rename: jest.fn(),
         isRemoteDirectoryBusy: jest.fn(),
         move: jest.fn(),
         delete: jest.fn()
@@ -78,6 +80,30 @@ describe("ApiUtils", () => {
         jest.mocked(axios.get).mockRejectedValue({ response: { data: error } });
         jest.mocked(isAxiosError).mockReturnValue(true);
         await expect(apiUtils.getDirectory()).resolves.toEqual({ success: false, error });
+    });
+
+    it.each(["createDirectory", "rename"] as const)("updates the version from %s results", async (operation) => {
+        const { apiUtils, remoteFileManager } = createApiUtils();
+        remoteFileManager[operation].mockResolvedValue({ success: true, data: { entries: ENTRIES, version: "12" } });
+        const result =
+            operation === "createDirectory"
+                ? await apiUtils.createDirectory({ name: "folder", dir: "pictures" })
+                : await apiUtils.renameEntry({ entry: ENTRIES[0], newName: "new.jpg", dir: "pictures" });
+        expect(result).toEqual({ success: true, data: ENTRIES });
+        expect(ApiUtils.FTP_VERSION).toBe("12");
+    });
+
+    it("preserves native API errors and validation details", async () => {
+        const { apiUtils, remoteFileManager } = createApiUtils();
+        const error = {
+            code: "INVALID_TOKEN",
+            message: "Sesión inválida",
+            details: [{ field: "name", message: "No válido" }]
+        };
+        remoteFileManager.createDirectory.mockResolvedValue({ success: false, error });
+        ApiUtils.FTP_VERSION = "previous";
+        await expect(apiUtils.createDirectory({ name: "folder" })).resolves.toEqual({ success: false, error });
+        expect(ApiUtils.FTP_VERSION).toBe("previous");
     });
 
     it("updates the version from remote move results", async () => {
