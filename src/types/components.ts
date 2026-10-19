@@ -39,6 +39,7 @@ export interface ThumbnailState {
 
 export type DialogProps = PropsWithChildren<{
     visible: boolean;
+    acceptDisabled?: boolean;
     title?: string;
     onCancel: () => void;
     onAccept: () => void;

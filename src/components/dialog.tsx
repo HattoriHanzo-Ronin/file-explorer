@@ -4,7 +4,7 @@ import { appDialog } from "../styles/components/style";
 import { useTheme } from "./theme-provider";
 
 export default function AppDialog(props: DialogProps) {
-    const { children, onAccept, onCancel, title, visible } = props;
+    const { acceptDisabled, children, onAccept, onCancel, title, visible } = props;
     const { theme } = useTheme();
 
     return (
@@ -17,7 +17,12 @@ export default function AppDialog(props: DialogProps) {
                         <Pressable style={appDialog.button} onPress={onCancel}>
                             <Text style={[appDialog.cancelText, { color: theme.danger }]}>Cancelar</Text>
                         </Pressable>
-                        <Pressable style={appDialog.button} onPress={onAccept}>
+                        <Pressable
+                            style={appDialog.button}
+                            onPress={onAccept}
+                            disabled={acceptDisabled}
+                            accessibilityState={{ disabled: !!acceptDisabled }}
+                        >
                             <Text style={[appDialog.acceptText, { color: theme.accent }]}>Aceptar</Text>
                         </Pressable>
                     </View>

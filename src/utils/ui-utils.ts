@@ -2,13 +2,35 @@ import { ToastAndroid } from "react-native";
 import type { AppContextType } from "../types/context";
 import type { StorageType } from "../types/navigation";
 import type { MessageDuration, ValidationErrors } from "../types/ui";
-import type { ApiValidationErrorDetail } from "../types/api-error";
+import type { ValidationErrorDetail } from "../types/response";
 import type { LocalDirectoryUpdate } from "../types/files";
+import type { FileOperationSnapshot } from "../types/file-operations";
+import { FILE_OPERATION_COMPLETED_MESSAGES, FILE_OPERATION_NOTIFICATION_TEXTS } from "../constants/file-operations";
 
 /**
  * Manages application messages
  */
 export default class UiUtils {
+    /** Returns a listener for foreground operation messages */
+    static createFileOperationMessageListener(): (operation: FileOperationSnapshot) => void {
+        const operations = new Map<string, { revision: number; started: boolean; finished: boolean }>();
+        return ({ error, id, operation, revision, status }) => {
+            const previous = operations.get(id);
+            if (previous && (previous.finished || revision <= previous.revision)) {
+                return;
+            }
+
+            const active = ["PENDING", "RUNNING"].includes(status);
+            if (active && !previous?.started) {
+                UiUtils.showMessage(FILE_OPERATION_NOTIFICATION_TEXTS.running, "SHORT");
+            }
+
+            UiUtils.showOperationResult({ error, operation, status });
+
+            operations.set(id, { revision, started: active || !!previous?.started, finished: !active });
+        };
+    }
+
     /** Applies a directory result only when it matches the current local directory */
     static applyLocalDirectoryUpdates(
         setLocalDirectory: AppContextType["setLocalDirectory"],
@@ -37,7 +59,7 @@ export default class UiUtils {
      * @param details API validation details
      * @returns Validation messages by field
      */
-    static mapValidationErrors<T extends object>(details: ApiValidationErrorDetail[]): ValidationErrors<T> {
+    static mapValidationErrors<T extends object>(details: ValidationErrorDetail[]): ValidationErrors<T> {
         const validationErrors: ValidationErrors<T> = {};
         for (const { field, message } of details) {
             if (field) {
@@ -116,5 +138,34 @@ export default class UiUtils {
         }
 
         return "local";
+    }
+
+    private static showOperationResult(result: Pick<FileOperationSnapshot, "error" | "operation" | "status">): void {
+        const { error, operation, status } = result;
+        if (status === "COMPLETED" && !["LOCAL_MKDIR", "LOCAL_RENAME"].includes(operation)) {
+            UiUtils.showMessage(FILE_OPERATION_COMPLETED_MESSAGES[operation]);
+        }
+
+        if (status === "CANCELLED") {
+            UiUtils.showMessage(FILE_OPERATION_NOTIFICATION_TEXTS.cancelled);
+        }
+
+        if (status === "FAILED") {
+            UiUtils.showOperationFailure(operation, error);
+        }
+    }
+
+    private static showOperationFailure(
+        operation: FileOperationSnapshot["operation"],
+        error: FileOperationSnapshot["error"]
+    ): void {
+        if (["INVALID_TOKEN", "VALIDATION_FAILED"].includes(error?.code ?? "")) {
+            return;
+        }
+
+        const dialogOperation = ["REMOTE_MKDIR", "REMOTE_RENAME", "LOCAL_MKDIR", "LOCAL_RENAME"].includes(operation);
+        if (dialogOperation || !error?.message) {
+            UiUtils.showMessage(error?.message || FILE_OPERATION_NOTIFICATION_TEXTS.failed);
+        }
     }
 }
