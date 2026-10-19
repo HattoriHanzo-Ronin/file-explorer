@@ -40,7 +40,22 @@ export default class AuthUtils {
      * @returns Validation error details or nothing
      */
     async login(credentials: LoginRequest): Promise<ApiValidationErrorDetail[] | undefined> {
-        const result = await this.authenticate(() => this.apiUtils.login(credentials));
+        const { username, password } = credentials;
+        const normalizedUsername = username.trim();
+        const errors: ApiValidationErrorDetail[] = [];
+        if (!normalizedUsername) {
+            errors.push({ field: "username", message: "Introduce el usuario" });
+        }
+
+        if (!password) {
+            errors.push({ field: "password", message: "Introduce la contraseña" });
+        }
+
+        if (errors.length > 0) {
+            return errors;
+        }
+
+        const result = await this.authenticate(() => this.apiUtils.login({ username: normalizedUsername, password }));
         if (!result.success) {
             const { code, details } = result.error;
             if (code === "VALIDATION_FAILED" && details) {

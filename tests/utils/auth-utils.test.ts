@@ -58,8 +58,17 @@ describe("AuthUtils", () => {
             success: false,
             error: { code: "VALIDATION_FAILED", message: "", details }
         });
-        await expect(authUtils.login({ username: "", password: "" })).resolves.toEqual(details);
+        await expect(authUtils.login({ username: "ronin", password: "secret" })).resolves.toEqual(details);
         expect(UiUtils.showMessage).not.toHaveBeenCalled();
+    });
+
+    it("validates credentials before requesting login", async () => {
+        const { apiUtils, authUtils } = createAuthUtils();
+        await expect(authUtils.login({ username: " ", password: "" })).resolves.toEqual([
+            { field: "username", message: "Introduce el usuario" },
+            { field: "password", message: "Introduce la contraseña" }
+        ]);
+        expect(apiUtils.login).not.toHaveBeenCalled();
     });
 
     it("clears a missing persisted session", async () => {

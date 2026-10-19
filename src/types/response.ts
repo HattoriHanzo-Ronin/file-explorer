@@ -6,6 +6,11 @@ export interface ResponseError {
     code: string;
 }
 
+export interface ValidationErrorDetail {
+    field?: string;
+    message: string;
+}
+
 /** Successful operation response */
 export type SuccessResponse<T> = {
     success: true;

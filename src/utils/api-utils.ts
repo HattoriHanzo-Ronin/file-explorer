@@ -30,6 +30,7 @@ import type { FileOperationSelection, RemoteDirectoryOperationResult } from "../
 import type RemoteFileManager from "./operations/remote-file-manager";
 import type { Storage } from "./storage/storage";
 import { STORAGE_KEYS } from "../constants/storage";
+import FileUtils from "./file-utils";
 
 /**
  * API client
@@ -105,22 +106,16 @@ export default class ApiUtils {
     }
 
     /**
-     * Returns whether a remote directory is receiving files
-     *
-     * @param dir Remote directory
-     * @returns Whether the directory is busy
-     */
-    isRemoteDirectoryBusy(dir: string): boolean {
-        return this.remoteFileManager.isRemoteDirectoryBusy(dir);
-    }
-
-    /**
      * Returns the current FTP directory version
      *
      * @param request FTP directory
      * @returns FTP directory version
      */
     async getVersion(request: FtpVersionRequest): Promise<ApiResponse<FtpVersionResponse>> {
+        if (this.remoteFileManager.isRemoteDirectoryBusy(request.dir ?? " ")) {
+            return { success: true, data: { version: ApiUtils.FTP_VERSION } };
+        }
+
         return this.executeRequest(async () => {
             const { dir } = request;
             const { data } = await axios.get<FtpVersionResponse>(this.buildUrl("data-versions/ftp"), {
@@ -176,7 +171,10 @@ export default class ApiUtils {
      */
     async updateUsername(request: UpdateUsernameRequest): Promise<ApiResponse<UpdateUsernameResponse>> {
         return this.executeRequest(async () => {
-            const { data } = await axios.put<UpdateUsernameResponse>(this.buildUrl("users"), request);
+            const { data } = await axios.put<UpdateUsernameResponse>(this.buildUrl("users"), {
+                ...request,
+                username: request.username.trim()
+            });
             return data;
         });
     }
@@ -275,8 +273,13 @@ export default class ApiUtils {
      * @returns Updated directory entries
      */
     async createDirectory(request: CreateDirectoryRequest): Promise<ApiResponse<CreateDirectoryResponse>> {
+        const error = FileUtils.validateOperationName(request.name, "name");
+        if (error) {
+            return { success: false, error };
+        }
+
         return this.executeRequest(async () => {
-            const result = await this.remoteFileManager.createDirectory(request);
+            const result = await this.remoteFileManager.createDirectory({ ...request, name: request.name.trim() });
             if (!result.success) {
                 throw result.error;
             }
@@ -294,6 +297,13 @@ export default class ApiUtils {
      * @returns Confirmed moved entries
      */
     async moveEntries(request: MoveEntriesRequest): Promise<ApiResponse<MoveEntriesResponse>> {
+        if (this.normalizeDir(request.dir) === this.normalizeDir(request.destination)) {
+            return {
+                success: false,
+                error: { code: "INVALID_DESTINATION", message: "El directorio de origen y destino es el mismo" }
+            };
+        }
+
         return this.executeRequest(async () => {
             const result = await this.remoteFileManager.move(request);
             if (!result.success) {
@@ -313,8 +323,13 @@ export default class ApiUtils {
      * @returns Updated directory entries
      */
     async renameEntry(request: RenameEntryRequest): Promise<ApiResponse<RenameEntryResponse>> {
+        const error = FileUtils.validateOperationName(request.newName, "newName", request.entry.name.split("/").pop());
+        if (error) {
+            return { success: false, error };
+        }
+
         return this.executeRequest(async () => {
-            const result = await this.remoteFileManager.rename(request);
+            const result = await this.remoteFileManager.rename({ ...request, newName: request.newName.trim() });
             if (!result.success) {
                 throw result.error;
             }

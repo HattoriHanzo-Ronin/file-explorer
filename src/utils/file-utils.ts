@@ -2,6 +2,7 @@ import mime from "mime";
 import { EXTRACTABLE_ARCHIVE_EXTENSIONS } from "../constants/archives";
 import type { FileIconType } from "../types/files";
 import type { FileSystemEntry } from "./files/file-system";
+import type { ResponseError, ValidationErrorDetail } from "../types/response";
 
 const MIME_FILE_TYPES: [string, FileIconType][] = [
     ["image", "image"],
@@ -62,6 +63,18 @@ export default class FileUtils {
         }
 
         return NAME_REGEX.test(name) ? undefined : "El nombre tiene un formato no válido";
+    }
+
+    /** Returns a validation error for a file operation name */
+    static validateOperationName(
+        name: string,
+        field: string,
+        currentName?: string
+    ): (ResponseError & { details: ValidationErrorDetail[] }) | undefined {
+        const normalizedName = name.trim();
+        const message =
+            currentName === normalizedName ? "El nuevo nombre debe ser diferente" : this.validateName(normalizedName);
+        return message ? { code: "VALIDATION_ERROR", message, details: [{ field, message }] } : undefined;
     }
 
     /**
