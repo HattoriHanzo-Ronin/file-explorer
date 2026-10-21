@@ -3,7 +3,7 @@ import { EXTRACTABLE_ARCHIVE_EXTENSIONS } from "../../constants/archives";
 import type { LocalDirectoryUpdate, LocalModifyElement } from "../../types/files";
 import type { FileOperationSnapshot } from "../../types/file-operations";
 import type { LocalResponse } from "../../types/local-response";
-import type { FileSystemEntry } from "../files/file-system";
+import type { FileSystemEntry } from "../../types/files";
 import type { LocalFileOperation } from "../files/local-file-operation";
 import type { Permission } from "../permissions/permission";
 import FileUtils from "../file-utils";

@@ -12,7 +12,6 @@ import type { LocalRequestOptions, LocalResponse } from "../types/local-response
 import type { FileActionMode, ListViewMode } from "../types/ui";
 import ApiUtils from "../utils/api-utils";
 import AuthUtils from "../utils/auth-utils";
-import RNFSFileSystem from "../utils/files/impl/rnfs-file-system";
 import NativeLocalFileOperation from "../utils/files/impl/native-local-file-operation";
 import NativeRemoteFileOperation from "../utils/files/impl/native-remote-file-operation";
 import LoadingUtils from "../utils/loading-utils";
@@ -31,14 +30,16 @@ export const useAppContext = () => useContext(AppContext);
 
 export default function AppContextProvider(props: PropsWithChildren) {
     const { children } = props;
-    const [fileSystem] = useState<RNFSFileSystem>(() => new RNFSFileSystem(STORAGE_ROOT_NAMES));
+    const [localFileOperation] = useState<NativeLocalFileOperation>(
+        () => new NativeLocalFileOperation(STORAGE_ROOT_NAMES)
+    );
     const [externalRoots, setExternalRoots] = useState<StorageRoot[]>([]);
-    const [activeStorageRoot, setActiveStorageRoot] = useState<StorageRoot>(fileSystem.internalRoot);
-    const [lastLocalRootId, setLastLocalRootId] = useState<string>(fileSystem.internalRoot.id);
+    const [activeStorageRoot, setActiveStorageRoot] = useState<StorageRoot>(localFileOperation.internalRoot);
+    const [lastLocalRootId, setLastLocalRootId] = useState<string>(localFileOperation.internalRoot.id);
     const [lastLocalDir, setLastLocalDir] = useState<string>(" ");
     const [ftpDirectory, setFtpDirectory] = useState<FtpDirectoryState>({ dir: " ", content: [] });
     const [localDirectory, setLocalDirectory] = useState<LocalDirectoryState>({
-        rootPath: fileSystem.internalRoot.path,
+        rootPath: localFileOperation.internalRoot.path,
         dir: " ",
         content: []
     });
@@ -59,7 +60,6 @@ export default function AppContextProvider(props: PropsWithChildren) {
     const [thumbnailGenerator] = useState<NativeThumbnailGenerator>(
         () => new NativeThumbnailGenerator(THUMBNAIL_CACHE)
     );
-    const [localFileOperation] = useState<NativeLocalFileOperation>(() => new NativeLocalFileOperation());
     const [remoteFileOperation] = useState<NativeRemoteFileOperation>(() => new NativeRemoteFileOperation());
     const [localFileManager] = useState<LocalFileManager>(
         () => new LocalFileManager(localFileOperation, permission)
@@ -144,7 +144,7 @@ export default function AppContextProvider(props: PropsWithChildren) {
         loadingUtils,
         permission,
         thumbnailGenerator,
-        internalRoot: fileSystem.internalRoot,
+        internalRoot: localFileOperation.internalRoot,
         externalRoots,
         activeStorageRoot,
         setActiveStorageRoot,
@@ -197,22 +197,22 @@ export default function AppContextProvider(props: PropsWithChildren) {
 
     useEffect(() => {
         const updateExternalRoots = (roots: StorageRoot[]) => setExternalRoots(roots);
-        void fileSystem.getExternalRoots().then(updateExternalRoots, () => setExternalRoots([]));
-        return fileSystem.addStorageRootsChangeListener(updateExternalRoots);
-    }, [fileSystem]);
+        void localFileOperation.getExternalRoots().then(updateExternalRoots, () => setExternalRoots([]));
+        return localFileOperation.addStorageRootsChangeListener(updateExternalRoots);
+    }, [localFileOperation]);
 
     useEffect(() => {
         const { id: activeRootId, type: activeRootType } = activeStorageRoot;
         if (activeRootType === "REMOVABLE" && !externalRoots.some(({ id }) => id === activeRootId)) {
-            setActiveStorageRoot(fileSystem.internalRoot);
-            setLocalDirectory({ rootPath: fileSystem.internalRoot.path, dir: " ", content: [] });
+            setActiveStorageRoot(localFileOperation.internalRoot);
+            setLocalDirectory({ rootPath: localFileOperation.internalRoot.path, dir: " ", content: [] });
         }
 
-        const rootPaths = [fileSystem.internalRoot.path, ...externalRoots.map(({ path }) => path)];
+        const rootPaths = [localFileOperation.internalRoot.path, ...externalRoots.map(({ path }) => path)];
         setModifyLocalFile((items) =>
             items.filter(({ path: itemPath }) => rootPaths.some((path) => itemPath.startsWith(`${path}/`)))
         );
-    }, [activeStorageRoot, externalRoots, fileSystem]);
+    }, [activeStorageRoot, externalRoots, localFileOperation]);
 
     useEffect(() => {
         if (modifyLocalFile.length === 0) {

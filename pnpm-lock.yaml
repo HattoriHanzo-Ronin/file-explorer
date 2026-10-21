@@ -196,9 +196,6 @@ importers:
       react-native-config:
         specifier: ^1.7.2
         version: 1.7.2(react-native@0.87.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native-community/cli@20.2.0(supports-color@8.1.1)(typescript@6.0.3))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.3.0)(react@19.3.1)(supports-color@8.1.1))(react@19.3.1)
-      react-native-fs:
-        specifier: ^2.20.0
-        version: 2.20.0(react-native@0.87.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native-community/cli@20.2.0(supports-color@8.1.1)(typescript@6.0.3))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.3.0)(react@19.3.1)(supports-color@8.1.1))
       react-native-gesture-handler:
         specifier: ^3.3.0
         version: 3.3.0(react-native@0.87.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native-community/cli@20.2.0(supports-color@8.1.1)(typescript@6.0.3))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.3.0)(react@19.3.1)(supports-color@8.1.1))(react@19.3.1)
@@ -1707,9 +1704,6 @@ packages:
   balanced-match@4.0.4:
     resolution: {integrity: sha512-BLrgEcRTwX2o6gGxGOCNyMvGSp35YofuYzw9h1IMTRmKqttAZZVU67bdb9Pr2vUHA8+j3i2tJfjO6C6+4myGTA==}
     engines: {node: 18 || 20 || >=22}
-
-  base-64@0.1.0:
-    resolution: {integrity: sha512-Y5gU45svrR5tI2Vt/X9GPd3L0HNIKzGu202EjxrXMpuc2V2CiKgemAbUUsqYmZJvPtCXoUKjNZwBJzsNScUbXA==}
 
   base64-js@1.5.1:
     resolution: {integrity: sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA==}
@@ -3409,15 +3403,6 @@ packages:
       react-native-gesture-handler: '>= 2.0.0'
       react-native-reanimated: '>= 2.0.0'
 
-  react-native-fs@2.20.0:
-    resolution: {integrity: sha512-VkTBzs7fIDUiy/XajOSNk0XazFE9l+QlMAce7lGuebZcag5CnjszB+u4BdqzwaQOdcYb5wsJIsqq4kxInIRpJQ==}
-    peerDependencies:
-      react-native: '*'
-      react-native-windows: '*'
-    peerDependenciesMeta:
-      react-native-windows:
-        optional: true
-
   react-native-gesture-handler@3.3.0:
     resolution: {integrity: sha512-ZCTlJ09nE3GPbm7J74lvwpxmx1TQ/7MDlHZNLARVYTN82k21mJUJ7BmI9eWjEi8eevHiAudI5O1Cpnt0rJfoJA==}
     peerDependencies:
@@ -3928,9 +3913,6 @@ packages:
     resolution: {integrity: sha512-6L+EeigHMQhdaIPNIFUKwfWJSwWFQ8gJbJ2DLOs5sDIegTwR9fRxvnM3uciHKjIZhFz+KAv2emhWMRvDmMcY8A==}
     peerDependencies:
       react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
-
-  utf8@3.0.0:
-    resolution: {integrity: sha512-E8VjFIQ/TyQgp+TZfS6l8yp/xWppSAHzidGiRrqe4bK4XP9pTRyKFgGJpO3SN7zdX4DeomTrwaseCHovfpFcqQ==}
 
   util-deprecate@1.0.2:
     resolution: {integrity: sha512-EPD5q1uXyFxJpCrLnCc1nHnq3gOa6DZBocAIiI2TaSCA7VCJ1UJDMagCzIkXNsUYfD1daK//LTEQ8xiIbrHtcw==}
@@ -6074,8 +6056,6 @@ snapshots:
 
   balanced-match@4.0.4: {}
 
-  base-64@0.1.0: {}
-
   base64-js@1.5.1: {}
 
   baseline-browser-mapping@2.11.27: {}
@@ -8158,12 +8138,6 @@ snapshots:
       react-native-reanimated: 4.7.1(react-native-worklets@0.13.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(react-native@0.87.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native-community/cli@20.2.0(supports-color@8.1.1)(typescript@6.0.3))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.3.0)(react@19.3.1)(supports-color@8.1.1))(react@19.3.1)(supports-color@8.1.1))(react-native@0.87.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native-community/cli@20.2.0(supports-color@8.1.1)(typescript@6.0.3))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.3.0)(react@19.3.1)(supports-color@8.1.1))(react@19.3.1)
       use-latest-callback: 0.2.6(react@19.3.1)
 
-  react-native-fs@2.20.0(react-native@0.87.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native-community/cli@20.2.0(supports-color@8.1.1)(typescript@6.0.3))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.3.0)(react@19.3.1)(supports-color@8.1.1)):
-    dependencies:
-      base-64: 0.1.0
-      react-native: 0.87.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native-community/cli@20.2.0(supports-color@8.1.1)(typescript@6.0.3))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.3.0)(react@19.3.1)(supports-color@8.1.1)
-      utf8: 3.0.0
-
   react-native-gesture-handler@3.3.0(react-native@0.87.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native-community/cli@20.2.0(supports-color@8.1.1)(typescript@6.0.3))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1))(@types/react@19.3.0)(react@19.3.1)(supports-color@8.1.1))(react@19.3.1):
     dependencies:
       '@types/react-test-renderer': 19.3.0
@@ -8776,8 +8750,6 @@ snapshots:
   use-sync-external-store@1.7.0(react@19.3.1):
     dependencies:
       react: 19.3.1
-
-  utf8@3.0.0: {}
 
   util-deprecate@1.0.2: {}
 

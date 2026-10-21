@@ -6,10 +6,16 @@ import type {
     NativeLocalRenameRequest,
     NativeLocalExtractRequest
 } from "../../types/file-operations";
-import type { FileSystemEntry } from "../../types/files";
+import type { FileSystemEntry, StorageRoot } from "../../types/files";
 
 /** Local background file operation contract */
 export interface LocalFileOperation {
+    readonly internalRoot: StorageRoot;
+
+    getExternalRoots(): Promise<StorageRoot[]>;
+
+    addStorageRootsChangeListener(listener: (roots: StorageRoot[]) => void): () => void;
+
     readDir(path: string): Promise<FileSystemEntry[]>;
 
     tryCreateDirectory(destination: string, name: string): Promise<boolean>;
