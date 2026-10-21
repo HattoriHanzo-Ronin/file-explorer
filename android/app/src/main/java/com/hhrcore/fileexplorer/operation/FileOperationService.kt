@@ -13,7 +13,6 @@ import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import androidx.core.content.ContextCompat
 import com.hhrcore.fileexplorer.MainActivity
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
@@ -25,6 +24,8 @@ class FileOperationService : Service() {
     private val records = mutableMapOf<String, FileOperationRecord>()
     private val pendingNotifications = linkedMapOf<String, FileOperationRecord>()
     private val displayedNotifications = mutableMapOf<String, Pair<String, String>>()
+    private val notificationDelays = mutableMapOf<String, Runnable>()
+    private val notifiedOperations = mutableSetOf<String>()
     private val pendingConfirmations = mutableMapOf<String, Int>()
     private val handler = Handler(Looper.getMainLooper())
     private var lastNotificationAt = 0L
@@ -66,11 +67,7 @@ class FileOperationService : Service() {
         if (!activeOperations.add(id)) return START_NOT_STICKY
         records[id] = record
         createNotificationChannel(record)
-        if (foregroundId == null) {
-            promote(record)
-        } else {
-            enqueueNotification(record)
-        }
+        scheduleNotificationStart(record)
         executor.execute {
             try {
                 engine.execute(record, token)
@@ -211,11 +208,30 @@ class FileOperationService : Service() {
 
     private fun enqueueNotification(record: FileOperationRecord) {
         val active = record.status == FileOperationRecord.STATUS_PENDING || record.status == FileOperationRecord.STATUS_RUNNING
+        if (active && record.id !in notifiedOperations) return
         if (active && record.id !in pendingNotifications &&
             displayedNotifications[record.id] == (notificationTitle(record) to notificationText(record))
         ) return
         pendingNotifications[record.id] = record
         scheduleNotification()
+    }
+
+    private fun scheduleNotificationStart(record: FileOperationRecord) {
+        val id = record.id
+        val delay = Runnable {
+            notificationDelays.remove(id)
+            val current = records[id] ?: return@Runnable
+            val active = current.status == FileOperationRecord.STATUS_PENDING || current.status == FileOperationRecord.STATUS_RUNNING
+            if (id !in activeOperations || !active) return@Runnable
+            notifiedOperations.add(id)
+            if (foregroundId == null) {
+                promote(current)
+            } else {
+                enqueueNotification(current)
+            }
+        }
+        notificationDelays[id] = delay
+        handler.postDelayed(delay, NOTIFICATION_START_DELAY)
     }
 
     private fun scheduleNotification() {
@@ -242,7 +258,9 @@ class FileOperationService : Service() {
     }
 
     private fun stopWhenFinished() {
-        if (activeOperations.isEmpty() && pendingNotifications.isEmpty() && pendingConfirmations.isEmpty() && !notificationScheduled) {
+        if (activeOperations.isEmpty() && pendingNotifications.isEmpty() && pendingConfirmations.isEmpty() &&
+            notificationDelays.isEmpty() && !notificationScheduled
+        ) {
             stopSelfResult(latestStartId)
         }
     }
@@ -258,12 +276,14 @@ class FileOperationService : Service() {
                 notification.flags and Notification.FLAG_ONGOING_EVENT == 0)
         ) {
             pendingConfirmations.remove(record.id)
+            notifiedOperations.remove(record.id)
         } else if (attempts < FINAL_NOTIFICATION_RETRIES) {
             pendingConfirmations[record.id] = attempts + 1
             enqueueNotification(record)
         } else {
             Log.e(LOG_TAG, "Could not confirm final operation notification ${record.id}")
             pendingConfirmations.remove(record.id)
+            notifiedOperations.remove(record.id)
         }
 
         stopWhenFinished()
@@ -271,25 +291,30 @@ class FileOperationService : Service() {
 
     private fun finishOperation(record: FileOperationRecord) {
         val id = record.id
+        notificationDelays.remove(id)?.let(handler::removeCallbacks)
         activeOperations.remove(id)
         records.remove(id)
         if (foregroundId == id) {
             stopForeground(STOP_FOREGROUND_DETACH)
             foregroundId = null
             val remainingRecord = activeOperations.asSequence().mapNotNull(records::get).firstOrNull {
-                it.status == FileOperationRecord.STATUS_PENDING || it.status == FileOperationRecord.STATUS_RUNNING
+                it.id in notifiedOperations &&
+                    (it.status == FileOperationRecord.STATUS_PENDING || it.status == FileOperationRecord.STATUS_RUNNING)
             }
             if (remainingRecord != null) promote(remainingRecord)
         }
 
-        pendingConfirmations[id] = 0
-        enqueueNotification(record)
+        if (id in notifiedOperations) {
+            pendingConfirmations[id] = 0
+            enqueueNotification(record)
+        }
         runCatching { FileOperationEvents.emit(record) }
             .onFailure { Log.e(LOG_TAG, "Could not emit final operation update", it) }
         stopWhenFinished()
     }
 
     private fun promote(record: FileOperationRecord) {
+        notifiedOperations.add(record.id)
         startForeground(notificationId(record.id), createNotification(record))
         lastNotificationAt = SystemClock.uptimeMillis()
         displayedNotifications[record.id] = notificationTitle(record) to notificationText(record)
@@ -306,6 +331,7 @@ class FileOperationService : Service() {
         private const val LOG_TAG = "FileOperationService"
         private const val NOTIFICATION_ID_BASE = 4102
         private const val NOTIFICATION_INTERVAL = 1500L
+        private const val NOTIFICATION_START_DELAY = 1500L
         private const val FINAL_NOTIFICATION_RETRIES = 3
         private const val ACTION_START = "com.hhrcore.fileexplorer.operation.START"
         private const val ACTION_CANCEL = "com.hhrcore.fileexplorer.operation.CANCEL"
@@ -319,7 +345,7 @@ class FileOperationService : Service() {
                 .setAction(ACTION_START)
                 .putExtra(EXTRA_ID, id)
             token?.let { intent.putExtra(EXTRA_TOKEN, it) }
-            ContextCompat.startForegroundService(context, intent)
+            context.startService(intent)
         }
 
         fun cancel(context: Context, id: String) {
