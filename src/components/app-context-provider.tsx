@@ -65,7 +65,7 @@ export default function AppContextProvider(props: PropsWithChildren) {
         () => new LocalFileManager(localFileOperation, permission)
     );
     const [remoteFileManager] = useState<RemoteFileManager>(
-        () => new RemoteFileManager(fileSystem, remoteFileOperation, storage, permission, API_URL)
+        () => new RemoteFileManager(remoteFileOperation, storage, permission, API_URL)
     );
     const [apiUtils] = useState<ApiUtils>(() => new ApiUtils(remoteFileManager, storage, API_URL));
     const [authUtils] = useState<AuthUtils>(() => new AuthUtils(setIsAuthenticated, setUser, apiUtils, storage));

@@ -1,6 +1,7 @@
 package com.hhrcore.fileexplorer.operation
 
 import android.util.Log
+import android.webkit.MimeTypeMap
 import android.system.ErrnoException
 import android.system.Os
 import android.system.OsConstants
@@ -134,7 +135,7 @@ class FileOperationEngine(private val store: FileOperationStore, private val onC
 
     private fun upload(record: FileOperationRecord, token: String) {
         val request = record.request
-        val entries = request.getJSONArray("entries")
+        val entries = uploadEntries(request.getJSONArray("entries"))
         record.totalBytes = (0 until entries.length()).sumOf { entries.getJSONObject(it).optLong("size") }
         persist(record)
         val session = executeJson(record, token, "POST", "${request.getString("apiUrl")}/ftp/uploads", JSONObject().apply {
@@ -161,6 +162,35 @@ class FileOperationEngine(private val store: FileOperationStore, private val onC
         }
         record.result = completeUpload(record, token)
         record.apiSessionId = null
+    }
+
+    private fun uploadEntries(selectedEntries: JSONArray): JSONArray {
+        return JSONArray().apply {
+            for (index in 0 until selectedEntries.length()) {
+                val selected = selectedEntries.getJSONObject(index)
+                val source = File(selected.getString("path"))
+                if (!source.exists()) throw IllegalArgumentException("No existe ${source.path}")
+                appendUploadEntries(this, source, source.name, selected.getString("type"))
+            }
+        }
+    }
+
+    private fun appendUploadEntries(entries: JSONArray, source: File, remotePath: String, type: String) {
+        if (type.equals("file", true)) {
+            entries.put(JSONObject().apply {
+                put("path", remotePath)
+                put("type", "FILE")
+                put("size", source.length())
+                put("localPath", source.absolutePath)
+                put("mimeType", MimeTypeMap.getSingleton().getMimeTypeFromExtension(source.extension.lowercase()) ?: "application/octet-stream")
+            })
+            return
+        }
+
+        entries.put(JSONObject().put("path", remotePath).put("type", "DIR"))
+        source.listFiles()?.sortedBy(File::getName)?.forEach { entry ->
+            appendUploadEntries(entries, entry, "$remotePath/${entry.name}", if (entry.isDirectory) "dir" else "file")
+        }
     }
 
     private fun uploadFile(record: FileOperationRecord, token: String, entry: JSONObject, remotePath: String) {

@@ -1,5 +1,5 @@
-import type { FtpEntry, FtpEntryType, TransferEntry } from "./ftp";
-import type { EntryType } from "./files";
+import type { FtpEntry, FtpEntryType } from "./ftp";
+import type { EntryType, LocalModifyElement } from "./files";
 import type { ResponseError } from "./response";
 
 export type FileOperationType =
@@ -118,11 +118,6 @@ export interface FileOperationSnapshot {
     localDir: string;
 }
 
-export interface NativeUploadEntry extends TransferEntry {
-    localPath?: string;
-    mimeType?: string;
-}
-
 interface NativeRemoteRequest {
     apiUrl: string;
     accessToken: string;
@@ -131,7 +126,7 @@ interface NativeRemoteRequest {
 }
 
 export interface NativeUploadRequest extends NativeRemoteRequest {
-    entries: NativeUploadEntry[];
+    entries: LocalModifyElement[];
 }
 
 export interface NativeDownloadRequest extends NativeRemoteRequest {
