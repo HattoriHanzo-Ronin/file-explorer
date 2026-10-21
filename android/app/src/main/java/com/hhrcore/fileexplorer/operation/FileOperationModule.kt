@@ -5,6 +5,7 @@ import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.ReadableMap
+import com.facebook.react.bridge.Arguments
 import org.json.JSONObject
 import java.io.File
 import java.util.UUID
@@ -13,6 +14,30 @@ class FileOperationModule(private val context: ReactApplicationContext) : ReactC
     private val store = FileOperationStore(context)
 
     override fun getName() = "FileOperation"
+
+    @ReactMethod
+    fun readDir(path: String, promise: Promise) {
+        Thread {
+            try {
+                val directory = File(path)
+                if (!directory.isDirectory) throw IllegalArgumentException("La ruta no es una carpeta")
+                val entries = Arguments.createArray().apply {
+                    directory.listFiles()?.forEach { entry ->
+                        pushMap(Arguments.createMap().apply {
+                        putString("name", entry.name)
+                        putString("path", entry.absolutePath)
+                        putDouble("size", entry.length().toDouble())
+                        putDouble("mtime", entry.lastModified().toDouble())
+                        putBoolean("isDirectory", entry.isDirectory)
+                        })
+                    }
+                }
+                promise.resolve(entries)
+            } catch (error: Throwable) {
+                promise.reject("LOCAL_READ_DIR_FAILED", error.message, error)
+            }
+        }.start()
+    }
 
     @ReactMethod
     fun tryLocalMkdir(destination: String, name: String, promise: Promise) {
