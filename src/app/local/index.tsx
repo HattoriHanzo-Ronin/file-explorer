@@ -2,6 +2,7 @@ import { useCallback, useEffect } from "react";
 import { useIsFocused } from "@react-navigation/native";
 import { Text, View } from "react-native";
 import { useAppContext } from "../../components/app-context-provider";
+import { useOperationContext } from "../../components/operation-provider";
 import type { DirContent } from "../../types/files";
 import List from "../../components/list";
 import LoadingWindow from "../../components/loading-window";
@@ -19,7 +20,6 @@ import { appDialog } from "../../styles/components/style";
 export default function Local() {
     const {
         activeStorageRoot,
-        executeLocalRequest,
         fileAction,
         isLoading,
         localDirectory,
@@ -28,6 +28,7 @@ export default function Local() {
         setLocalDirectory,
         setModifyLocalFile
     } = useAppContext();
+    const { executeLocalRequest } = useOperationContext();
     const { mode, theme } = useTheme();
     const common = commonStyles[mode];
     const { content: dirContent, dir: lastLocalDir } = localDirectory;

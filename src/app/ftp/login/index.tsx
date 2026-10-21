@@ -4,6 +4,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ActivityIndicator, Pressable, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@react-native-vector-icons/ionicons";
 import { useAppContext } from "../../../components/app-context-provider";
+import { useOperationContext } from "../../../components/operation-provider";
 import type { ApiValidationErrorDetail } from "../../../types/api-error";
 import type { FtpStackParamList } from "../../../types/navigation";
 import { loginStyles } from "../../../styles/app/ftp/style";
@@ -15,7 +16,8 @@ function getValidationMessage(details: ApiValidationErrorDetail[] | undefined, f
 }
 
 export default function Login() {
-    const { authUtils, isAuthenticated, isLoading, loadingUtils } = useAppContext();
+    const { isAuthenticated, isLoading } = useAppContext();
+    const { authUtils, loadingUtils } = useOperationContext();
     const { mode, theme } = useTheme();
     const common = commonStyles[mode];
     const login = loginStyles[mode];

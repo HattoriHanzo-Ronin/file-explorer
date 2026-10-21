@@ -1,32 +1,27 @@
 import type { Dispatch, SetStateAction } from "react";
 import type { ExecuteApiRequest } from "./api-response";
-import type { ExecuteLocalRequest } from "./local-response";
 import type { AuthUser } from "./auth";
 import type { LocalDirectoryState, LocalModifyElement, ModifyElement, StorageRoot } from "./files";
 import type { FtpDirectoryState, FtpEntryType } from "./ftp";
+import type { ExecuteLocalRequest } from "./local-response";
+import type { FileActionMode, ListViewMode } from "./ui";
 import type AuthUtils from "../utils/auth-utils";
 import type LoadingUtils from "../utils/loading-utils";
 import type { Permission } from "../utils/permissions/permission";
 import type { ThumbnailGenerator } from "../utils/thumbnails/thumbnail-generator";
-import type { FileActionMode, ListViewMode } from "./ui";
 
-/** Shared application state and services */
-export interface AppContextType {
-    isAuthenticated: boolean;
-    user: AuthUser | null;
-    setUser: Dispatch<SetStateAction<AuthUser | null>>;
-    authUtils: AuthUtils;
-    executeApiRequest: ExecuteApiRequest;
-    executeLocalRequest: ExecuteLocalRequest;
-    loadingUtils: LoadingUtils;
-    permission: Permission;
-    thumbnailGenerator: ThumbnailGenerator;
+/** Shared application state */
+export interface AppStateContextType {
     internalRoot: StorageRoot;
+    setInternalRoot: Dispatch<SetStateAction<StorageRoot>>;
     externalRoots: StorageRoot[];
+    setExternalRoots: Dispatch<SetStateAction<StorageRoot[]>>;
     activeStorageRoot: StorageRoot;
     setActiveStorageRoot: Dispatch<SetStateAction<StorageRoot>>;
     lastLocalRootId: string;
+    setLastLocalRootId: Dispatch<SetStateAction<string>>;
     lastLocalDir: string;
+    setLastLocalDir: Dispatch<SetStateAction<string>>;
     ftpDirectory: FtpDirectoryState;
     setFtpDirectory: Dispatch<SetStateAction<FtpDirectoryState>>;
     localDirectory: LocalDirectoryState;
@@ -45,4 +40,21 @@ export interface AppContextType {
     setViewMode: Dispatch<SetStateAction<ListViewMode>>;
     isLoading: boolean;
     setIsLoading: Dispatch<SetStateAction<boolean>>;
+    isAuthenticated: boolean;
+    setIsAuthenticated: Dispatch<SetStateAction<boolean>>;
+    user: AuthUser | null;
+    setUser: Dispatch<SetStateAction<AuthUser | null>>;
+    permission: Permission;
 }
+
+/** Shared application operations */
+export interface OperationContextType {
+    authUtils: AuthUtils;
+    executeApiRequest: ExecuteApiRequest;
+    executeLocalRequest: ExecuteLocalRequest;
+    loadingUtils: LoadingUtils;
+    thumbnailGenerator: ThumbnailGenerator;
+}
+
+/** Shared application state */
+export type AppContextType = AppStateContextType;

@@ -3,6 +3,7 @@ import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@react-native-vector-icons/ionicons";
 import { Modal, Pressable, Text, TextInput, View } from "react-native";
 import { useAppContext } from "../components/app-context-provider";
+import { useOperationContext } from "../components/operation-provider";
 import AppDialog from "../components/dialog";
 import UiUtils from "../utils/ui-utils";
 import { cancelFileAction } from "../utils/navigation-utils";
@@ -39,7 +40,6 @@ export const UploadMenu = (props: TransferMenuProps) => {
     const { navigation, setVisible } = props;
     const context = useAppContext();
     const {
-        executeApiRequest,
         fileAction,
         ftpDirectory,
         modifyLocalFile: toUpload,
@@ -47,6 +47,7 @@ export const UploadMenu = (props: TransferMenuProps) => {
         setFileAction,
         setFtpDirectory
     } = context;
+    const { executeApiRequest } = useOperationContext();
 
     async function upload(remoteDir: string) {
         const result = await executeApiRequest((apiUtils) => apiUtils.upload([...toUpload], remoteDir), {
@@ -89,8 +90,6 @@ export const DownloadMenu = (props: TransferMenuProps) => {
     const context = useAppContext();
     const {
         activeStorageRoot,
-        executeApiRequest,
-        executeLocalRequest,
         fileAction,
         ftpDirectory,
         localDirectory,
@@ -99,6 +98,7 @@ export const DownloadMenu = (props: TransferMenuProps) => {
         setFileAction,
         setLocalDirectory
     } = context;
+    const { executeApiRequest, executeLocalRequest } = useOperationContext();
 
     async function download(remoteDir: string, localDir: string) {
         const result = await executeApiRequest(
@@ -145,8 +145,6 @@ const CopyMoveAction = (props: CopyMoveActionProps) => {
     const context = useAppContext();
     const {
         activeStorageRoot,
-        executeApiRequest,
-        executeLocalRequest,
         fileAction,
         ftpDirectory,
         ftpSelectionDir,
@@ -158,6 +156,7 @@ const CopyMoveAction = (props: CopyMoveActionProps) => {
         setFtpDirectory,
         setLocalDirectory
     } = context;
+    const { executeApiRequest, executeLocalRequest } = useOperationContext();
     const action = copy ? "copy" : "move";
 
     async function copyMoveLocal() {
@@ -229,8 +228,6 @@ export const MakeDir = (props: MenuProps & { onFinish: () => void }) => {
     const {
         dirSelected,
         activeStorageRoot,
-        executeApiRequest,
-        executeLocalRequest,
         ftpDirectory,
         localDirectory,
         setDirSelected,
@@ -238,6 +235,7 @@ export const MakeDir = (props: MenuProps & { onFinish: () => void }) => {
         setLocalDirectory,
         setModifyLocalFile
     } = useAppContext();
+    const { executeApiRequest, executeLocalRequest } = useOperationContext();
     const [show, setShow] = useState<boolean>(true);
     const [name, setName] = useState<string>("");
     const [validationErrors, setValidationErrors] = useState<ValidationErrors<CreateDirectoryRequest>>({});
@@ -344,8 +342,6 @@ export const RenameMenu = (props: MenuProps & { onFinish: () => void }) => {
     const { onFinish, setVisible, storage } = props;
     const { theme } = useTheme();
     const {
-        executeApiRequest,
-        executeLocalRequest,
         ftpDirectory,
         modifyFtpFile,
         modifyLocalFile: toRename,
@@ -355,6 +351,7 @@ export const RenameMenu = (props: MenuProps & { onFinish: () => void }) => {
         setModifyFtpFile,
         setModifyLocalFile
     } = useAppContext();
+    const { executeApiRequest, executeLocalRequest } = useOperationContext();
     const [show, setShow] = useState<boolean>(true);
     const [name, setName] = useState<string>(
         () => (storage === "ftp" ? modifyFtpFile[0] : toRename[0])?.path.split("/").pop() ?? ""
@@ -488,8 +485,6 @@ export const RenameMenu = (props: MenuProps & { onFinish: () => void }) => {
 export const RemoveMenu = (props: MenuProps) => {
     const { setVisible, storage } = props;
     const {
-        executeApiRequest,
-        executeLocalRequest,
         ftpDirectory,
         modifyFtpFile,
         modifyLocalFile,
@@ -498,6 +493,7 @@ export const RemoveMenu = (props: MenuProps) => {
         setModifyFtpFile,
         setModifyLocalFile
     } = useAppContext();
+    const { executeApiRequest, executeLocalRequest } = useOperationContext();
 
     async function removeLocalEntries() {
         const result = await executeLocalRequest((localFileManager) => localFileManager.delete(modifyLocalFile), {

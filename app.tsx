@@ -18,18 +18,17 @@ import Ftp from "./src/app/ftp/index";
 import { Ionicons } from "@react-native-vector-icons/ionicons";
 import OverflowMenu from "./src/app/_overflow-menu";
 import UserMenu from "./src/app/_user-menu";
-import ThemeProvider, { useTheme } from "./src/components/theme-provider";
+import { useTheme } from "./src/components/theme-provider";
 import DrawerNavigationItem from "./src/components/drawer-navigation-item";
 
 const Drawer = createDrawerNavigator();
 
 const AppDrawerContent = (props: DrawerContentComponentProps) => {
     const { navigation, state } = props;
-    const context = useAppContext();
+    const { externalRoots, internalRoot, isAuthenticated, user } = useAppContext();
     const { mode, theme } = useTheme();
     const app = appStyles[mode];
     const common = commonStyles[mode];
-    const { externalRoots, internalRoot, isAuthenticated, user } = context;
     const [userMenuVisible, setUserMenuVisible] = React.useState<boolean>(false);
     const safeArea = useSafeAreaInsets();
     const storage = state.routes[state.index].name as StorageType;
@@ -168,9 +167,9 @@ const AppBreadcrumb = (props: { storage: StorageType }) => {
 
 export default function App() {
     return (
-        <ThemeProvider>
+        <AppContextProvider>
             <ThemedApp />
-        </ThemeProvider>
+        </AppContextProvider>
     );
 }
 
@@ -180,40 +179,38 @@ function ThemedApp() {
     const common = commonStyles[mode];
     const navigationTheme = mode === "dark" ? DarkTheme : DefaultTheme;
     return (
-        <AppContextProvider>
-            <GestureHandlerRootView style={common.root}>
-                <View style={common.background}>
-                    <Image
-                        source={require("./assets/images/background.jpg")}
-                        resizeMode="cover"
-                        style={[common.absoluteImage, common.contentBackgroundImage]}
-                    />
-                    <View pointerEvents="none" style={common.backgroundOverlay} />
-                    <StatusBar barStyle={mode === "dark" ? "light-content" : "dark-content"} />
-                    <NavigationContainer
-                        theme={{
-                            ...navigationTheme,
-                            colors: {
-                                ...navigationTheme.colors,
-                                background: "transparent",
-                                card: "transparent",
-                                text: theme.text
-                            }
+        <GestureHandlerRootView style={common.root}>
+            <View style={common.background}>
+                <Image
+                    source={require("./assets/images/background.jpg")}
+                    resizeMode="cover"
+                    style={[common.absoluteImage, common.contentBackgroundImage]}
+                />
+                <View pointerEvents="none" style={common.backgroundOverlay} />
+                <StatusBar barStyle={mode === "dark" ? "light-content" : "dark-content"} />
+                <NavigationContainer
+                    theme={{
+                        ...navigationTheme,
+                        colors: {
+                            ...navigationTheme.colors,
+                            background: "transparent",
+                            card: "transparent",
+                            text: theme.text
+                        }
+                    }}
+                >
+                    <Drawer.Navigator
+                        drawerContent={AppDrawerContent}
+                        screenOptions={{
+                            drawerStyle: app.drawer,
+                            header: AppHeader
                         }}
                     >
-                        <Drawer.Navigator
-                            drawerContent={AppDrawerContent}
-                            screenOptions={{
-                                drawerStyle: app.drawer,
-                                header: AppHeader
-                            }}
-                        >
-                            <Drawer.Screen name="local" component={Local} />
-                            <Drawer.Screen name="ftp" component={Ftp} />
-                        </Drawer.Navigator>
-                    </NavigationContainer>
-                </View>
-            </GestureHandlerRootView>
-        </AppContextProvider>
+                        <Drawer.Screen name="local" component={Local} />
+                        <Drawer.Screen name="ftp" component={Ftp} />
+                    </Drawer.Navigator>
+                </NavigationContainer>
+            </View>
+        </GestureHandlerRootView>
     );
 }
