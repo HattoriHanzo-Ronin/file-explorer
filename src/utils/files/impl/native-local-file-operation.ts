@@ -8,8 +8,18 @@ import type {
     NativeLocalExtractRequest
 } from "../../../types/file-operations";
 import type { LocalFileOperation } from "../local-file-operation";
+import type { FileSystemEntry } from "../../../types/files";
+
+interface NativeFileSystemEntry {
+    name: string;
+    path: string;
+    size: number;
+    mtime: number;
+    isDirectory: boolean;
+}
 
 interface NativeFileOperationModule {
+    readDir(path: string): Promise<NativeFileSystemEntry[]>;
     tryLocalMkdir(destination: string, name: string): Promise<boolean>;
     tryLocalRename(source: string, name: string): Promise<boolean>;
     startLocalMkdir(request: NativeLocalMkdirRequest): Promise<string>;
@@ -30,6 +40,18 @@ interface NativeFileOperationModule {
 export default class NativeLocalFileOperation implements LocalFileOperation {
     private readonly module = NativeModules.FileOperation as NativeFileOperationModule;
     private readonly eventEmitter = new NativeEventEmitter(NativeModules.FileOperation);
+
+    /** Returns the entries in a local directory */
+    async readDir(path: string): Promise<FileSystemEntry[]> {
+        const entries = await this.module.readDir(path);
+        return entries.map(({ isDirectory, mtime, name, path: entryPath, size }) => ({
+            name,
+            path: entryPath,
+            size,
+            ...(mtime > 0 ? { mtime: new Date(mtime) } : {}),
+            isDirectory: () => isDirectory
+        }));
+    }
 
     /**
      * Creates a directory immediately if its path is available

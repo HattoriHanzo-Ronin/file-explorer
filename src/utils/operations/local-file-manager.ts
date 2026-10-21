@@ -3,7 +3,7 @@ import { EXTRACTABLE_ARCHIVE_EXTENSIONS } from "../../constants/archives";
 import type { LocalDirectoryUpdate, LocalModifyElement } from "../../types/files";
 import type { FileOperationSnapshot } from "../../types/file-operations";
 import type { LocalResponse } from "../../types/local-response";
-import type { FileSystem, FileSystemEntry } from "../files/file-system";
+import type { FileSystemEntry } from "../files/file-system";
 import type { LocalFileOperation } from "../files/local-file-operation";
 import type { Permission } from "../permissions/permission";
 import FileUtils from "../file-utils";
@@ -15,7 +15,6 @@ import FileUtils from "../file-utils";
  */
 export default class LocalFileManager {
     static LOCAL_VERSION = "";
-    private readonly fileSystem: FileSystem;
     private readonly localFileOperation: LocalFileOperation;
     private readonly permission: Permission;
     private readonly activeDirectories = new Map<string, Set<string>>();
@@ -23,8 +22,7 @@ export default class LocalFileManager {
     private readonly completionListeners = new Map<string, (operation: FileOperationSnapshot) => void>();
     private readonly completedOperations = new Map<string, FileOperationSnapshot>();
 
-    constructor(fileSystem: FileSystem, localFileOperation: LocalFileOperation, permission: Permission) {
-        this.fileSystem = fileSystem;
+    constructor(localFileOperation: LocalFileOperation, permission: Permission) {
         this.localFileOperation = localFileOperation;
         this.permission = permission;
         this.localFileOperation.addChangeListener((operation) => this.handleChange(operation));
@@ -45,7 +43,7 @@ export default class LocalFileManager {
      */
     async dir(rootPath: string, path: string): Promise<LocalResponse<{ entries: FileSystemEntry[]; version: string }>> {
         try {
-            const entries = await this.fileSystem.readDir(this.absolutePath(rootPath, path));
+            const entries = await this.localFileOperation.readDir(this.absolutePath(rootPath, path));
             const version = FileUtils.hashDirectory(entries);
             LocalFileManager.LOCAL_VERSION = version;
             return { success: true, data: { entries, version } };
@@ -67,7 +65,7 @@ export default class LocalFileManager {
         }
 
         try {
-            const entries = await this.fileSystem.readDir(this.absolutePath(rootPath, path));
+            const entries = await this.localFileOperation.readDir(this.absolutePath(rootPath, path));
             return { success: true, data: { version: FileUtils.hashDirectory(entries) } };
         } catch {
             return this.operationError("Error al comprobar la carpeta");
@@ -204,7 +202,7 @@ export default class LocalFileManager {
             const id = await this.localFileOperation.startDelete({
                 notificationTexts: FILE_OPERATION_NOTIFICATION_TEXTS,
                 sources,
-                destination: sources[0]?.substring(0, sources[0].lastIndexOf("/")) ?? this.fileSystem.internalRoot.path
+                destination: sources[0]?.substring(0, sources[0].lastIndexOf("/")) ?? ""
             });
             const result = await this.waitForCompletion(id);
             return result.success
@@ -265,7 +263,7 @@ export default class LocalFileManager {
         const updates = await Promise.all(
             [...new Set(paths)].map(async (path) => {
                 try {
-                    return { path, entries: await this.fileSystem.readDir(path) };
+                    return { path, entries: await this.localFileOperation.readDir(path) };
                 } catch {
                     return null;
                 }

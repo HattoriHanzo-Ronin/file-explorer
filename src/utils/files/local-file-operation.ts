@@ -6,9 +6,12 @@ import type {
     NativeLocalRenameRequest,
     NativeLocalExtractRequest
 } from "../../types/file-operations";
+import type { FileSystemEntry } from "../../types/files";
 
 /** Local background file operation contract */
 export interface LocalFileOperation {
+    readDir(path: string): Promise<FileSystemEntry[]>;
+
     tryCreateDirectory(destination: string, name: string): Promise<boolean>;
 
     tryRename(source: string, name: string): Promise<boolean>;

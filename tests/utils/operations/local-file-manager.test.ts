@@ -3,15 +3,8 @@ import type { FileOperationSnapshot } from "../../../src/types/file-operations";
 
 function createManager() {
     let listener!: (operation: FileOperationSnapshot) => void;
-    const fileSystem = {
-        internalRoot: { id: "internal", name: "Internal", path: "/storage", type: "INTERNAL" as const },
-        exists: jest.fn(),
-        readDir: jest.fn(),
-        stat: jest.fn(),
-        mkdir: jest.fn(),
-        moveFile: jest.fn()
-    };
     const localFileOperation = {
+        readDir: jest.fn(),
         tryCreateDirectory: jest.fn(),
         tryRename: jest.fn(),
         createDirectory: jest.fn(),
@@ -33,10 +26,9 @@ function createManager() {
         ensureStoragePermission: jest.fn()
     };
     return {
-        fileSystem,
         listener: () => listener,
         localFileOperation,
-        manager: new LocalFileManager(fileSystem as never, localFileOperation as never, permission as never)
+        manager: new LocalFileManager(localFileOperation as never, permission as never)
     };
 }
 
@@ -46,8 +38,8 @@ describe("LocalFileManager", () => {
     });
 
     it("lists a directory and stores its version", async () => {
-        const { fileSystem, manager } = createManager();
-        fileSystem.readDir.mockResolvedValue([
+        const { localFileOperation, manager } = createManager();
+        localFileOperation.readDir.mockResolvedValue([
             { name: "a.txt", path: "/storage/a.txt", size: 1, isDirectory: () => false }
         ]);
         const result = await manager.dir("/storage", " ");
@@ -56,13 +48,13 @@ describe("LocalFileManager", () => {
             expect(result.data.entries).toHaveLength(1);
             expect(LocalFileManager.LOCAL_VERSION).toBe(result.data.version);
         }
-        expect(fileSystem.readDir).toHaveBeenCalledWith("/storage");
+        expect(localFileOperation.readDir).toHaveBeenCalledWith("/storage");
     });
 
     it("creates a non-colliding directory name", async () => {
-        const { fileSystem, localFileOperation, manager } = createManager();
+        const { localFileOperation, manager } = createManager();
         localFileOperation.tryCreateDirectory.mockResolvedValue(true);
-        fileSystem.readDir.mockResolvedValue([]);
+        localFileOperation.readDir.mockResolvedValue([]);
         await expect(manager.createDirectory("/storage", "docs", "Report")).resolves.toEqual({
             success: true,
             data: [{ path: "/storage/docs", entries: [] }]
@@ -72,8 +64,8 @@ describe("LocalFileManager", () => {
     });
 
     it("starts a foreground operation when creating a directory is blocked", async () => {
-        const { fileSystem, listener, localFileOperation, manager } = createManager();
-        fileSystem.readDir.mockResolvedValue([]);
+        const { listener, localFileOperation, manager } = createManager();
+        localFileOperation.readDir.mockResolvedValue([]);
         localFileOperation.tryCreateDirectory.mockResolvedValue(false);
         localFileOperation.createDirectory.mockImplementation(async () => {
             void Promise.resolve().then(() =>
@@ -122,8 +114,8 @@ describe("LocalFileManager", () => {
     });
 
     it("waits for a native delete completion", async () => {
-        const { fileSystem, listener, localFileOperation, manager } = createManager();
-        fileSystem.readDir.mockResolvedValue([]);
+        const { listener, localFileOperation, manager } = createManager();
+        localFileOperation.readDir.mockResolvedValue([]);
         listener()({
             id: "download-1",
             operation: "DOWNLOAD",
@@ -155,9 +147,9 @@ describe("LocalFileManager", () => {
             success: true,
             data: [{ path: "/storage/docs", entries: [] }]
         });
-        expect(fileSystem.readDir).toHaveBeenCalledWith("/storage/docs");
-        fileSystem.readDir.mockClear();
+        expect(localFileOperation.readDir).toHaveBeenCalledWith("/storage/docs");
+        localFileOperation.readDir.mockClear();
         await manager.getVersion("/storage", "docs");
-        expect(fileSystem.readDir).not.toHaveBeenCalled();
+        expect(localFileOperation.readDir).not.toHaveBeenCalled();
     });
 });

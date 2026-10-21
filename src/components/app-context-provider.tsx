@@ -62,7 +62,7 @@ export default function AppContextProvider(props: PropsWithChildren) {
     const [localFileOperation] = useState<NativeLocalFileOperation>(() => new NativeLocalFileOperation());
     const [remoteFileOperation] = useState<NativeRemoteFileOperation>(() => new NativeRemoteFileOperation());
     const [localFileManager] = useState<LocalFileManager>(
-        () => new LocalFileManager(fileSystem, localFileOperation, permission)
+        () => new LocalFileManager(localFileOperation, permission)
     );
     const [remoteFileManager] = useState<RemoteFileManager>(
         () => new RemoteFileManager(fileSystem, remoteFileOperation, storage, permission, API_URL)
