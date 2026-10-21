@@ -3,7 +3,6 @@ import type { FileOperationSnapshot } from "../../../src/types/file-operations";
 
 function createManager() {
     let listener!: (operation: FileOperationSnapshot) => void;
-    const fileSystem = { readDir: jest.fn(), stat: jest.fn() };
     const remoteFileOperation = {
         addChangeListener: jest.fn((callback) => {
             listener = callback;
@@ -25,10 +24,8 @@ function createManager() {
         ensureStoragePermission: jest.fn()
     };
     return {
-        fileSystem,
         listener: () => listener,
         manager: new RemoteFileManager(
-            fileSystem as never,
             remoteFileOperation as never,
             storage,
             permission,
@@ -114,6 +111,24 @@ describe("RemoteFileManager", () => {
             }
         });
         expect(remoteFileOperation.startDelete).not.toHaveBeenCalled();
+    });
+
+    it("passes selected local entries to the native upload operation", async () => {
+        const { listener, manager, remoteFileOperation } = createManager();
+        const entries = [{ path: "/storage/photo.jpg", type: "file" as const }];
+        remoteFileOperation.startUpload.mockImplementation(async () => {
+            void Promise.resolve().then(() =>
+                listener()({
+                    ...completedOperation("REMOTE_MOVE"),
+                    id: "upload-1",
+                    operation: "UPLOAD",
+                    result: { entries: [], version: "10" }
+                })
+            );
+            return "upload-1";
+        });
+        await expect(manager.upload(entries, " ")).resolves.toEqual({ success: true, data: { entries: [], version: "10" } });
+        expect(remoteFileOperation.startUpload).toHaveBeenCalledWith(expect.objectContaining({ entries }));
     });
 
     it("normalizes root paths and returns completed remote move changes", async () => {

@@ -1,7 +1,6 @@
-import mime from "mime";
 import { STORAGE_KEYS } from "../../constants/storage";
 import { FILE_OPERATION_NOTIFICATION_TEXTS } from "../../constants/file-operations";
-import type { EntryType, LocalModifyElement } from "../../types/files";
+import type { LocalModifyElement } from "../../types/files";
 import type { FtpEntry } from "../../types/ftp";
 import type {
     CreateDirectoryRequest,
@@ -11,14 +10,12 @@ import type {
 } from "../../types/ftp";
 import type { ApiResponse } from "../../types/api-response";
 import type {
-    NativeUploadEntry,
     FileOperationSelection,
     FileOperationSnapshot,
     RemoteChangeOperationResult,
     RemoteDirectoryOperationResult
 } from "../../types/file-operations";
 import type { RemoteFileOperation } from "../files/remote-file-operation";
-import type { FileSystem } from "../files/file-system";
 import type { Permission } from "../permissions/permission";
 import type { Storage } from "../storage/storage";
 
@@ -28,7 +25,6 @@ import type { Storage } from "../storage/storage";
  * @author HattoriHanzo-Ronin
  */
 export default class RemoteFileManager {
-    private readonly fileSystem: FileSystem;
     private readonly remoteFileOperation: RemoteFileOperation;
     private readonly storage: Storage;
     private readonly permission: Permission;
@@ -42,13 +38,11 @@ export default class RemoteFileManager {
     private readonly completedOperations = new Map<string, FileOperationSnapshot>();
 
     constructor(
-        fileSystem: FileSystem,
         remoteFileOperation: RemoteFileOperation,
         storage: Storage,
         permission: Permission,
         apiUrl: string
     ) {
-        this.fileSystem = fileSystem;
         this.remoteFileOperation = remoteFileOperation;
         this.storage = storage;
         this.permission = permission;
@@ -96,7 +90,7 @@ export default class RemoteFileManager {
                 accessToken: accessToken.data,
                 notificationTexts: FILE_OPERATION_NOTIFICATION_TEXTS,
                 ...(remoteDir === " " ? {} : { remoteDir }),
-                entries: await this.getUploadEntries(items)
+                entries: items
             });
             const result = await this.waitForCompletion(id);
             if (!result.success) {
@@ -489,39 +483,6 @@ export default class RemoteFileManager {
         }
 
         return { success: true, data: accessToken };
-    }
-
-    private async getUploadEntries(items: LocalModifyElement[]): Promise<NativeUploadEntry[]> {
-        const entries: NativeUploadEntry[] = [];
-        for (const { path: localPath, type } of items) {
-            await this.appendUploadEntries(entries, localPath, localPath.split("/").pop() ?? localPath, type);
-        }
-
-        return entries;
-    }
-
-    private async appendUploadEntries(
-        entries: NativeUploadEntry[],
-        localPath: string,
-        path: string,
-        type: EntryType
-    ): Promise<void> {
-        if (type === "file") {
-            const { size } = await this.fileSystem.stat(localPath);
-            entries.push({
-                path,
-                type: "FILE",
-                size,
-                localPath,
-                mimeType: mime.getType(localPath) ?? "application/octet-stream"
-            });
-            return;
-        }
-
-        entries.push({ path, type: "DIR" });
-        for (const { isDirectory, name, path: entryPath } of await this.fileSystem.readDir(localPath)) {
-            await this.appendUploadEntries(entries, entryPath, `${path}/${name}`, isDirectory() ? "dir" : "file");
-        }
     }
 
     private toFtpEntry(item: FileOperationSelection): FtpEntry {
