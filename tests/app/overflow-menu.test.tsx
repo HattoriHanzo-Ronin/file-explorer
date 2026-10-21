@@ -4,17 +4,17 @@ import { fireEvent, render, screen } from "@testing-library/react-native";
 jest.mock("@react-navigation/native", () => ({ useNavigation: jest.fn() }));
 jest.mock("@react-native-vector-icons/ionicons", () => ({ Ionicons: () => null }));
 jest.mock("../../src/components/app-context-provider", () => ({ useAppContext: jest.fn() }));
+jest.mock("../../src/components/operation-provider", () => ({ useOperationContext: jest.fn() }));
 jest.mock("../../src/components/theme-provider", () => ({ useTheme: () => ({ theme: {} }) }));
 jest.mock("../../src/utils/navigation-utils", () => ({ cancelFileAction: jest.fn() }));
 
 import { useAppContext } from "../../src/components/app-context-provider";
+import { useOperationContext } from "../../src/components/operation-provider";
 import { RenameMenu } from "../../src/app/_overflow-menu";
 
 test("allows independent renames while another is pending", async () => {
     const rename = jest.fn(() => new Promise(() => {}));
     const context = {
-        executeApiRequest: jest.fn(),
-        executeLocalRequest: (request: (manager: { rename: typeof rename }) => unknown) => request({ rename }),
         ftpDirectory: { dir: " ", content: [] },
         modifyFtpFile: [],
         modifyLocalFile: [{ path: "/storage/first.txt", type: "file" }],
@@ -25,6 +25,10 @@ test("allows independent renames while another is pending", async () => {
         setModifyLocalFile: jest.fn()
     };
     jest.mocked(useAppContext).mockReturnValue(context as never);
+    jest.mocked(useOperationContext).mockReturnValue({
+        executeApiRequest: jest.fn(),
+        executeLocalRequest: (request: (manager: { rename: typeof rename }) => unknown) => request({ rename })
+    } as never);
     const onFinish = jest.fn();
     const setVisible = jest.fn();
     const view = await render(<RenameMenu key="first" storage="local" setVisible={setVisible} onFinish={onFinish} />);

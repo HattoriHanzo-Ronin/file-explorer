@@ -8,6 +8,7 @@ import {
     useTapGesture
 } from "react-native-gesture-handler";
 import { useAppContext } from "./app-context-provider";
+import { useOperationContext } from "./operation-provider";
 import type {
     ContentCardProps,
     ContentThumbnailProps,
@@ -90,7 +91,8 @@ const ContentThumbnail = memo(function Thumbnail(props: ContentThumbnailProps) {
 });
 
 function useContentThumbnail(content: FileContent, storage: "local" | "ftp", fileType: keyof FileIcons) {
-    const { executeApiRequest, ftpDirectory, thumbnailGenerator } = useAppContext();
+    const { ftpDirectory } = useAppContext();
+    const { executeApiRequest, thumbnailGenerator } = useOperationContext();
     const localThumbnailPath = "thumbnailPath" in content ? content.thumbnailPath : undefined;
     const supportsFtpThumbnail = "supportsThumbnail" in content && content.supportsThumbnail === true;
     const canGenerateLocalThumbnail = fileType === "image" || fileType === "video";

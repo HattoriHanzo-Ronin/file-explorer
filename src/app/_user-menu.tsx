@@ -1,6 +1,7 @@
 import { Modal, Pressable, Text, TextInput, View } from "react-native";
 import React from "react";
 import { useAppContext } from "../components/app-context-provider";
+import { useOperationContext } from "../components/operation-provider";
 import { userMenu } from "../styles/components/style";
 import { useTheme } from "../components/theme-provider";
 import AppDialog from "../components/dialog";
@@ -18,7 +19,8 @@ interface UserMenuProps {
 export default function UserMenu(props: UserMenuProps) {
     const { onClose, onLogout, visible } = props;
     const { theme } = useTheme();
-    const { authUtils, executeApiRequest, loadingUtils, setUser, user } = useAppContext();
+    const { setUser, user } = useAppContext();
+    const { authUtils, executeApiRequest, loadingUtils } = useOperationContext();
     const [dialog, setDialog] = React.useState<"username" | "password" | null>(null);
     const [username, setUsername] = React.useState<string>("");
     const [currentPassword, setCurrentPassword] = React.useState<string>("");

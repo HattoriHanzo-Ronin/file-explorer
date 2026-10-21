@@ -3,6 +3,7 @@ import { useFocusEffect, useIsFocused, useNavigation } from "@react-navigation/n
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { View } from "react-native";
 import { useAppContext } from "../../../components/app-context-provider";
+import { useOperationContext } from "../../../components/operation-provider";
 import type { FtpEntry } from "../../../types/ftp";
 import type { FtpStackParamList } from "../../../types/navigation";
 import List from "../../../components/list";
@@ -16,7 +17,6 @@ import { useTheme } from "../../../components/theme-provider";
 
 export default function Files() {
     const {
-        executeApiRequest,
         ftpDirectory,
         isAuthenticated,
         isLoading,
@@ -26,6 +26,7 @@ export default function Files() {
         fileAction,
         modifyFtpFile
     } = useAppContext();
+    const { executeApiRequest } = useOperationContext();
     const { mode } = useTheme();
     const common = commonStyles[mode];
     const { content: ftpDirContent, dir: lastFtpDir } = ftpDirectory;
