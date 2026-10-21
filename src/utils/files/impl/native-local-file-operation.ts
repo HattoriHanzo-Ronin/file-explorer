@@ -8,7 +8,7 @@ import type {
     NativeLocalExtractRequest
 } from "../../../types/file-operations";
 import type { LocalFileOperation } from "../local-file-operation";
-import type { FileSystemEntry } from "../../../types/files";
+import type { FileSystemEntry, StorageRoot, StorageRootNames } from "../../../types/files";
 
 interface NativeFileSystemEntry {
     name: string;
@@ -32,14 +32,46 @@ interface NativeFileOperationModule {
     listOperations(): Promise<string>;
 }
 
+interface NativeStorageVolumeModule {
+    internalRootPath: string;
+    getExternalRoots(externalStorageName: string): Promise<StorageRoot[]>;
+}
+
 /**
  * Provides background local file operations through Android
  *
  * @author HattoriHanzo-Ronin
  */
 export default class NativeLocalFileOperation implements LocalFileOperation {
+    readonly internalRoot: StorageRoot;
     private readonly module = NativeModules.FileOperation as NativeFileOperationModule;
     private readonly eventEmitter = new NativeEventEmitter(NativeModules.FileOperation);
+    private readonly storageVolume = NativeModules.StorageVolume as NativeStorageVolumeModule;
+    private readonly storageVolumeEmitter = new NativeEventEmitter(NativeModules.StorageVolume);
+    private readonly storageRootNames: StorageRootNames;
+
+    constructor(storageRootNames: StorageRootNames) {
+        this.storageRootNames = storageRootNames;
+        this.internalRoot = {
+            id: "internal",
+            name: storageRootNames.internal,
+            path: this.storageVolume.internalRootPath,
+            type: "INTERNAL"
+        };
+    }
+
+    /** Returns mounted removable storage roots */
+    async getExternalRoots(): Promise<StorageRoot[]> {
+        return this.storageVolume.getExternalRoots(this.storageRootNames.external);
+    }
+
+    /** Adds a removable storage change listener */
+    addStorageRootsChangeListener(listener: (roots: StorageRoot[]) => void): () => void {
+        const subscription = this.storageVolumeEmitter.addListener("StorageVolumesChanged", (roots) =>
+            listener(roots as unknown as StorageRoot[])
+        );
+        return () => subscription.remove();
+    }
 
     /** Returns the entries in a local directory */
     async readDir(path: string): Promise<FileSystemEntry[]> {

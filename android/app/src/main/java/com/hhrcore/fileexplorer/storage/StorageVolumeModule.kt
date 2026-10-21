@@ -39,6 +39,8 @@ class StorageVolumeModule(private val context: ReactApplicationContext) : ReactC
 
     override fun getName() = "StorageVolume"
 
+    override fun getConstants(): Map<String, Any> = mapOf("internalRootPath" to Environment.getExternalStorageDirectory().absolutePath)
+
     override fun initialize() {
         super.initialize()
         context.addLifecycleEventListener(this)

@@ -1,7 +1,7 @@
 import mime from "mime";
 import { EXTRACTABLE_ARCHIVE_EXTENSIONS } from "../constants/archives";
 import type { FileIconType } from "../types/files";
-import type { FileSystemEntry } from "./files/file-system";
+import type { FileSystemEntry } from "../types/files";
 import type { ResponseError, ValidationErrorDetail } from "../types/response";
 
 const MIME_FILE_TYPES: [string, FileIconType][] = [

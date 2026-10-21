@@ -95,10 +95,9 @@ flowchart TD
 
     Auth --> Storage[Storage interface]
     Storage --> Keychain[KeychainStorage]
-    Local --> FileSystem[FileSystem interface]
-    Remote --> FileSystem
+    Local --> LocalOps[LocalFileOperation interface]
     Remote --> RemoteOps[RemoteFileOperation interface]
-    FileSystem --> RNFS[RNFSFileSystem]
+    LocalOps --> NativeOps[Native Android implementation]
     RemoteOps --> NativeOps[Native Android implementation]
     API --> Backend[REST API]
     Backend --> SFTP[SFTP service]
@@ -114,11 +113,11 @@ flowchart TD
 | `RemoteFileManager`            | Coordinate uploads, downloads and remote file operations, progress and completion                           |
 | Interfaces and implementations | Isolate the filesystem, secure storage, permissions, thumbnails and native operations from React components |
 
-### RemoteFileManager and local writes
+### Native file access
 
-`RemoteFileManager` receives its dependencies through its constructor. In particular, it depends on the `RemoteFileOperation` interface for native background operations and on the `FileSystem` interface for local filesystem access. The injected `FileSystem` is required to inspect local entries and sizes and to walk directories when preparing uploads; native remote operations use the selected local destination when writing downloads.
+`LocalFileManager` and `RemoteFileManager` receive native operation contracts through their constructors. Android performs directory listing, local operations and upload preparation with its own filesystem APIs; TypeScript receives typed directory entries and operation results.
 
-The concrete `RNFSFileSystem`, native operation adapter, storage and permission implementations are created outside the manager by `AppContextProvider`. This keeps platform details replaceable and prevents the manager from silently constructing its own filesystem dependency.
+`NativeLocalFileOperation` exposes internal and removable storage roots to `AppContextProvider`. The concrete adapters for roots, operations, storage and permissions are created outside the managers, which keeps platform details replaceable and prevents managers from constructing their own dependencies.
 
 ### Session and token handling
 
