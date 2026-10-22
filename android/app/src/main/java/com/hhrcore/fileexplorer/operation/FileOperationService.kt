@@ -92,6 +92,7 @@ class FileOperationService : Service() {
 
     override fun onDestroy() {
         executor.shutdownNow()
+        store.close()
         thumbnailCache.close()
         super.onDestroy()
     }

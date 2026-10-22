@@ -11,6 +11,8 @@ class ExplorerDatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATAB
 
     override fun onCreate(database: SQLiteDatabase) {
         createThumbnailTables(database)
+        createOperationTables(database)
+        createOperationRecoveryTables(database)
     }
 
     override fun onUpgrade(database: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -24,12 +26,22 @@ class ExplorerDatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATAB
         return when (version) {
             1 -> {
                 createThumbnailTables(database)
-                3
+                createOperationTables(database)
+                createOperationRecoveryTables(database)
+                5
             }
             2 -> {
                 database.execSQL("ALTER TABLE thumbnails ADD COLUMN parent_id TEXT REFERENCES thumbnails(id)")
                 database.execSQL("CREATE INDEX idx_thumbnails_parent ON thumbnails(parent_id)")
                 3
+            }
+            3 -> {
+                createOperationTables(database)
+                4
+            }
+            4 -> {
+                createOperationRecoveryTables(database)
+                5
             }
             else -> throw IllegalStateException("No existe migración desde la versión $version")
         }
@@ -62,8 +74,39 @@ class ExplorerDatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATAB
         database.execSQL("CREATE INDEX idx_thumbnails_last_accessed ON thumbnails(last_accessed_at)")
     }
 
+    private fun createOperationTables(database: SQLiteDatabase) {
+        database.execSQL(
+            """
+                CREATE TABLE file_operations (
+                    id TEXT PRIMARY KEY,
+                    record TEXT NOT NULL,
+                    revision INTEGER NOT NULL,
+                    status TEXT NOT NULL,
+                    updated_at INTEGER NOT NULL
+                )
+            """.trimIndent()
+        )
+        database.execSQL("CREATE INDEX idx_file_operations_revision ON file_operations(revision)")
+        database.execSQL("CREATE INDEX idx_file_operations_status ON file_operations(status)")
+    }
+
+    private fun createOperationRecoveryTables(database: SQLiteDatabase) {
+        database.execSQL(
+            """
+                CREATE TABLE file_operation_recovery (
+                    operation_id TEXT PRIMARY KEY,
+                    type TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    updated_at INTEGER NOT NULL,
+                    FOREIGN KEY(operation_id) REFERENCES file_operations(id) ON DELETE CASCADE
+                )
+            """.trimIndent()
+        )
+        database.execSQL("CREATE INDEX idx_file_operation_recovery_status ON file_operation_recovery(status)")
+    }
+
     companion object {
         private const val DATABASE_NAME = "file_explorer.db"
-        private const val DATABASE_VERSION = 3
+        private const val DATABASE_VERSION = 5
     }
 }
