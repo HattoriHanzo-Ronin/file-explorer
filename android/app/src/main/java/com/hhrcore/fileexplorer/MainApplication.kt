@@ -6,6 +6,7 @@ import com.facebook.react.ReactApplication
 import com.facebook.react.ReactHost
 import com.facebook.react.ReactNativeApplicationEntryPoint.loadReactNative
 import com.facebook.react.defaults.DefaultReactHost.getDefaultReactHost
+import com.hhrcore.fileexplorer.database.DatabasePackage
 import com.hhrcore.fileexplorer.file.FileOpenerPackage
 import com.hhrcore.fileexplorer.operation.FileOperationPackage
 import com.hhrcore.fileexplorer.permission.StoragePermissionPackage
@@ -22,6 +23,7 @@ class MainApplication : Application(), ReactApplication {
           // Packages that cannot be autolinked yet can be added manually here, for example:
           add(StoragePermissionPackage())
           add(StorageVolumePackage())
+          add(DatabasePackage())
           add(FileOpenerPackage())
           add(FileOperationPackage())
           add(ThumbnailGeneratorPackage())
