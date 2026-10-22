@@ -94,6 +94,7 @@ class FileOperationModule(private val context: ReactApplicationContext) : ReactC
     }
 
     override fun invalidate() {
+        store.close()
         thumbnailCache.close()
         super.invalidate()
     }

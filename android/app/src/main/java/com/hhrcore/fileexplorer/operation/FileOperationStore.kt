@@ -1,37 +1,67 @@
 package com.hhrcore.fileexplorer.operation
 
+import android.content.ContentValues
 import android.content.Context
+import android.database.sqlite.SQLiteDatabase
+import com.hhrcore.fileexplorer.database.ExplorerDatabaseHelper
 import org.json.JSONArray
+import org.json.JSONObject
 import java.util.concurrent.ConcurrentHashMap
 
 class FileOperationStore(context: Context) {
-    private val preferences = context.getSharedPreferences("file_transfers", Context.MODE_PRIVATE)
+    private val helper: ExplorerDatabaseHelper
+    private val legacyPreferences = context.getSharedPreferences(LEGACY_PREFERENCES, Context.MODE_PRIVATE)
+
+    init {
+        helper = ExplorerDatabaseHelper(context)
+        migrateLegacyRecords()
+    }
 
     fun save(record: FileOperationRecord) = synchronized(lock) {
-        record.revision = preferences.getLong(REVISION_KEY, 0) + 1
+        val database = helper.writableDatabase
+        record.revision = nextRevision(database)
         record.updatedAt = System.currentTimeMillis()
-        val saved = preferences.edit()
-            .putLong(REVISION_KEY, record.revision)
-            .putString(record.id, record.toJson().toString())
-            .commit()
-        if (!saved) {
-            throw IllegalStateException("No se pudo guardar el estado de la operación")
+        database.transaction {
+            insertWithOnConflict(TABLE, null, record.values(), SQLiteDatabase.CONFLICT_REPLACE)
+            saveRecovery(record)
         }
     }
 
     fun get(id: String): FileOperationRecord? = synchronized(lock) {
-        val source = preferences.getString(id, null) ?: return@synchronized null
-        runCatching { FileOperationRecord.fromJson(org.json.JSONObject(source)) }.getOrNull()
+        helper.readableDatabase.query(
+            TABLE,
+            arrayOf(COLUMN_RECORD),
+            "$COLUMN_ID = ?",
+            arrayOf(id),
+            null,
+            null,
+            null,
+            "1"
+        ).use { cursor ->
+            if (!cursor.moveToFirst()) {
+                return@synchronized null
+            }
+
+            FileOperationRecord.fromJson(JSONObject(cursor.getString(0)))
+        }
     }
 
     fun list(): List<FileOperationRecord> = synchronized(lock) {
-        preferences.all
-            .filterKeys { it != REVISION_KEY }
-            .values
-            .mapNotNull { value ->
-                (value as? String)?.let { runCatching { FileOperationRecord.fromJson(org.json.JSONObject(it)) }.getOrNull() }
+        helper.readableDatabase.query(
+            TABLE,
+            arrayOf(COLUMN_RECORD),
+            null,
+            null,
+            null,
+            null,
+            "$COLUMN_REVISION ASC"
+        ).use { cursor ->
+            buildList {
+                while (cursor.moveToNext()) {
+                    runCatching { FileOperationRecord.fromJson(JSONObject(cursor.getString(0))) }.getOrNull()?.let(::add)
+                }
             }
-            .sortedBy { it.revision }
+        }
     }
 
     fun reconcileInterrupted(engine: FileOperationEngine): String = synchronized(reconciliationLock) {
@@ -48,17 +78,134 @@ class FileOperationStore(context: Context) {
             return@synchronized
         }
 
-        val editor = preferences.edit()
-        settledIds.forEach(editor::remove)
-        editor.commit()
+        helper.writableDatabase.transaction {
+            settledIds.forEach { id -> delete(TABLE, "$COLUMN_ID = ?", arrayOf(id)) }
+        }
+    }
+
+    fun close() {
+        helper.close()
+    }
+
+    private fun migrateLegacyRecords() = synchronized(lock) {
+        val records = legacyPreferences.all
+            .filterKeys { it != LEGACY_REVISION_KEY }
+            .values
+            .mapNotNull { value ->
+                (value as? String)?.let { runCatching { FileOperationRecord.fromJson(JSONObject(it)) }.getOrNull() }
+            }
+        if (records.isEmpty()) {
+            return@synchronized
+        }
+
+        helper.writableDatabase.transaction {
+            records.sortedBy(FileOperationRecord::revision).forEach { record ->
+                if (record.revision <= 0) {
+                    record.revision = nextRevision(this)
+                }
+                insertWithOnConflict(TABLE, null, record.values(), SQLiteDatabase.CONFLICT_REPLACE)
+                saveRecovery(record)
+            }
+        }
+        legacyPreferences.edit().clear().commit()
+    }
+
+    private fun nextRevision(database: SQLiteDatabase): Long {
+        return database.rawQuery("SELECT COALESCE(MAX($COLUMN_REVISION), 0) + 1 FROM $TABLE", null).use { cursor ->
+            cursor.moveToFirst()
+            cursor.getLong(0)
+        }
+    }
+
+    private fun FileOperationRecord.values(): ContentValues {
+        return ContentValues().apply {
+            put(COLUMN_ID, id)
+            put(COLUMN_RECORD, toJson().toString())
+            put(COLUMN_REVISION, revision)
+            put(COLUMN_STATUS, status)
+            put(COLUMN_UPDATED_AT, updatedAt)
+        }
+    }
+
+    private fun SQLiteDatabase.saveRecovery(record: FileOperationRecord) {
+        val recovery = record.recovery() ?: run {
+            delete(RECOVERY_TABLE, "$COLUMN_OPERATION_ID = ?", arrayOf(record.id))
+            return
+        }
+        insertWithOnConflict(
+            RECOVERY_TABLE,
+            null,
+            ContentValues().apply {
+                put(COLUMN_OPERATION_ID, record.id)
+                put(COLUMN_RECOVERY_TYPE, recovery.type)
+                put(COLUMN_RECOVERY_STATUS, recovery.status)
+                put(COLUMN_UPDATED_AT, record.updatedAt)
+            },
+            SQLiteDatabase.CONFLICT_REPLACE
+        )
+    }
+
+    private fun FileOperationRecord.recovery(): OperationRecovery? {
+        if (cleanupPending) {
+            return OperationRecovery(RECOVERY_CLEANUP, RECOVERY_PENDING)
+        }
+        if (operation == FileOperationRecord.OPERATION_LOCAL_MOVE && moveCommitStarted) {
+            return OperationRecovery(RECOVERY_ROLLBACK, RECOVERY_PENDING)
+        }
+        if (status !in RECOVERY_STATUSES) {
+            return null
+        }
+        if (operation == FileOperationRecord.OPERATION_LOCAL_MOVE) {
+            return OperationRecovery(RECOVERY_ROLLBACK, RECOVERY_COMPLETED)
+        }
+        if (operation in LOCAL_CLEANUP_OPERATIONS) {
+            return OperationRecovery(RECOVERY_CLEANUP, RECOVERY_COMPLETED)
+        }
+
+        return null
+    }
+
+    private fun SQLiteDatabase.transaction(operation: SQLiteDatabase.() -> Unit) {
+        beginTransaction()
+        try {
+            operation()
+            setTransactionSuccessful()
+        } finally {
+            endTransaction()
+        }
     }
 
     companion object {
-        private const val REVISION_KEY = "__revision__"
+        private const val TABLE = "file_operations"
+        private const val RECOVERY_TABLE = "file_operation_recovery"
+        private const val COLUMN_ID = "id"
+        private const val COLUMN_OPERATION_ID = "operation_id"
+        private const val COLUMN_RECORD = "record"
+        private const val COLUMN_REVISION = "revision"
+        private const val COLUMN_STATUS = "status"
+        private const val COLUMN_UPDATED_AT = "updated_at"
+        private const val COLUMN_RECOVERY_TYPE = "type"
+        private const val COLUMN_RECOVERY_STATUS = "status"
+        private const val LEGACY_PREFERENCES = "file_transfers"
+        private const val LEGACY_REVISION_KEY = "__revision__"
         private val lock = Any()
         private val reconciliationLock = Any()
         private val activeIds = ConcurrentHashMap.newKeySet<String>()
         private val ACTIVE_STATUSES = setOf(FileOperationRecord.STATUS_PENDING, FileOperationRecord.STATUS_RUNNING)
+        private val RECOVERY_STATUSES = setOf(
+            FileOperationRecord.STATUS_FAILED,
+            FileOperationRecord.STATUS_CANCELLED,
+            FileOperationRecord.STATUS_INTERRUPTED
+        )
+        private val LOCAL_CLEANUP_OPERATIONS = setOf(
+            FileOperationRecord.OPERATION_DOWNLOAD,
+            FileOperationRecord.OPERATION_LOCAL_COPY,
+            FileOperationRecord.OPERATION_LOCAL_EXTRACT
+        )
+        private const val RECOVERY_CLEANUP = "CLEANUP"
+        private const val RECOVERY_ROLLBACK = "ROLLBACK"
+        private const val RECOVERY_PENDING = "PENDING"
+        private const val RECOVERY_COMPLETED = "COMPLETED"
 
         fun markActive(id: String) {
             activeIds.add(id)
@@ -68,4 +215,6 @@ class FileOperationStore(context: Context) {
             activeIds.remove(id)
         }
     }
+
+    private data class OperationRecovery(val type: String, val status: String)
 }
