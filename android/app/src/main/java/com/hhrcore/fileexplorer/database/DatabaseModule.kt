@@ -1,10 +1,8 @@
 package com.hhrcore.fileexplorer.database
 
 import android.content.ContentValues
-import android.content.Context
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
-import android.database.sqlite.SQLiteOpenHelper
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReadableArray
@@ -20,8 +18,13 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 class DatabaseModule(context: ReactApplicationContext) : ReactContextBaseJavaModule(context) {
-    private val executor: ExecutorService = Executors.newSingleThreadExecutor()
-    private val helper = ExplorerDatabaseHelper(context)
+    private val executor: ExecutorService
+    private val helper: ExplorerDatabaseHelper
+
+    init {
+        executor = Executors.newSingleThreadExecutor()
+        helper = ExplorerDatabaseHelper(context)
+    }
 
     override fun getName() = "Database"
 
@@ -75,7 +78,9 @@ class DatabaseModule(context: ReactApplicationContext) : ReactContextBaseJavaMod
     fun getById(table: String, id: ReadableMap, column: String, promise: Promise) {
         execute(promise) {
             val key = column.identifier()
-            if (!id.hasKey("value")) throw IllegalArgumentException("Falta el identificador")
+            if (!id.hasKey("value")) {
+                throw IllegalArgumentException("Falta el identificador")
+            }
 
             val condition = mapOf(key to id.value("value")).toCondition()
             helper.readableDatabase.query(
@@ -153,7 +158,10 @@ class DatabaseModule(context: ReactApplicationContext) : ReactContextBaseJavaMod
     }
 
     private fun String.identifier(): String {
-        if (!IDENTIFIER_REGEX.matches(this)) throw IllegalArgumentException("Identificador de base de datos inválido")
+        if (!IDENTIFIER_REGEX.matches(this)) {
+            throw IllegalArgumentException("Identificador de base de datos inválido")
+        }
+
         return this
     }
 
@@ -182,7 +190,10 @@ class DatabaseModule(context: ReactApplicationContext) : ReactContextBaseJavaMod
     }
 
     private fun Map<String, Any?>.toCondition(): DatabaseCondition {
-        if (isEmpty()) throw IllegalArgumentException("La condición no puede estar vacía")
+        if (isEmpty()) {
+            throw IllegalArgumentException("La condición no puede estar vacía")
+        }
+
         val clauses = mutableListOf<String>()
         val arguments = mutableListOf<String>()
         forEach { (column, value) ->
@@ -259,30 +270,5 @@ class DatabaseModule(context: ReactApplicationContext) : ReactContextBaseJavaMod
 
     companion object {
         private val IDENTIFIER_REGEX = Regex("[A-Za-z_][A-Za-z0-9_]*")
-    }
-}
-
-private class ExplorerDatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
-    override fun onConfigure(database: SQLiteDatabase) {
-        database.setForeignKeyConstraintsEnabled(true)
-    }
-
-    override fun onCreate(database: SQLiteDatabase) {
-    }
-
-    override fun onUpgrade(database: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        var version = oldVersion
-        while (version < newVersion) {
-            version = migrate(database, version)
-        }
-    }
-
-    private fun migrate(database: SQLiteDatabase, version: Int): Int {
-        throw IllegalStateException("No existe migración desde la versión $version")
-    }
-
-    companion object {
-        private const val DATABASE_NAME = "file_explorer.db"
-        private const val DATABASE_VERSION = 1
     }
 }
