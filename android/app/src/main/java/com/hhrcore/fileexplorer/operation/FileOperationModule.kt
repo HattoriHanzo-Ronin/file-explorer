@@ -6,12 +6,14 @@ import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.bridge.Arguments
+import com.hhrcore.fileexplorer.thumbnail.ThumbnailCache
 import org.json.JSONObject
 import java.io.File
 import java.util.UUID
 
 class FileOperationModule(private val context: ReactApplicationContext) : ReactContextBaseJavaModule(context) {
     private val store = FileOperationStore(context)
+    private val thumbnailCache = ThumbnailCache(context)
 
     override fun getName() = "FileOperation"
 
@@ -21,6 +23,7 @@ class FileOperationModule(private val context: ReactApplicationContext) : ReactC
             try {
                 val directory = File(path)
                 if (!directory.isDirectory) throw IllegalArgumentException("La ruta no es una carpeta")
+                thumbnailCache.reconcileDirectory(directory)
                 val entries = Arguments.createArray().apply {
                     directory.listFiles()?.forEach { entry ->
                         pushMap(Arguments.createMap().apply {
@@ -68,7 +71,9 @@ class FileOperationModule(private val context: ReactApplicationContext) : ReactC
                 promise.resolve(false)
                 return
             }
-            AtomicFiles.rename(source, destination, name, owner)
+            val snapshot = thumbnailCache.snapshot(source)
+            val target = AtomicFiles.rename(source, destination, name, owner)
+            thumbnailCache.move(snapshot, source, target)
             promise.resolve(true)
         } catch (error: Throwable) {
             promise.reject("LOCAL_RENAME_FAILED", error.message, error)
@@ -86,6 +91,11 @@ class FileOperationModule(private val context: ReactApplicationContext) : ReactC
     override fun initialize() {
         super.initialize()
         FileOperationEvents.attach(context)
+    }
+
+    override fun invalidate() {
+        thumbnailCache.close()
+        super.invalidate()
     }
 
     @ReactMethod
@@ -132,7 +142,7 @@ class FileOperationModule(private val context: ReactApplicationContext) : ReactC
     fun listOperations(promise: Promise) {
         Thread {
             try {
-                val engine = FileOperationEngine(store) {}
+                val engine = FileOperationEngine(store, {}, thumbnailCache)
                 val snapshot = store.reconcileInterrupted(engine)
                 promise.resolve(snapshot)
             } catch (error: Throwable) {

@@ -2,6 +2,8 @@ package com.hhrcore.fileexplorer.operation
 
 import android.util.Log
 import android.webkit.MimeTypeMap
+import com.hhrcore.fileexplorer.thumbnail.ThumbnailCache
+import com.hhrcore.fileexplorer.thumbnail.ThumbnailSnapshot
 import android.system.ErrnoException
 import android.system.Os
 import android.system.OsConstants
@@ -29,7 +31,10 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.UUID
 
-class FileOperationEngine(private val store: FileOperationStore, private val onChange: (FileOperationRecord) -> Unit) {
+class FileOperationEngine(store: FileOperationStore, onChange: (FileOperationRecord) -> Unit, thumbnailCache: ThumbnailCache) {
+    private val store: FileOperationStore
+    private val onChange: (FileOperationRecord) -> Unit
+    private val thumbnailCache: ThumbnailCache
     private val client = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.MINUTES)
@@ -41,6 +46,12 @@ class FileOperationEngine(private val store: FileOperationStore, private val onC
     private val committing = ConcurrentHashMap.newKeySet<String>()
     private val cancellationLock = Any()
     private val lastProgressAt = ConcurrentHashMap<String, Long>()
+
+    init {
+        this.store = store
+        this.onChange = onChange
+        this.thumbnailCache = thumbnailCache
+    }
 
     fun execute(record: FileOperationRecord, accessToken: String?) {
         try {
@@ -56,7 +67,14 @@ class FileOperationEngine(private val store: FileOperationStore, private val onC
                 FileOperationRecord.OPERATION_LOCAL_MKDIR -> AtomicFiles.reserve(File(record.request.getString("destination")), record.request.getString("name"), true, record.id)
                 FileOperationRecord.OPERATION_LOCAL_RENAME -> {
                     val source = File(record.request.getString("source"))
-                    AtomicFiles.rename(source, source.parentFile ?: throw IllegalArgumentException("Ruta no válida"), record.request.getString("name"), record.id)
+                    val snapshot = thumbnailCache.snapshot(source)
+                    val target = AtomicFiles.rename(
+                        source,
+                        source.parentFile ?: throw IllegalArgumentException("Ruta no válida"),
+                        record.request.getString("name"),
+                        record.id
+                    )
+                    thumbnailCache.move(snapshot, source, target)
                 }
                 FileOperationRecord.OPERATION_LOCAL_COPY -> localCopyMove(record, false)
                 FileOperationRecord.OPERATION_LOCAL_MOVE -> localCopyMove(record, true)
@@ -127,6 +145,7 @@ class FileOperationEngine(private val store: FileOperationStore, private val onC
             record.operation == FileOperationRecord.OPERATION_LOCAL_EXTRACT
         ) {
             cleanupLocal(record)
+            reconcileThumbnailDestination(record)
         } else if (record.operation == FileOperationRecord.OPERATION_UPLOAD) {
             record.apiSessionId = null
         }
@@ -464,13 +483,21 @@ class FileOperationEngine(private val store: FileOperationStore, private val onC
         validateLocalDestination(sources, destination)
         val totalSize = (0 until sources.length()).sumOf { fileSize(File(sources.getString(it))) }
         val trackEntries = totalSize == 0L
+        val thumbnailsBySource = mutableMapOf<String, List<ThumbnailSnapshot>>()
+        val targetsBySource = mutableMapOf<String, File>()
         record.totalBytes = if (trackEntries) sources.length().toLong() else totalSize
         persist(record)
         for (index in 0 until sources.length()) {
             checkCancelled(record.id)
             val source = File(sources.getString(index))
+            val thumbnailSnapshot = thumbnailCache.snapshot(source)
+            thumbnailsBySource[source.absolutePath] = thumbnailSnapshot
             val target = reserveOwnedPath(record, destination, source.name, source.isDirectory)
             copyLocal(record, source, target)
+            targetsBySource[source.absolutePath] = target
+            if (!move) {
+                thumbnailCache.copy(thumbnailSnapshot, target)
+            }
             if (trackEntries) {
                 record.bytesTransferred = (index + 1).toLong()
                 persist(record)
@@ -488,6 +515,15 @@ class FileOperationEngine(private val store: FileOperationStore, private val onC
                 if (!deleteMoveSource(source)) {
                     throw IllegalStateException("No se pudo eliminar ${source.path}")
                 }
+            }
+
+            for (index in 0 until sources.length()) {
+                val source = File(sources.getString(index))
+                thumbnailCache.move(
+                    thumbnailsBySource[source.absolutePath].orEmpty(),
+                    source,
+                    requireNotNull(targetsBySource[source.absolutePath])
+                )
             }
         }
     }
@@ -555,7 +591,10 @@ class FileOperationEngine(private val store: FileOperationStore, private val onC
         persist(record)
         for (index in 0 until sources.length()) {
             val source = File(sources.getString(index))
+            val thumbnailSnapshot = thumbnailCache.snapshot(source)
             deleteLocal(record, source)
+            thumbnailCache.delete(thumbnailSnapshot)
+            thumbnailCache.deletePath(source.absolutePath)
             record.bytesTransferred = (index + 1).toLong()
             persist(record)
         }
@@ -750,6 +789,7 @@ class FileOperationEngine(private val store: FileOperationStore, private val onC
             record.operation == FileOperationRecord.OPERATION_LOCAL_EXTRACT
         ) {
             cleanupLocal(record)
+            reconcileThumbnailDestination(record)
         }
 
         if (token != null && runCatching { cancelRemoteSession(record, token) }.isSuccess) {
@@ -834,6 +874,13 @@ class FileOperationEngine(private val store: FileOperationStore, private val onC
         }
         if (record.createdPaths.any { !record.ownedIdentities.has(it) && File(it).exists() }) cleaned = false
         record.cleanupPending = !cleaned
+    }
+
+    private fun reconcileThumbnailDestination(record: FileOperationRecord) {
+        val destination = record.request.optString("destination")
+        if (destination.isNotEmpty()) {
+            thumbnailCache.reconcileDirectory(File(destination))
+        }
     }
 
     private fun cleanupPendingStage(record: FileOperationRecord): Boolean {

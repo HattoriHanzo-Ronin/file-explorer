@@ -14,6 +14,7 @@ import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.hhrcore.fileexplorer.MainActivity
+import com.hhrcore.fileexplorer.thumbnail.ThumbnailCache
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import org.json.JSONObject
@@ -34,11 +35,13 @@ class FileOperationService : Service() {
     private var latestStartId = 0
     private lateinit var store: FileOperationStore
     private lateinit var engine: FileOperationEngine
+    private lateinit var thumbnailCache: ThumbnailCache
 
     override fun onCreate() {
         super.onCreate()
         store = FileOperationStore(this)
-        engine = FileOperationEngine(store) { record ->
+        thumbnailCache = ThumbnailCache(this)
+        engine = FileOperationEngine(store, { record ->
             val snapshot = FileOperationRecord.fromJson(JSONObject(record.toJson().toString()))
             handler.post {
                 records[snapshot.id] = snapshot
@@ -48,7 +51,7 @@ class FileOperationService : Service() {
                 runCatching { FileOperationEvents.emit(snapshot) }
                     .onFailure { Log.e(LOG_TAG, "Could not emit operation update", it) }
             }
-        }
+        }, thumbnailCache)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -89,6 +92,7 @@ class FileOperationService : Service() {
 
     override fun onDestroy() {
         executor.shutdownNow()
+        thumbnailCache.close()
         super.onDestroy()
     }
 
