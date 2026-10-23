@@ -13,6 +13,7 @@ class ExplorerDatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATAB
         createThumbnailTables(database)
         createOperationTables(database)
         createOperationRecoveryTables(database)
+        createUiPreferenceTables(database)
     }
 
     override fun onUpgrade(database: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -28,7 +29,8 @@ class ExplorerDatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATAB
                 createThumbnailTables(database)
                 createOperationTables(database)
                 createOperationRecoveryTables(database)
-                5
+                createUiPreferenceTables(database)
+                6
             }
             2 -> {
                 database.execSQL("ALTER TABLE thumbnails ADD COLUMN parent_id TEXT REFERENCES thumbnails(id)")
@@ -42,6 +44,10 @@ class ExplorerDatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATAB
             4 -> {
                 createOperationRecoveryTables(database)
                 5
+            }
+            5 -> {
+                createUiPreferenceTables(database)
+                6
             }
             else -> throw IllegalStateException("No existe migración desde la versión $version")
         }
@@ -105,8 +111,19 @@ class ExplorerDatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATAB
         database.execSQL("CREATE INDEX idx_file_operation_recovery_status ON file_operation_recovery(status)")
     }
 
+    private fun createUiPreferenceTables(database: SQLiteDatabase) {
+        database.execSQL(
+            """
+                CREATE TABLE ui_preferences (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                )
+            """.trimIndent()
+        )
+    }
+
     companion object {
         private const val DATABASE_NAME = "file_explorer.db"
-        private const val DATABASE_VERSION = 5
+        private const val DATABASE_VERSION = 6
     }
 }
