@@ -16,7 +16,8 @@ import LoadingUtils from "../utils/loading-utils";
 import LocalFileManager from "../utils/operations/local-file-manager";
 import RemoteFileManager from "../utils/operations/remote-file-manager";
 import KeychainStorage from "../utils/storage/impl/keychain-storage";
-import AsyncStorageStorage from "../utils/storage/impl/async-storage";
+import NativeDatabase from "../utils/database/impl/native-database";
+import DatabaseStorage from "../utils/storage/impl/database-storage";
 import NativeThumbnailGenerator from "../utils/thumbnails/impl/native-thumbnail-generator";
 import UiUtils from "../utils/ui-utils";
 import { useAppStateContext } from "./app-context-provider";
@@ -53,7 +54,8 @@ export default function OperationProvider(props: PropsWithChildren) {
         () => new NativeLocalFileOperation(STORAGE_ROOT_NAMES)
     );
     const [storage] = useState<KeychainStorage>(() => new KeychainStorage());
-    const [preferenceStorage] = useState<AsyncStorageStorage>(() => new AsyncStorageStorage());
+    const [database] = useState<NativeDatabase>(() => new NativeDatabase());
+    const [preferenceStorage] = useState<DatabaseStorage>(() => new DatabaseStorage(database));
     const [thumbnailGenerator] = useState<NativeThumbnailGenerator>(
         () => new NativeThumbnailGenerator(THUMBNAIL_CACHE)
     );
