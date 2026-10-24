@@ -5,6 +5,7 @@ import { Modal, Pressable, Text, TextInput, View } from "react-native";
 import { useAppContext } from "../components/app-context-provider";
 import { useOperationContext } from "../components/operation-provider";
 import AppDialog from "../components/dialog";
+import CreateDirectoryDialog from "../components/create-directory-dialog";
 import UiUtils from "../utils/ui-utils";
 import { cancelFileAction } from "../utils/navigation-utils";
 import type {
@@ -16,7 +17,7 @@ import type {
 } from "../types/menu";
 import type { DrawerNavigation } from "../types/navigation";
 import type { FileActionMode, ValidationErrors } from "../types/ui";
-import type { CreateDirectoryRequest, RenameEntryRequest } from "../types/ftp";
+import type { RenameEntryRequest } from "../types/ftp";
 import { overflowMenu } from "../styles/components/style";
 import { useTheme } from "../components/theme-provider";
 import { FILE_OPERATION_COMPLETED_MESSAGES } from "../constants/file-operations";
@@ -221,122 +222,6 @@ const CopyMoveAction = (props: CopyMoveActionProps) => {
     }
 
     return <MenuItem title={fileAction === action ? "Pegar" : copy ? "Copiar" : "Mover"} onPress={handlePress} />;
-};
-export const MakeDir = (props: MenuProps & { onFinish: () => void }) => {
-    const { onFinish, setVisible, storage } = props;
-    const { theme } = useTheme();
-    const {
-        dirSelected,
-        activeStorageRoot,
-        ftpDirectory,
-        localDirectory,
-        setDirSelected,
-        setFtpDirectory,
-        setLocalDirectory,
-        setModifyLocalFile
-    } = useAppContext();
-    const { executeApiRequest, executeLocalRequest } = useOperationContext();
-    const [show, setShow] = useState<boolean>(true);
-    const [name, setName] = useState<string>("");
-    const [validationErrors, setValidationErrors] = useState<ValidationErrors<CreateDirectoryRequest>>({});
-    const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-    const submitting = useRef<boolean>(false);
-
-    async function createDirectory() {
-        if (submitting.current) {
-            return;
-        }
-
-        submitting.current = true;
-        setIsSubmitting(true);
-        setShow(false);
-        setVisible(false);
-
-        try {
-            if (storage === "ftp") {
-                const result = await executeApiRequest(
-                    (apiUtils) => apiUtils.createDirectory({ name, dir: ftpDirectory.dir }),
-                    { isBackground: true }
-                );
-                if (!result.success) {
-                    const errors = UiUtils.mapValidationErrors<CreateDirectoryRequest>(result.error.details ?? []);
-                    if (Object.keys(errors).length > 0) {
-                        setValidationErrors(errors);
-                        setShow(true);
-                    } else {
-                        onFinish();
-                    }
-
-                    return;
-                }
-
-                setFtpDirectory((current) =>
-                    current.dir === ftpDirectory.dir ? { ...current, content: result.data } : current
-                );
-            } else {
-                const result = await executeLocalRequest(
-                    (localFileManager) =>
-                        localFileManager.createDirectory(activeStorageRoot.path, localDirectory.dir, name),
-                    { isBackground: true }
-                );
-                if (result.success) {
-                    UiUtils.applyLocalDirectoryUpdates(setLocalDirectory, result.data);
-                    UiUtils.showMessage(FILE_OPERATION_COMPLETED_MESSAGES.LOCAL_MKDIR);
-                } else {
-                    const errors = UiUtils.mapValidationErrors<CreateDirectoryRequest>(result.error.details ?? []);
-                    if (Object.keys(errors).length > 0) {
-                        setValidationErrors(errors);
-                        setShow(true);
-                        return;
-                    }
-                }
-            }
-
-            setName("");
-            onFinish();
-        } finally {
-            submitting.current = false;
-            setIsSubmitting(false);
-        }
-    }
-
-    return (
-        <>
-            <AppDialog
-                title="Nueva carpeta"
-                visible={show}
-                acceptDisabled={isSubmitting}
-                onCancel={() => {
-                    setName("");
-                    setValidationErrors({});
-                    setShow(false);
-                    setVisible(false);
-                    setDirSelected(!dirSelected);
-                    setModifyLocalFile([]);
-                    onFinish();
-                }}
-                onAccept={() => void createDirectory()}
-            >
-                <TextInput
-                    autoFocus
-                    editable={!isSubmitting}
-                    returnKeyType="done"
-                    style={[overflowMenu.input, { borderBottomColor: theme.border, color: theme.text }]}
-                    value={name}
-                    onSubmitEditing={() => void createDirectory()}
-                    onChangeText={(value) => {
-                        setName(value);
-                        setValidationErrors({});
-                    }}
-                />
-                {validationErrors.name?.map((message) => (
-                    <Text key={message} style={[overflowMenu.validationError, { color: theme.danger }]}>
-                        {message}
-                    </Text>
-                ))}
-            </AppDialog>
-        </>
-    );
 };
 export const RenameMenu = (props: MenuProps & { onFinish: () => void }) => {
     const { onFinish, setVisible, storage } = props;
@@ -606,7 +491,19 @@ export default function OverflowMenu(props: OverflowMenuProps) {
     const dialogId = useRef<number>(0);
     const { theme } = useTheme();
     const context = useAppContext();
-    const { fileAction, modifyFtpFile, modifyLocalFile } = context;
+    const {
+        activeStorageRoot,
+        dirSelected,
+        fileAction,
+        ftpDirectory,
+        localDirectory,
+        modifyFtpFile,
+        modifyLocalFile,
+        setDirSelected,
+        setFtpDirectory,
+        setLocalDirectory,
+        setModifyLocalFile
+    } = context;
     const navigation = useNavigation<DrawerNavigation>();
     const { showCopy, showDownload, showMakeDir, showMove, showRemove, showRename, showUpload } = getMenuVisibility(
         storage,
@@ -660,14 +557,47 @@ export default function OverflowMenu(props: OverflowMenuProps) {
                     </View>
                 </Pressable>
             </Modal>
-            {makeDirDialogs.map((id) => (
-                <MakeDir
-                    key={id}
-                    setVisible={setVisible}
-                    storage={storage}
-                    onFinish={() => setMakeDirDialogs((current) => current.filter((value) => value !== id))}
-                />
-            ))}
+            {makeDirDialogs.map((id) =>
+                storage === "ftp" ? (
+                    <CreateDirectoryDialog
+                        key={id}
+                        visible
+                        storage="ftp"
+                        rootPath={activeStorageRoot.path}
+                        dir={ftpDirectory.dir}
+                        onClose={(cancelled) => {
+                            if (cancelled) {
+                                setDirSelected(!dirSelected);
+                                setModifyLocalFile([]);
+                            }
+
+                            setMakeDirDialogs((current) => current.filter((value) => value !== id));
+                        }}
+                        onCreated={(content) => {
+                            setFtpDirectory((current) =>
+                                current.dir === ftpDirectory.dir ? { ...current, content } : current
+                            );
+                        }}
+                    />
+                ) : (
+                    <CreateDirectoryDialog
+                        key={id}
+                        visible
+                        storage="local"
+                        rootPath={activeStorageRoot.path}
+                        dir={localDirectory.dir}
+                        onClose={(cancelled) => {
+                            if (cancelled) {
+                                setDirSelected(!dirSelected);
+                                setModifyLocalFile([]);
+                            }
+
+                            setMakeDirDialogs((current) => current.filter((value) => value !== id));
+                        }}
+                        onCreated={(updates) => UiUtils.applyLocalDirectoryUpdates(setLocalDirectory, updates)}
+                    />
+                )
+            )}
             {renameDialogs.map((id) => (
                 <RenameMenu
                     key={id}

@@ -5,8 +5,8 @@ import {
     DrawerContentComponentProps,
     DrawerHeaderProps
 } from "@react-navigation/drawer";
-import { GestureHandlerRootView, ScrollView } from "react-native-gesture-handler";
-import React, { useRef, type ComponentRef } from "react";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import React from "react";
 import AppContextProvider, { useAppContext } from "./src/components/app-context-provider";
 import type { StorageType } from "./src/types/navigation";
 import { appStyles } from "./src/styles/app/style";
@@ -20,6 +20,7 @@ import OverflowMenu from "./src/app/_overflow-menu";
 import UserMenu from "./src/app/_user-menu";
 import { useTheme } from "./src/components/theme-provider";
 import DrawerNavigationItem from "./src/components/drawer-navigation-item";
+import Breadcrumb from "./src/components/breadcrumb";
 
 const Drawer = createDrawerNavigator();
 
@@ -104,11 +105,7 @@ const AppBreadcrumb = (props: { storage: StorageType }) => {
         setModifyFtpFile,
         setModifyLocalFile
     } = useAppContext();
-    const { mode, theme } = useTheme();
-    const app = appStyles[mode];
-    const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
     const currentDir = storage === "ftp" ? ftpDirectory.dir : localDirectory.dir;
-    const paths = currentDir.split("/");
 
     function navigateTo(dir: string) {
         if (storage === "ftp") {
@@ -127,42 +124,7 @@ const AppBreadcrumb = (props: { storage: StorageType }) => {
         setLocalDirectory((current) => ({ ...current, dir }));
     }
 
-    return (
-        <View style={app.breadcrumb}>
-            <ScrollView
-                ref={scrollRef}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
-            >
-                <Pressable onPress={() => navigateTo(" ")}>
-                    <Text style={app.breadcrumbText}>
-                        /{" "}
-                        {currentDir !== " " && (
-                            <Ionicons name="chevron-forward-outline" color={theme.text} size={10} />
-                        )}{" "}
-                    </Text>
-                </Pressable>
-                {paths.map((path, index) => (
-                    <Pressable
-                        key={`${path}${index}`}
-                        onPress={() => {
-                            if (index !== paths.length - 1) {
-                                navigateTo(paths.slice(0, index + 1).join("/"));
-                            }
-                        }}
-                    >
-                        <Text style={app.breadcrumbText}>
-                            {path}{" "}
-                            {path !== " " && index !== paths.length - 1 && (
-                                <Ionicons name="chevron-forward-outline" color={theme.text} size={10} />
-                            )}{" "}
-                        </Text>
-                    </Pressable>
-                ))}
-            </ScrollView>
-        </View>
-    );
+    return <Breadcrumb dir={currentDir} onNavigate={navigateTo} />;
 };
 
 export default function App() {
