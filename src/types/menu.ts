@@ -1,4 +1,4 @@
-import type { DrawerNavigation, StorageType } from "./navigation";
+import type { StorageType } from "./navigation";
 
 export type SetVisible = (visible: boolean) => void;
 
@@ -11,13 +11,3 @@ export interface MenuProps extends StorageMenuProps {
 }
 
 export type OverflowMenuProps = StorageMenuProps;
-
-export interface TransferMenuProps extends MenuProps {
-    navigation: DrawerNavigation;
-}
-
-export type CopyMoveMenuProps = MenuProps;
-
-export interface CopyMoveActionProps extends CopyMoveMenuProps {
-    copy: boolean;
-}

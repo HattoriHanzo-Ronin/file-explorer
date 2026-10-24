@@ -21,7 +21,6 @@ import type { FileIcons } from "../types/files";
 import { contentCard, fileList } from "../styles/components/style";
 import { useTheme } from "./theme-provider";
 import FileUtils from "../utils/file-utils";
-import UiUtils from "../utils/ui-utils";
 
 const FILE_ICONS: FileIcons = {
     dir: require("../../assets/images/folder.png"),
@@ -206,28 +205,18 @@ function getThumbnailMode(
 export default function List<T extends FileContent>(props: ListProps<T>) {
     const { dirContent, doubleTapAction, longPressAction, oneTapAction, selectAll, storage } = props;
     const { theme } = useTheme();
-    const {
-        localDirectory,
-        modifyFtpFile,
-        modifyLocalFile,
-        activeStorageRoot,
-        lastLocalDir,
-        setViewMode,
-        viewMode,
-        fileAction
-    } = useAppContext();
+    const { localDirectory, modifyFtpFile, modifyLocalFile, activeStorageRoot, lastLocalDir, setViewMode, viewMode } =
+        useAppContext();
     const columnCount = getColumnCount(viewMode);
     const selectionCount = storage === "ftp" ? modifyFtpFile.length : modifyLocalFile.length;
     const selectableCount = dirContent.filter(
         ({ name }) => storage === "ftp" || localDirectory.dir !== "Android" || (name !== "data" && name !== "obb")
     ).length;
     const allSelected = selectableCount > 0 && selectionCount === selectableCount;
-    const showSelectAll = selectionCount > 0 && fileAction === null;
+    const showSelectAll = selectionCount > 0;
 
     function executeIfAvailable(callback: () => void): void {
-        if (!UiUtils.isActionBlocked(fileAction !== null, "Acción no disponible")) {
-            callback();
-        }
+        callback();
     }
 
     return (

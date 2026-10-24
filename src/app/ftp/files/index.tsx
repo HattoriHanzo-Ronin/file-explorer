@@ -23,7 +23,6 @@ export default function Files() {
         setFtpDirectory,
         setModifyFtpFile,
         setFtpSelectionDir,
-        fileAction,
         modifyFtpFile
     } = useAppContext();
     const { executeApiRequest } = useOperationContext();
@@ -92,7 +91,7 @@ export default function Files() {
                             }));
                         }
 
-                        if (modifyFtpFile.length > 0 && !fileAction) {
+                        if (modifyFtpFile.length > 0) {
                             setModifyFtpFile([]);
                         }
                     }}

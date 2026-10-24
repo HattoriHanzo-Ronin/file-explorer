@@ -3,7 +3,7 @@ import type { AuthUser } from "../types/auth";
 import type { AppContextType, AppStateContextType } from "../types/context";
 import type { LocalDirectoryState, LocalModifyElement, ModifyElement, StorageRoot } from "../types/files";
 import type { FtpDirectoryState, FtpEntryType } from "../types/ftp";
-import type { FileActionMode, ListViewMode } from "../types/ui";
+import type { ListViewMode } from "../types/ui";
 import ReactNativePermission from "../utils/permissions/impl/react-native-permission";
 import OperationProvider from "./operation-provider";
 import ThemeProvider from "./theme-provider";
@@ -25,10 +25,8 @@ export default function AppContextProvider(props: PropsWithChildren) {
     const [ftpDirectory, setFtpDirectory] = useState<FtpDirectoryState>({ dir: " ", content: [] });
     const [localDirectory, setLocalDirectory] = useState<LocalDirectoryState>({ rootPath: "", dir: " ", content: [] });
     const [modifyLocalFile, setModifyLocalFile] = useState<LocalModifyElement[]>([]);
-    const [fileAction, setFileAction] = useState<FileActionMode>(null);
     const [modifyFtpFile, setModifyFtpFile] = useState<ModifyElement<FtpEntryType>[]>([]);
     const [ftpSelectionDir, setFtpSelectionDir] = useState<string>(" ");
-    const [dirSelected, setDirSelected] = useState<boolean>(false);
     const [viewMode, setViewMode] = useState<ListViewMode>("LARGE_ICONS");
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -52,14 +50,10 @@ export default function AppContextProvider(props: PropsWithChildren) {
         setLocalDirectory,
         modifyLocalFile,
         setModifyLocalFile,
-        fileAction,
-        setFileAction,
         modifyFtpFile,
         setModifyFtpFile,
         ftpSelectionDir,
         setFtpSelectionDir,
-        dirSelected,
-        setDirSelected,
         viewMode,
         setViewMode,
         isLoading,

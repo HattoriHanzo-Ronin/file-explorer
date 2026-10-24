@@ -5,17 +5,12 @@ import { useTheme } from "./theme-provider";
 import { appStyles } from "../styles/app/style";
 import type { BreadcrumbProps } from "../types/components";
 
-/**
- * Navigates through a directory path
- *
- * @author HattoriHanzo-Ronin
- */
 export default function Breadcrumb(props: BreadcrumbProps) {
     const { dir, onNavigate } = props;
     const { mode, theme } = useTheme();
     const app = appStyles[mode];
     const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
-    const paths = dir.split("/");
+    const paths = dir === " " ? [] : dir.split("/");
 
     return (
         <View style={app.breadcrumb}>
@@ -23,30 +18,37 @@ export default function Breadcrumb(props: BreadcrumbProps) {
                 ref={scrollRef}
                 horizontal
                 showsHorizontalScrollIndicator={false}
+                style={app.breadcrumbScroll}
+                contentContainerStyle={app.breadcrumbContent}
                 onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
             >
-                <Pressable onPress={() => onNavigate(" ")}>
-                    <Text style={app.breadcrumbText}>
-                        / {dir !== " " && <Ionicons name="chevron-forward-outline" color={theme.text} size={10} />}
-                    </Text>
-                </Pressable>
-                {paths.map((path, index) => (
-                    <Pressable
-                        key={`${path}${index}`}
-                        onPress={() => {
-                            if (index !== paths.length - 1) {
-                                onNavigate(paths.slice(0, index + 1).join("/"));
-                            }
-                        }}
-                    >
+                <View style={app.breadcrumbPath}>
+                    <Pressable onPress={() => onNavigate(" ")}>
                         <Text style={app.breadcrumbText}>
-                            {path}{" "}
-                            {path !== " " && index !== paths.length - 1 && (
+                            /{" "}
+                            {paths.length > 0 && (
                                 <Ionicons name="chevron-forward-outline" color={theme.text} size={10} />
                             )}
                         </Text>
                     </Pressable>
-                ))}
+                    {paths.map((path, index) => (
+                        <Pressable
+                            key={`${path}${index}`}
+                            onPress={() => {
+                                if (index !== paths.length - 1) {
+                                    onNavigate(paths.slice(0, index + 1).join("/"));
+                                }
+                            }}
+                        >
+                            <Text style={app.breadcrumbText}>
+                                {path}{" "}
+                                {index !== paths.length - 1 && (
+                                    <Ionicons name="chevron-forward-outline" color={theme.text} size={10} />
+                                )}
+                            </Text>
+                        </Pressable>
+                    ))}
+                </View>
             </ScrollView>
         </View>
     );

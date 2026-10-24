@@ -15,7 +15,9 @@ function createAppStyles(theme: ThemeColors, mode: ThemeMode) {
         headerButton: { padding: 6 },
         breadcrumb: {
             flex: 1,
+            minHeight: 42,
             flexDirection: "row",
+            justifyContent: "center",
             padding: 8,
             marginHorizontal: 2,
             marginVertical: 6,
@@ -48,7 +50,10 @@ function createAppStyles(theme: ThemeColors, mode: ThemeMode) {
             paddingVertical: 14
         },
         drawerUserName: { marginRight: 6, color: theme.text, fontSize: 18 },
-        breadcrumbText: { color: theme.text }
+        breadcrumbText: { color: theme.text, lineHeight: 22, includeFontPadding: false },
+        breadcrumbScroll: { flex: 1, minWidth: 1, minHeight: 22 },
+        breadcrumbContent: { minHeight: 22, alignItems: "center", justifyContent: "center" },
+        breadcrumbPath: { minHeight: 22, flexDirection: "row", alignItems: "center" }
     });
 }
 
