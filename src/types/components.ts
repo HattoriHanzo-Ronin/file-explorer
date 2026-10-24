@@ -1,6 +1,6 @@
 import type { PropsWithChildren } from "react";
 import type { ImageSourcePropType } from "react-native";
-import type { DirContent } from "./files";
+import type { DirContent, LocalDirectoryUpdate } from "./files";
 import type { FtpEntry } from "./ftp";
 import type { StorageType } from "./navigation";
 import type { ListViewMode } from "./ui";
@@ -44,3 +44,26 @@ export type DialogProps = PropsWithChildren<{
     onCancel: () => void;
     onAccept: () => void;
 }>;
+
+export interface BreadcrumbProps {
+    dir: string;
+    onNavigate: (dir: string) => void;
+}
+
+export type CreateDirectoryDialogProps =
+    | {
+          dir: string;
+          onClose: (cancelled: boolean) => void;
+          onCreated: (data: FtpEntry[]) => void;
+          rootPath: string;
+          storage: "ftp";
+          visible: boolean;
+      }
+    | {
+          dir: string;
+          onClose: (cancelled: boolean) => void;
+          onCreated: (data: LocalDirectoryUpdate[]) => void;
+          rootPath: string;
+          storage: "local";
+          visible: boolean;
+      };
