@@ -3,7 +3,7 @@ import type { ImageSourcePropType } from "react-native";
 import type { DirContent, LocalDirectoryUpdate } from "./files";
 import type { FtpEntry } from "./ftp";
 import type { StorageType } from "./navigation";
-import type { ListViewMode } from "./ui";
+import type { ListViewMode, OperationAction } from "./ui";
 
 export type FileContent = DirContent | FtpEntry;
 export type FileAction<T extends FileContent = FileContent> = (name: string, type: T["type"]) => void;
@@ -67,3 +67,9 @@ export type CreateDirectoryDialogProps =
           storage: "local";
           visible: boolean;
       };
+
+export interface DestinationOperationModalProps {
+    action: OperationAction;
+    onClose: () => void;
+    visible: boolean;
+}

@@ -20,7 +20,6 @@ import { appDialog } from "../../styles/components/style";
 export default function Local() {
     const {
         activeStorageRoot,
-        fileAction,
         isLoading,
         localDirectory,
         modifyLocalFile,
@@ -131,7 +130,7 @@ export default function Local() {
                             void openFile(name);
                         }
 
-                        if (modifyLocalFile.length > 0 && !fileAction) {
+                        if (modifyLocalFile.length > 0) {
                             setModifyLocalFile([]);
                         }
                     }}

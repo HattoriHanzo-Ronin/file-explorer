@@ -95,7 +95,6 @@ const AppHeader = (props: DrawerHeaderProps) => {
 const AppBreadcrumb = (props: { storage: StorageType }) => {
     const { storage } = props;
     const {
-        fileAction,
         ftpDirectory,
         localDirectory,
         modifyFtpFile,
@@ -109,7 +108,7 @@ const AppBreadcrumb = (props: { storage: StorageType }) => {
 
     function navigateTo(dir: string) {
         if (storage === "ftp") {
-            if (modifyFtpFile.length > 0 && !fileAction) {
+            if (modifyFtpFile.length > 0) {
                 setModifyFtpFile([]);
             }
 
@@ -117,7 +116,7 @@ const AppBreadcrumb = (props: { storage: StorageType }) => {
             return;
         }
 
-        if (modifyLocalFile.length > 0 && !fileAction) {
+        if (modifyLocalFile.length > 0) {
             setModifyLocalFile([]);
         }
 

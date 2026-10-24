@@ -144,3 +144,28 @@ export const loading = StyleSheet.create({
     image: { width: 200, height: 200 },
     backgroundImage: { opacity: 0.1 }
 });
+export const operationDestination = StyleSheet.create({
+    backdrop: { flex: 1, justifyContent: "center", padding: 16, backgroundColor: "rgba(0, 0, 0, 0.56)" },
+    container: { maxHeight: "88%", padding: 14, borderRadius: 12, borderWidth: 1 },
+    titleRow: { marginBottom: 16 },
+    title: { fontSize: 17, fontWeight: "700" },
+    label: { marginBottom: 6, fontSize: 13 },
+    storage: { flexDirection: "row", alignItems: "center", gap: 10, padding: 14, borderRadius: 10 },
+    storageText: { flex: 1, fontSize: 15, fontWeight: "600" },
+    roots: { marginTop: 4, borderWidth: 1, borderRadius: 8, overflow: "hidden" },
+    root: { paddingHorizontal: 14, paddingVertical: 10 },
+    rootText: { fontSize: 15 },
+    pathRow: { width: "100%", marginTop: 12 },
+    create: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 6, paddingVertical: 8 },
+    createText: { fontSize: 13, fontWeight: "600" },
+    directoryList: { height: 220, marginTop: 8, borderWidth: 1, borderRadius: 10, overflow: "hidden" },
+    directory: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14 },
+    directoryText: { flex: 1, fontSize: 15 },
+    loading: { flex: 1, minHeight: 150 },
+    footer: { marginTop: 4 },
+    actions: { flexDirection: "row", justifyContent: "flex-end", gap: 8 },
+    cancel: { paddingHorizontal: 14, paddingVertical: 10 },
+    cancelText: { fontWeight: "600" },
+    accept: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 8 },
+    acceptText: { color: "#ffffff", fontWeight: "700" }
+});

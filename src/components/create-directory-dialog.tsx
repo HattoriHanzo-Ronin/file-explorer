@@ -9,11 +9,6 @@ import { useOperationContext } from "./operation-provider";
 import AppDialog from "./dialog";
 import UiUtils from "../utils/ui-utils";
 
-/**
- * Creates a directory in a selected destination
- *
- * @author HattoriHanzo-Ronin
- */
 export default function CreateDirectoryDialog(props: CreateDirectoryDialogProps) {
     const { dir, onClose, onCreated, rootPath, storage, visible } = props;
     const { theme } = useTheme();

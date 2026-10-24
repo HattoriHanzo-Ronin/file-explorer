@@ -1,6 +1,5 @@
 import { ToastAndroid } from "react-native";
 import type { AppContextType } from "../types/context";
-import type { StorageType } from "../types/navigation";
 import type { MessageDuration, ValidationErrors } from "../types/ui";
 import type { ValidationErrorDetail } from "../types/response";
 import type { LocalDirectoryUpdate } from "../types/files";
@@ -72,50 +71,6 @@ export default class UiUtils {
     }
 
     /**
-     * Cancels the active file action and restores its source
-     *
-     * @param context Application context
-     * @returns Storage containing the original selection
-     */
-    static cancelFileAction(context: AppContextType): StorageType {
-        const {
-            externalRoots,
-            ftpSelectionDir,
-            internalRoot,
-            lastLocalDir,
-            lastLocalRootId,
-            setActiveStorageRoot,
-            setFtpDirectory,
-            setLocalDirectory
-        } = context;
-        const target = UiUtils.getFileActionSource(context);
-        if (target === "local") {
-            const roots = [internalRoot, ...externalRoots];
-            const root = roots.find(({ id }) => id === lastLocalRootId) ?? internalRoot;
-            setActiveStorageRoot(root);
-            setLocalDirectory((current) => ({ ...current, rootPath: root.path, dir: lastLocalDir }));
-        } else {
-            setFtpDirectory((current) => ({ ...current, dir: ftpSelectionDir }));
-        }
-
-        UiUtils.completeFileAction(context);
-        return target;
-    }
-
-    /**
-     * Clears the active file action and its selection
-     *
-     * @param context Application context
-     */
-    static completeFileAction(context: AppContextType): void {
-        const { setDirSelected, setFileAction, setModifyFtpFile, setModifyLocalFile } = context;
-        setFileAction(null);
-        setModifyFtpFile([]);
-        setModifyLocalFile([]);
-        setDirSelected((current) => !current);
-    }
-
-    /**
      * Displays a message when an action is blocked
      *
      * @param condition Whether the action is blocked
@@ -129,15 +84,6 @@ export default class UiUtils {
         }
 
         return false;
-    }
-
-    private static getFileActionSource(context: AppContextType): StorageType {
-        const { fileAction, modifyFtpFile } = context;
-        if (fileAction === "download" || (fileAction === "move" && modifyFtpFile.length > 0)) {
-            return "ftp";
-        }
-
-        return "local";
     }
 
     private static showOperationResult(result: Pick<FileOperationSnapshot, "error" | "operation" | "status">): void {

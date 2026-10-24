@@ -6,7 +6,6 @@ jest.mock("@react-native-vector-icons/ionicons", () => ({ Ionicons: () => null }
 jest.mock("../../src/components/app-context-provider", () => ({ useAppContext: jest.fn() }));
 jest.mock("../../src/components/operation-provider", () => ({ useOperationContext: jest.fn() }));
 jest.mock("../../src/components/theme-provider", () => ({ useTheme: () => ({ theme: {} }) }));
-jest.mock("../../src/utils/navigation-utils", () => ({ cancelFileAction: jest.fn() }));
 
 import { useAppContext } from "../../src/components/app-context-provider";
 import { useOperationContext } from "../../src/components/operation-provider";
@@ -18,7 +17,6 @@ test("allows independent renames while another is pending", async () => {
         ftpDirectory: { dir: " ", content: [] },
         modifyFtpFile: [],
         modifyLocalFile: [{ path: "/storage/first.txt", type: "file" }],
-        setDirSelected: jest.fn(),
         setFtpDirectory: jest.fn(),
         setLocalDirectory: jest.fn(),
         setModifyFtpFile: jest.fn(),
