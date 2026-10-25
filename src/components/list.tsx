@@ -205,13 +205,10 @@ function getThumbnailMode(
 export default function List<T extends FileContent>(props: ListProps<T>) {
     const { dirContent, doubleTapAction, longPressAction, oneTapAction, selectAll, storage } = props;
     const { theme } = useTheme();
-    const { localDirectory, modifyFtpFile, modifyLocalFile, activeStorageRoot, lastLocalDir, setViewMode, viewMode } =
-        useAppContext();
+    const { modifyFtpFile, modifyLocalFile, activeStorageRoot, lastLocalDir, setViewMode, viewMode } = useAppContext();
     const columnCount = getColumnCount(viewMode);
     const selectionCount = storage === "ftp" ? modifyFtpFile.length : modifyLocalFile.length;
-    const selectableCount = dirContent.filter(
-        ({ name }) => storage === "ftp" || localDirectory.dir !== "Android" || (name !== "data" && name !== "obb")
-    ).length;
+    const selectableCount = dirContent.length;
     const allSelected = selectableCount > 0 && selectionCount === selectableCount;
     const showSelectAll = selectionCount > 0;
 

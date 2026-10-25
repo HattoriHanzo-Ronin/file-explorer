@@ -43,7 +43,7 @@ export default class LocalFileManager {
      */
     async dir(rootPath: string, path: string): Promise<LocalResponse<{ entries: FileSystemEntry[]; version: string }>> {
         try {
-            const entries = await this.localFileOperation.readDir(this.absolutePath(rootPath, path));
+            const entries = await this.readDirectory(this.absolutePath(rootPath, path));
             const version = FileUtils.hashDirectory(entries);
             LocalFileManager.LOCAL_VERSION = version;
             return { success: true, data: { entries, version } };
@@ -65,7 +65,7 @@ export default class LocalFileManager {
         }
 
         try {
-            const entries = await this.localFileOperation.readDir(this.absolutePath(rootPath, path));
+            const entries = await this.readDirectory(this.absolutePath(rootPath, path));
             return { success: true, data: { version: FileUtils.hashDirectory(entries) } };
         } catch {
             return this.operationError("Error al comprobar la carpeta");
@@ -263,7 +263,7 @@ export default class LocalFileManager {
         const updates = await Promise.all(
             [...new Set(paths)].map(async (path) => {
                 try {
-                    return { path, entries: await this.localFileOperation.readDir(path) };
+                    return { path, entries: await this.readDirectory(path) };
                 } catch {
                     return null;
                 }
@@ -307,6 +307,15 @@ export default class LocalFileManager {
         }
 
         return { success: true, data: undefined };
+    }
+
+    private async readDirectory(path: string): Promise<FileSystemEntry[]> {
+        const entries = await this.localFileOperation.readDir(path);
+        if (path.substring(path.lastIndexOf("/") + 1) !== "Android") {
+            return entries;
+        }
+
+        return entries.filter(({ name }) => name !== "data" && name !== "obb");
     }
 
     private handleChange(operation: FileOperationSnapshot): void {

@@ -70,22 +70,6 @@ export default class UiUtils {
         return validationErrors;
     }
 
-    /**
-     * Displays a message when an action is blocked
-     *
-     * @param condition Whether the action is blocked
-     * @param message Blocked action message
-     * @returns Whether the action is blocked
-     */
-    static isActionBlocked(condition: boolean, message: string): boolean {
-        if (condition) {
-            UiUtils.showMessage(message);
-            return true;
-        }
-
-        return false;
-    }
-
     private static showOperationResult(result: Pick<FileOperationSnapshot, "error" | "operation" | "status">): void {
         const { error, operation, status } = result;
         if (status === "COMPLETED" && !["LOCAL_MKDIR", "LOCAL_RENAME"].includes(operation)) {

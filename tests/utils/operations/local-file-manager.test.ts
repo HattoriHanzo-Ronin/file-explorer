@@ -51,6 +51,19 @@ describe("LocalFileManager", () => {
         expect(localFileOperation.readDir).toHaveBeenCalledWith("/storage");
     });
 
+    it("hides protected Android directories from the listing", async () => {
+        const { localFileOperation, manager } = createManager();
+        localFileOperation.readDir.mockResolvedValue([
+            { name: "data", path: "/storage/Android/data", size: 0, isDirectory: () => true },
+            { name: "obb", path: "/storage/Android/obb", size: 0, isDirectory: () => true },
+            { name: "media", path: "/storage/Android/media", size: 0, isDirectory: () => true }
+        ]);
+        await expect(manager.dir("/storage", "Android")).resolves.toMatchObject({
+            success: true,
+            data: { entries: [{ name: "media" }] }
+        });
+    });
+
     it("creates a non-colliding directory name", async () => {
         const { localFileOperation, manager } = createManager();
         localFileOperation.tryCreateDirectory.mockResolvedValue(true);
