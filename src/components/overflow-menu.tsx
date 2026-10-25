@@ -2,18 +2,18 @@ import { useRef, useState } from "react";
 import { Ionicons } from "@react-native-vector-icons/ionicons";
 import { Modal, Pressable, Text, TextInput, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { useAppContext } from "../components/app-context-provider";
-import { useOperationContext } from "../components/operation-provider";
-import AppDialog from "../components/dialog";
-import CreateDirectoryDialog from "../components/create-directory-dialog";
-import OperationDestinationModal from "../components/operation-destination-modal";
+import { useAppContext } from "./app-context-provider";
+import { useOperationContext } from "./operation-provider";
+import AppDialog from "./dialog";
+import CreateDirectoryDialog from "./create-directory-dialog";
+import OperationDestinationModal from "./operation-destination-modal";
 import UiUtils from "../utils/ui-utils";
 import type { MenuProps, OverflowMenuProps } from "../types/menu";
 import type { OperationAction, ValidationErrors } from "../types/ui";
 import type { RenameEntryRequest } from "../types/ftp";
 import type { DrawerNavigation } from "../types/navigation";
 import { overflowMenu } from "../styles/components/style";
-import { useTheme } from "../components/theme-provider";
+import { useTheme } from "./theme-provider";
 import { FILE_OPERATION_COMPLETED_MESSAGES } from "../constants/file-operations";
 
 interface MenuItemProps {

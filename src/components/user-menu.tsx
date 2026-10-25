@@ -1,10 +1,10 @@
 import { Modal, Pressable, Text, TextInput, View } from "react-native";
 import React from "react";
-import { useAppContext } from "../components/app-context-provider";
-import { useOperationContext } from "../components/operation-provider";
+import { useAppContext } from "./app-context-provider";
+import { useOperationContext } from "./operation-provider";
 import { userMenu } from "../styles/components/style";
-import { useTheme } from "../components/theme-provider";
-import AppDialog from "../components/dialog";
+import { useTheme } from "./theme-provider";
+import AppDialog from "./dialog";
 import Ionicons from "@react-native-vector-icons/ionicons";
 import UiUtils from "../utils/ui-utils";
 import type { UpdatePasswordRequest, UpdateUsernameRequest } from "../types/users";

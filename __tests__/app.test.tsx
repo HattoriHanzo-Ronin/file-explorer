@@ -47,8 +47,8 @@ jest.mock("../src/components/theme-provider", () => ({
 
 jest.mock("../src/app/local/index", () => () => null);
 jest.mock("../src/app/ftp/index", () => () => null);
-jest.mock("../src/app/_overflow-menu", () => () => null);
-jest.mock("../src/app/_user-menu", () => () => null);
+jest.mock("../src/components/overflow-menu", () => () => null);
+jest.mock("../src/components/user-menu", () => () => null);
 jest.mock("../src/components/drawer-navigation-item", () => () => null);
 
 import App from "../app";
