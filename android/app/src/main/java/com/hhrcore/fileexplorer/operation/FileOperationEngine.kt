@@ -28,7 +28,10 @@ import java.io.RandomAccessFile
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 import java.util.UUID
 
 class FileOperationEngine(store: FileOperationStore, onChange: (FileOperationRecord) -> Unit, thumbnailCache: ThumbnailCache) {
@@ -41,7 +44,7 @@ class FileOperationEngine(store: FileOperationStore, onChange: (FileOperationRec
         .writeTimeout(10, TimeUnit.MINUTES)
         .retryOnConnectionFailure(true)
         .build()
-    private val calls = ConcurrentHashMap<String, Call>()
+    private val calls = ConcurrentHashMap<String, MutableSet<Call>>()
     private val cancelled = ConcurrentHashMap.newKeySet<String>()
     private val committing = ConcurrentHashMap.newKeySet<String>()
     private val cancellationLock = Any()
@@ -112,7 +115,7 @@ class FileOperationEngine(store: FileOperationStore, onChange: (FileOperationRec
         synchronized(cancellationLock) {
             if (!FileOperationRecord.isCancellable(record.operation) || committing.contains(id)) return
             cancelled.add(id)
-            calls[id]?.cancel()
+            calls[id]?.forEach(Call::cancel)
         }
     }
 
@@ -173,12 +176,15 @@ class FileOperationEngine(store: FileOperationStore, onChange: (FileOperationRec
         record.apiSessionId = session.getString("id")
         persist(record)
         val resolvedEntries = session.getJSONArray("entries")
-        for (index in 0 until entries.length()) {
-            val entry = entries.getJSONObject(index)
-            if (entry.getString("type") == "FILE") {
-                uploadFile(record, token, entry, safeRelativePath(resolvedEntries.getJSONObject(index).getString("path")))
+        val files = buildList {
+            for (index in 0 until entries.length()) {
+                val entry = entries.getJSONObject(index)
+                if (entry.getString("type") == "FILE") {
+                    add(entry to safeRelativePath(resolvedEntries.getJSONObject(index).getString("path")))
+                }
             }
         }
+        executeTransfers(record, files, MAX_UPLOAD_CONCURRENCY) { (entry, remotePath) -> uploadFile(record, token, entry, remotePath) }
         record.result = completeUpload(record, token)
         record.apiSessionId = null
     }
@@ -215,27 +221,32 @@ class FileOperationEngine(store: FileOperationStore, onChange: (FileOperationRec
     private fun uploadFile(record: FileOperationRecord, token: String, entry: JSONObject, remotePath: String) {
         val file = File(entry.getString("localPath"))
         val size = entry.getLong("size")
-        record.currentFileName = file.name
-        persist(record)
+        synchronized(record) {
+            record.currentFileName = file.name
+            persist(record)
+        }
         var offset = 0L
         do {
             checkCancelled(record.id)
             val length = minOf(CHUNK_SIZE, size - offset)
-            val transferredBeforeChunk = record.bytesTransferred
+            var sentBefore = 0L
             val body = MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart(
                 "file", File(remotePath).name,
                 FileSliceRequestBody(file, offset, length, entry.optString("mimeType", "application/octet-stream")) { sent ->
-                    record.bytesTransferred = transferredBeforeChunk + sent
-                    notifyProgress(record)
+                    val delta = sent - sentBefore
+                    sentBefore = sent
+                    addTransferredBytes(record, delta)
                 }
             ).build()
             val url = "${record.request.getString("apiUrl")}/ftp/uploads/${encode(record.apiSessionId!!)}/entries" +
                 "?path=${encode(remotePath)}&offset=$offset"
             val nextOffset = JSONObject(execute(record, token, Request.Builder().url(url).put(body).build())).getLong("nextOffset")
             if (nextOffset != offset + length) throw IllegalStateException("Offset de subida no válido")
-            record.bytesTransferred = transferredBeforeChunk + length
+            addTransferredBytes(record, length - sentBefore)
             offset = nextOffset
-            persist(record)
+            synchronized(record) {
+                persist(record)
+            }
         } while (offset < size)
     }
 
@@ -252,29 +263,34 @@ class FileOperationEngine(store: FileOperationStore, onChange: (FileOperationRec
         persist(record)
         val destination = File(request.getString("destination"))
         val roots = mutableMapOf<String, File>()
-        for (index in 0 until entries.length()) {
-            checkCancelled(record.id)
-            val entry = entries.getJSONObject(index)
-            val relativePath = safeRelativePath(entry.getString("path"))
-            val parts = relativePath.split("/")
-            val localRoot = roots.getOrPut(parts.first()) {
-                reserveOwnedPath(record, destination, parts.first(), parts.size > 1 || entry.getString("type") == "DIR")
-            }
-            val localFile = if (parts.size == 1) localRoot else File(localRoot, parts.drop(1).joinToString("/"))
-            if (entry.getString("type") == "DIR") {
-                if (!localFile.mkdirs() && !localFile.isDirectory) throw IllegalStateException("No se pudo crear ${localFile.path}")
-            } else {
-                val size = entry.getLong("size")
-                localFile.parentFile?.let { parent ->
-                    if (!parent.exists()) {
-                        if (!parent.mkdirs() && !parent.isDirectory) throw IllegalStateException("No se pudo crear ${parent.path}")
+        val files = buildList {
+            for (index in 0 until entries.length()) {
+                checkCancelled(record.id)
+                val entry = entries.getJSONObject(index)
+                val relativePath = safeRelativePath(entry.getString("path"))
+                val parts = relativePath.split("/")
+                val localRoot = roots.getOrPut(parts.first()) {
+                    reserveOwnedPath(record, destination, parts.first(), parts.size > 1 || entry.getString("type") == "DIR")
+                }
+                val localFile = if (parts.size == 1) localRoot else File(localRoot, parts.drop(1).joinToString("/"))
+                if (entry.getString("type") == "DIR") {
+                    if (!localFile.mkdirs() && !localFile.isDirectory) throw IllegalStateException("No se pudo crear ${localFile.path}")
+                } else {
+                    val size = entry.getLong("size")
+                    localFile.parentFile?.let { parent ->
+                        if (!parent.exists()) {
+                            if (!parent.mkdirs() && !parent.isDirectory) throw IllegalStateException("No se pudo crear ${parent.path}")
+                        }
                     }
+                    if (parts.size > 1 && !localFile.createNewFile()) {
+                        throw IllegalStateException("El archivo ya existe: ${localFile.path}")
+                    }
+                    add(DownloadFile(relativePath, localFile, size))
                 }
-                if (parts.size > 1 && !localFile.createNewFile()) {
-                    throw IllegalStateException("El archivo ya existe: ${localFile.path}")
-                }
-                downloadFile(record, token, relativePath, localFile, size)
             }
+        }
+        executeTransfers(record, files, MAX_DOWNLOAD_CONCURRENCY) { (remotePath, localFile, size) ->
+            downloadFile(record, token, remotePath, localFile, size)
         }
         record.bytesTransferred = record.totalBytes
         runCatching { cancelRemoteSession(record, token) }
@@ -289,42 +305,47 @@ class FileOperationEngine(store: FileOperationStore, onChange: (FileOperationRec
         destination: File,
         expectedSize: Long
     ) {
-        record.currentFileName = destination.name
-        persist(record)
+        synchronized(record) {
+            record.currentFileName = destination.name
+            persist(record)
+        }
         val url = "${record.request.getString("apiUrl")}/ftp/downloads/${encode(record.apiSessionId!!)}/entries" +
             "?path=${encode(remotePath)}&offset=0"
         val call = client.newCall(Request.Builder().url(url).get().header("Authorization", "Bearer $token").build())
-        calls[record.id] = call
-        call.execute().use { response ->
-            if (!response.isSuccessful) throw ApiException(response.body?.string(), response.code)
-            val contentLength = response.body?.contentLength() ?: -1L
-            if (contentLength >= 0 && contentLength != expectedSize) {
-                throw IllegalStateException("Tamaño de descarga no válido")
-            }
+        registerCall(record.id, call)
+        try {
+            call.execute().use { response ->
+                if (!response.isSuccessful) throw ApiException(response.body?.string(), response.code)
+                val contentLength = response.body?.contentLength() ?: -1L
+                if (contentLength >= 0 && contentLength != expectedSize) {
+                    throw IllegalStateException("Tamaño de descarga no válido")
+                }
 
-            val input = response.body?.byteStream() ?: throw IllegalStateException("Respuesta de descarga vacía")
-            var fileBytesTransferred = 0L
-            input.use {
-                destination.outputStream().buffered().use { output ->
-                    val buffer = ByteArray(BUFFER_SIZE)
-                    while (true) {
-                        checkCancelled(record.id)
-                        val read = input.read(buffer)
-                        if (read < 0) break
-                        if (fileBytesTransferred > expectedSize - read) {
-                            throw IllegalStateException("La descarga supera el tamaño declarado")
+                val input = response.body?.byteStream() ?: throw IllegalStateException("Respuesta de descarga vacía")
+                var fileBytesTransferred = 0L
+                input.use {
+                    destination.outputStream().buffered().use { output ->
+                        val buffer = ByteArray(BUFFER_SIZE)
+                        while (true) {
+                            checkCancelled(record.id)
+                            val read = input.read(buffer)
+                            if (read < 0) break
+                            if (fileBytesTransferred > expectedSize - read) {
+                                throw IllegalStateException("La descarga supera el tamaño declarado")
+                            }
+
+                            output.write(buffer, 0, read)
+                            fileBytesTransferred += read
+                            addTransferredBytes(record, read.toLong())
                         }
-
-                        output.write(buffer, 0, read)
-                        fileBytesTransferred += read
-                        record.bytesTransferred += read
-                        notifyProgress(record)
                     }
                 }
+                if (fileBytesTransferred != expectedSize) {
+                    throw IllegalStateException("La descarga terminó antes del tamaño declarado")
+                }
             }
-            if (fileBytesTransferred != expectedSize) {
-                throw IllegalStateException("La descarga terminó antes del tamaño declarado")
-            }
+        } finally {
+            unregisterCall(record.id, call)
         }
     }
 
@@ -347,12 +368,16 @@ class FileOperationEngine(store: FileOperationStore, onChange: (FileOperationRec
             .post(body.toString().toRequestBody(JSON_MEDIA_TYPE))
             .build()
         val call = client.newBuilder().readTimeout(0, TimeUnit.MILLISECONDS).build().newCall(httpRequest)
-        calls[record.id] = call
-        call.execute().use { response ->
-            val responseBody = response.body?.string().orEmpty()
-            if (!response.isSuccessful) throw ApiException(responseBody, response.code)
-            val version = response.header("Data-Version") ?: throw IllegalStateException("Falta la versión del directorio")
-            record.result = JSONObject().put("entries", JSONArray(responseBody)).put("version", version)
+        registerCall(record.id, call)
+        try {
+            call.execute().use { response ->
+                val responseBody = response.body?.string().orEmpty()
+                if (!response.isSuccessful) throw ApiException(responseBody, response.code)
+                val version = response.header("Data-Version") ?: throw IllegalStateException("Falta la versión del directorio")
+                record.result = JSONObject().put("entries", JSONArray(responseBody)).put("version", version)
+            }
+        } finally {
+            unregisterCall(record.id, call)
         }
     }
 
@@ -390,59 +415,63 @@ class FileOperationEngine(store: FileOperationStore, onChange: (FileOperationRec
         record.result = JSONObject().put("changes", changes)
         persist(record)
         val call = client.newCall(request.newBuilder().header("Authorization", "Bearer $token").build())
-        calls[record.id] = call
-        call.execute().use { response ->
-            if (!response.isSuccessful) throw ApiException(response.body?.string(), response.code)
-            val source = response.body?.source() ?: throw IllegalStateException("Respuesta de operación vacía")
-            var completed = 0
-            var complete = false
-            while (true) {
-                val line = source.readUtf8Line() ?: break
-                if (line.isBlank()) {
-                    continue
-                }
-
-                val event = JSONObject(line)
-                if (event.getString("event") == "complete") {
-                    if (complete || completed != expectedTotal) {
-                        throw IllegalStateException("Finalización remota no válida")
+        registerCall(record.id, call)
+        try {
+            call.execute().use { response ->
+                if (!response.isSuccessful) throw ApiException(response.body?.string(), response.code)
+                val source = response.body?.source() ?: throw IllegalStateException("Respuesta de operación vacía")
+                var completed = 0
+                var complete = false
+                while (true) {
+                    val line = source.readUtf8Line() ?: break
+                    if (line.isBlank()) {
+                        continue
                     }
 
-                    val version = event.getString("version")
-                    if (version.isEmpty()) {
-                        throw IllegalStateException("Versión remota no válida")
+                    val event = JSONObject(line)
+                    if (event.getString("event") == "complete") {
+                        if (complete || completed != expectedTotal) {
+                            throw IllegalStateException("Finalización remota no válida")
+                        }
+
+                        val version = event.getString("version")
+                        if (version.isEmpty()) {
+                            throw IllegalStateException("Versión remota no válida")
+                        }
+
+                        record.result?.put("version", version)
+                        complete = true
+                        persist(record)
+                        continue
                     }
 
-                    record.result?.put("version", version)
-                    complete = true
+                    if (event.getString("event") != "entry" || complete) {
+                        throw IllegalStateException("Evento remoto no válido")
+                    }
+
+                    val change = event
+                    val eventCompleted = change.getInt("completed")
+                    val eventTotal = change.getInt("total")
+                    if (eventTotal != expectedTotal || eventCompleted != completed + 1) {
+                        throw IllegalStateException("Progreso remoto no válido")
+                    }
+
+                    completed = eventCompleted
+                    changes.put(change)
+                    record.bytesTransferred = completed.toLong()
+                    if (record.operation == FileOperationRecord.OPERATION_REMOTE_MOVE) {
+                        record.currentFileName = change.optString("targetPath").takeIf { it.isNotEmpty() }
+                            ?: change.getString("path")
+                    }
+
                     persist(record)
-                    continue
                 }
-
-                if (event.getString("event") != "entry" || complete) {
-                    throw IllegalStateException("Evento remoto no válido")
+                if (!complete) {
+                    throw IllegalStateException("La operación remota terminó sin confirmar su versión")
                 }
-
-                val change = event
-                val eventCompleted = change.getInt("completed")
-                val eventTotal = change.getInt("total")
-                if (eventTotal != expectedTotal || eventCompleted != completed + 1) {
-                    throw IllegalStateException("Progreso remoto no válido")
-                }
-
-                completed = eventCompleted
-                changes.put(change)
-                record.bytesTransferred = completed.toLong()
-                if (record.operation == FileOperationRecord.OPERATION_REMOTE_MOVE) {
-                    record.currentFileName = change.optString("targetPath").takeIf { it.isNotEmpty() }
-                        ?: change.getString("path")
-                }
-
-                persist(record)
             }
-            if (!complete) {
-                throw IllegalStateException("La operación remota terminó sin confirmar su versión")
-            }
+        } finally {
+            unregisterCall(record.id, call)
         }
     }
 
@@ -933,18 +962,22 @@ class FileOperationEngine(store: FileOperationStore, onChange: (FileOperationRec
             .header("Authorization", "Bearer $token")
             .build()
         val call = client.newCall(request)
-        calls[record.id] = call
-        call.execute().use { response ->
-            val body = response.body?.string().orEmpty()
-            if (!response.isSuccessful) {
-                throw ApiException(body, response.code)
-            }
+        registerCall(record.id, call)
+        try {
+            call.execute().use { response ->
+                val body = response.body?.string().orEmpty()
+                if (!response.isSuccessful) {
+                    throw ApiException(body, response.code)
+                }
 
-            val version = response.header("Data-Version")
-                ?: throw IllegalStateException("Falta Data-Version en la subida")
-            return JSONObject()
-                .put("entries", JSONArray(body))
-                .put("version", version)
+                val version = response.header("Data-Version")
+                    ?: throw IllegalStateException("Falta Data-Version en la subida")
+                return JSONObject()
+                    .put("entries", JSONArray(body))
+                    .put("version", version)
+            }
+        } finally {
+            unregisterCall(record.id, call)
         }
     }
 
@@ -952,11 +985,15 @@ class FileOperationEngine(store: FileOperationStore, onChange: (FileOperationRec
         checkCancelled(record.id)
         val authorized = request.newBuilder().header("Authorization", "Bearer $token").build()
         val call = client.newCall(authorized)
-        calls[record.id] = call
-        call.execute().use { response ->
-            val body = response.body?.string().orEmpty()
-            if (!response.isSuccessful) throw ApiException(body, response.code)
-            return body
+        registerCall(record.id, call)
+        try {
+            call.execute().use { response ->
+                val body = response.body?.string().orEmpty()
+                if (!response.isSuccessful) throw ApiException(body, response.code)
+                return body
+            }
+        } finally {
+            unregisterCall(record.id, call)
         }
     }
 
@@ -1047,6 +1084,77 @@ class FileOperationEngine(store: FileOperationStore, onChange: (FileOperationRec
         return normalized
     }
 
+    private fun <T> executeTransfers(
+        record: FileOperationRecord,
+        entries: List<T>,
+        concurrency: Int,
+        transfer: (T) -> Unit
+    ) {
+        if (entries.isEmpty()) {
+            return
+        }
+
+        val nextEntry = AtomicInteger()
+        val failure = AtomicReference<Throwable?>(null)
+        val workers = List(minOf(concurrency, entries.size)) {
+            REMOTE_TRANSFER_EXECUTOR.submit {
+                while (failure.get() == null) {
+                    checkCancelled(record.id)
+                    val index = nextEntry.getAndIncrement()
+                    if (index >= entries.size) {
+                        return@submit
+                    }
+
+                    try {
+                        transfer(entries[index])
+                    } catch (error: Throwable) {
+                        if (failure.compareAndSet(null, error)) {
+                            cancelCalls(record.id)
+                        }
+                        return@submit
+                    }
+                }
+            }
+        }
+        workers.forEach { worker ->
+            try {
+                worker.get()
+            } catch (error: Throwable) {
+                if (failure.compareAndSet(null, error)) {
+                    cancelCalls(record.id)
+                }
+            }
+        }
+        failure.get()?.let { throw it }
+        checkCancelled(record.id)
+    }
+
+    private fun registerCall(operationId: String, call: Call) {
+        calls.computeIfAbsent(operationId) { ConcurrentHashMap.newKeySet() }.add(call)
+        if (cancelled.contains(operationId)) {
+            call.cancel()
+        }
+    }
+
+    private fun unregisterCall(operationId: String, call: Call) {
+        calls[operationId]?.remove(call)
+    }
+
+    private fun cancelCalls(operationId: String) {
+        calls[operationId]?.forEach(Call::cancel)
+    }
+
+    private fun addTransferredBytes(record: FileOperationRecord, bytes: Long) {
+        if (bytes <= 0) {
+            return
+        }
+
+        synchronized(record) {
+            record.bytesTransferred += bytes
+            notifyProgress(record)
+        }
+    }
+
     private fun notifyProgress(record: FileOperationRecord) {
         val now = System.currentTimeMillis()
         val previous = lastProgressAt[record.id] ?: 0L
@@ -1067,6 +1175,8 @@ class FileOperationEngine(store: FileOperationStore, onChange: (FileOperationRec
 
     private fun requireToken(token: String?): String = token
         ?: throw IllegalArgumentException("Falta el token de acceso")
+
+    private data class DownloadFile(val remotePath: String, val destination: File, val size: Long)
 
     private class FileSliceRequestBody(
         private val file: File,
@@ -1108,11 +1218,15 @@ class FileOperationEngine(store: FileOperationStore, onChange: (FileOperationRec
         private const val LOG_TAG = "FileOperationEngine"
         private const val CHUNK_SIZE = 90L * 1024 * 1024
         private const val BUFFER_SIZE = 64 * 1024
+        private const val MAX_DOWNLOAD_CONCURRENCY = 3
+        private const val MAX_REMOTE_CONCURRENCY = 4
+        private const val MAX_UPLOAD_CONCURRENCY = 3
         private const val PROGRESS_INTERVAL = 1000L
         private const val MOVE_DELETE_ATTEMPTS = 3
         private const val MOVE_DELETE_RETRY_DELAY = 200L
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
         private val EMPTY_BODY = ByteArray(0).toRequestBody(null)
+        private val REMOTE_TRANSFER_EXECUTOR = Executors.newFixedThreadPool(MAX_REMOTE_CONCURRENCY)
         private fun encode(value: String): String = URLEncoder.encode(value, StandardCharsets.UTF_8.toString())
     }
 }
