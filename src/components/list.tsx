@@ -40,15 +40,31 @@ const FILE_ICONS: FileIcons = {
     system: require("../../assets/images/system.png")
 };
 const THUMBNAIL_RETRY_TIME = 2000;
+const MAX_TAP_DISTANCE = 10;
 const DEFAULT_THUMBNAIL: ThumbnailState = { isLoading: false, source: null };
 const LOADING_THUMBNAIL: ThumbnailState = { isLoading: true, source: null };
 
 function ContentCard(props: ContentCardProps) {
     const { content, doubleTapAction, longPressAction, oneTapAction, selected, storage, viewMode } = props;
     const { theme } = useTheme();
-    const tap = useTapGesture({ numberOfTaps: 1, onActivate: oneTapAction, runOnJS: true });
-    const doubleTap = useTapGesture({ numberOfTaps: 2, onActivate: doubleTapAction, runOnJS: true });
-    const longPress = useLongPressGesture({ minDuration: 200, onActivate: longPressAction, runOnJS: true });
+    const tap = useTapGesture({
+        maxDistance: MAX_TAP_DISTANCE,
+        numberOfTaps: 1,
+        onActivate: oneTapAction,
+        runOnJS: true
+    });
+    const doubleTap = useTapGesture({
+        maxDistance: MAX_TAP_DISTANCE,
+        numberOfTaps: 2,
+        onActivate: doubleTapAction,
+        runOnJS: true
+    });
+    const longPress = useLongPressGesture({
+        maxDistance: MAX_TAP_DISTANCE,
+        minDuration: 200,
+        onActivate: longPressAction,
+        runOnJS: true
+    });
     const gestures = useExclusiveGestures(doubleTap, tap, longPress);
 
     return (
