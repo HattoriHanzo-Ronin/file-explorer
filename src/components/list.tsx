@@ -152,7 +152,9 @@ function useContentThumbnail(content: FileContent, storage: "local" | "ftp", fil
             const { headers, status, uri } = result.data;
             if (status === "AVAILABLE" && uri) {
                 setThumbnail({ isLoading: false, source: { uri, headers } });
-            } else if (status === "PENDING") {
+            }
+
+            if (status === "PENDING") {
                 retry = setTimeout(() => void loadFtpThumbnail(), THUMBNAIL_RETRY_TIME);
             }
         }
@@ -170,7 +172,9 @@ function useContentThumbnail(content: FileContent, storage: "local" | "ftp", fil
                     }
                 }
             );
-        } else if (mode === "FTP") {
+        }
+
+        if (mode === "FTP") {
             void loadFtpThumbnail();
         }
 

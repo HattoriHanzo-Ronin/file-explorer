@@ -4,7 +4,11 @@ import { ActivityIndicator, Modal, Pressable, ScrollView, Text, View } from "rea
 import { useAppContext } from "./app-context-provider";
 import { useOperationContext } from "./operation-provider";
 import { useTheme } from "./theme-provider";
-import type { DestinationOperationModalProps } from "../types/components";
+import type {
+    DestinationDirectoryListProps,
+    DestinationOperationModalProps,
+    DestinationStoragePickerProps
+} from "../types/components";
 import type { FileSystemEntry, LocalDirectoryUpdate, StorageRoot } from "../types/files";
 import type { FtpEntry } from "../types/ftp";
 import { operationDestination } from "../styles/components/style";
@@ -12,8 +16,113 @@ import UiUtils from "../utils/ui-utils";
 import Breadcrumb from "./breadcrumb";
 import CreateDirectoryDialog from "./create-directory-dialog";
 
+const ACTION_LABELS: Record<DestinationOperationModalProps["action"], string> = {
+    copy: "Copiar",
+    download: "Descargar",
+    move: "Mover",
+    upload: "Subir"
+};
+
+function DestinationStoragePicker(props: DestinationStoragePickerProps) {
+    const { onSelectRoot, onToggleRoots, remoteDestination, root, roots, showRoots } = props;
+    const { theme } = useTheme();
+
+    return (
+        <>
+            <Text style={[operationDestination.label, { color: theme.textMuted }]}>Almacenamiento</Text>
+            <Pressable
+                disabled={remoteDestination}
+                style={[operationDestination.storage, { backgroundColor: theme.surfaceMuted }]}
+                onPress={onToggleRoots}
+            >
+                <Ionicons
+                    name={remoteDestination ? "cloud-outline" : "phone-portrait-outline"}
+                    color={theme.text}
+                    size={18}
+                />
+                <Text style={[operationDestination.storageText, { color: theme.text }]}>
+                    {remoteDestination ? "Red" : root.name}
+                </Text>
+                {!remoteDestination && <Ionicons name="chevron-down" color={theme.text} size={18} />}
+            </Pressable>
+            {showRoots && (
+                <View
+                    style={[operationDestination.roots, { backgroundColor: theme.surface, borderColor: theme.border }]}
+                >
+                    {roots.map((item) => (
+                        <Pressable key={item.id} style={operationDestination.root} onPress={() => onSelectRoot(item)}>
+                            <Text style={[operationDestination.rootText, { color: theme.text }]}>{item.name}</Text>
+                        </Pressable>
+                    ))}
+                </View>
+            )}
+        </>
+    );
+}
+
+function DestinationDirectoryList(props: DestinationDirectoryListProps) {
+    const { directories, isLoading, onNavigateToParent, onOpenDirectory } = props;
+    const { theme } = useTheme();
+
+    return (
+        <View style={[operationDestination.directoryList, { borderColor: theme.border }]}>
+            {isLoading ? (
+                <ActivityIndicator color={theme.accent} size="large" style={operationDestination.loading} />
+            ) : (
+                <ScrollView>
+                    <Pressable style={operationDestination.directory} onPress={onNavigateToParent}>
+                        <Ionicons name="arrow-up-outline" color={theme.textMuted} size={18} />
+                        <Text style={[operationDestination.directoryText, { color: theme.text }]}>
+                            ..{" "}
+                            <Text style={[operationDestination.parentDirectoryText, { color: theme.textMuted }]}>
+                                (Carpeta anterior)
+                            </Text>
+                        </Text>
+                    </Pressable>
+                    {directories.map((name) => (
+                        <Pressable
+                            key={name}
+                            style={operationDestination.directory}
+                            onPress={() => onOpenDirectory(name)}
+                        >
+                            <Ionicons name="folder-outline" color={theme.textMuted} size={18} />
+                            <Text style={[operationDestination.directoryText, { color: theme.text }]}>{name}</Text>
+                            <Ionicons name="chevron-forward" color={theme.textMuted} size={18} />
+                        </Pressable>
+                    ))}
+                </ScrollView>
+            )}
+        </View>
+    );
+}
+
+function isRemoteDestination(action: DestinationOperationModalProps["action"], ftpEntryCount: number): boolean {
+    if (action === "upload") {
+        return true;
+    }
+
+    return action === "move" && ftpEntryCount > 0;
+}
+
+function getDirectories(entries: FtpEntry[] | FileSystemEntry[], remote: boolean): string[] {
+    if (remote) {
+        return (entries as FtpEntry[]).filter(({ type }) => type === "DIR").map(({ name }) => name);
+    }
+
+    return (entries as FileSystemEntry[]).filter((entry) => entry.isDirectory()).map(({ name }) => name);
+}
+
 export default function OperationDestinationModal(props: DestinationOperationModalProps) {
-    const { acceptDisabled = false, acceptText, action, onCancel, onClose, onOperationFinished, selectedCount, visible } = props;
+    const {
+        acceptDisabled = false,
+        acceptText,
+        action,
+        onCancel,
+        onClose,
+        onOperationFinished,
+        selectedCount,
+        visible
+    } = props;
     const {
         externalRoots,
         ftpSelectionDir,
@@ -27,7 +136,7 @@ export default function OperationDestinationModal(props: DestinationOperationMod
     } = useAppContext();
     const { executeApiRequest, executeLocalRequest } = useOperationContext();
     const { theme } = useTheme();
-    const isRemoteDestination = action === "upload" || (action === "move" && modifyFtpFile.length > 0);
+    const remoteDestination = isRemoteDestination(action, modifyFtpFile.length);
     const [root, setRoot] = useState<StorageRoot>(() => internalRoot);
     const [dir, setDir] = useState<string>(" ");
     const [entries, setEntries] = useState<FtpEntry[] | FileSystemEntry[]>([]);
@@ -39,7 +148,7 @@ export default function OperationDestinationModal(props: DestinationOperationMod
     const loadDirectory = useCallback(async () => {
         setIsLoading(true);
         try {
-            if (isRemoteDestination) {
+            if (remoteDestination) {
                 const result = await executeApiRequest((apiUtils) => apiUtils.getDirectory(dir), {
                     isBackground: true
                 });
@@ -60,7 +169,7 @@ export default function OperationDestinationModal(props: DestinationOperationMod
             setIsLoading(false);
             isNavigating.current = false;
         }
-    }, [dir, executeApiRequest, executeLocalRequest, isRemoteDestination, root.path]);
+    }, [dir, executeApiRequest, executeLocalRequest, remoteDestination, root.path]);
 
     useEffect(() => {
         if (visible) {
@@ -213,7 +322,7 @@ export default function OperationDestinationModal(props: DestinationOperationMod
     }
 
     function updateCreatedDirectory(content: FtpEntry[] | LocalDirectoryUpdate[]) {
-        if (isRemoteDestination) {
+        if (remoteDestination) {
             setEntries(content as FtpEntry[]);
             return;
         }
@@ -225,13 +334,10 @@ export default function OperationDestinationModal(props: DestinationOperationMod
         }
     }
 
-    const directories = isRemoteDestination
-        ? (entries as FtpEntry[]).filter(({ type }) => type === "DIR").map(({ name }) => name)
-        : (entries as FileSystemEntry[]).filter((entry) => entry.isDirectory()).map(({ name }) => name);
+    const directories = getDirectories(entries, remoteDestination);
     const roots = [internalRoot, ...externalRoots];
     const operationSelectedCount = selectedCount ?? (modifyLocalFile.length || modifyFtpFile.length);
-    const actionLabel =
-        action === "upload" ? "Subir" : action === "download" ? "Descargar" : action === "copy" ? "Copiar" : "Mover";
+    const actionLabel = ACTION_LABELS[action];
 
     return (
         <Modal animationType="fade" transparent visible={visible} onRequestClose={cancel}>
@@ -244,75 +350,27 @@ export default function OperationDestinationModal(props: DestinationOperationMod
                 >
                     <View style={operationDestination.titleRow}>
                         <Text style={[operationDestination.title, { color: theme.text }]}>
-                            {actionLabel} {operationSelectedCount} {operationSelectedCount === 1 ? "archivo" : "archivos"}
+                            {actionLabel} {operationSelectedCount}{" "}
+                            {operationSelectedCount === 1 ? "archivo" : "archivos"}
                         </Text>
                     </View>
-                    <Text style={[operationDestination.label, { color: theme.textMuted }]}>Almacenamiento</Text>
-                    <Pressable
-                        disabled={isRemoteDestination}
-                        style={[operationDestination.storage, { backgroundColor: theme.surfaceMuted }]}
-                        onPress={() => setShowRoots((current) => !current)}
-                    >
-                        <Ionicons
-                            name={isRemoteDestination ? "cloud-outline" : "phone-portrait-outline"}
-                            color={theme.text}
-                            size={18}
-                        />
-                        <Text style={[operationDestination.storageText, { color: theme.text }]}>
-                            {isRemoteDestination ? "Red" : root.name}
-                        </Text>
-                        {!isRemoteDestination && <Ionicons name="chevron-down" color={theme.text} size={18} />}
-                    </Pressable>
-                    {showRoots && (
-                        <View
-                            style={[
-                                operationDestination.roots,
-                                { backgroundColor: theme.surface, borderColor: theme.border }
-                            ]}
-                        >
-                            {roots.map((item) => (
-                                <Pressable
-                                    key={item.id}
-                                    style={operationDestination.root}
-                                    onPress={() => selectRoot(item)}
-                                >
-                                    <Text style={[operationDestination.rootText, { color: theme.text }]}>
-                                        {item.name}
-                                    </Text>
-                                </Pressable>
-                            ))}
-                        </View>
-                    )}
+                    <DestinationStoragePicker
+                        remoteDestination={remoteDestination}
+                        root={root}
+                        roots={roots}
+                        showRoots={showRoots}
+                        onSelectRoot={selectRoot}
+                        onToggleRoots={() => setShowRoots((current) => !current)}
+                    />
                     <View style={operationDestination.pathRow}>
                         <Breadcrumb dir={dir} onNavigate={navigateTo} />
                     </View>
-                    <View style={[operationDestination.directoryList, { borderColor: theme.border }]}>
-                        {isLoading ? (
-                            <ActivityIndicator color={theme.accent} size="large" style={operationDestination.loading} />
-                        ) : (
-                            <ScrollView>
-                                <Pressable style={operationDestination.directory} onPress={navigateToParent}>
-                                    <Ionicons name="arrow-up-outline" color={theme.textMuted} size={18} />
-                                    <Text style={[operationDestination.directoryText, { color: theme.text }]}>
-                                        .. <Text style={{ color: theme.textMuted }}>(Carpeta anterior)</Text>
-                                    </Text>
-                                </Pressable>
-                                {directories.map((name) => (
-                                    <Pressable
-                                        key={name}
-                                        style={operationDestination.directory}
-                                        onPress={() => openDirectory(name)}
-                                    >
-                                        <Ionicons name="folder-outline" color={theme.textMuted} size={18} />
-                                        <Text style={[operationDestination.directoryText, { color: theme.text }]}>
-                                            {name}
-                                        </Text>
-                                        <Ionicons name="chevron-forward" color={theme.textMuted} size={18} />
-                                    </Pressable>
-                                ))}
-                            </ScrollView>
-                        )}
-                    </View>
+                    <DestinationDirectoryList
+                        directories={directories}
+                        isLoading={isLoading}
+                        onNavigateToParent={navigateToParent}
+                        onOpenDirectory={openDirectory}
+                    />
                     <View style={operationDestination.footer}>
                         <Pressable style={operationDestination.create} onPress={() => setShowCreateDirectory(true)}>
                             <Ionicons name="folder-open-outline" color={theme.text} size={18} />
@@ -335,25 +393,14 @@ export default function OperationDestinationModal(props: DestinationOperationMod
                     </View>
                 </View>
             </View>
-            {isRemoteDestination ? (
-                <CreateDirectoryDialog
-                    visible={showCreateDirectory}
-                    storage="ftp"
-                    rootPath={root.path}
-                    dir={dir}
-                    onClose={() => setShowCreateDirectory(false)}
-                    onCreated={updateCreatedDirectory}
-                />
-            ) : (
-                <CreateDirectoryDialog
-                    visible={showCreateDirectory}
-                    storage="local"
-                    rootPath={root.path}
-                    dir={dir}
-                    onClose={() => setShowCreateDirectory(false)}
-                    onCreated={updateCreatedDirectory}
-                />
-            )}
+            <CreateDirectoryDialog
+                visible={showCreateDirectory}
+                storage={remoteDestination ? "ftp" : "local"}
+                rootPath={root.path}
+                dir={dir}
+                onClose={() => setShowCreateDirectory(false)}
+                onCreated={updateCreatedDirectory}
+            />
         </Modal>
     );
 }

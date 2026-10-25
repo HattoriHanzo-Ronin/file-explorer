@@ -6,7 +6,13 @@ import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.uimanager.ViewManager
 import com.hhrcore.fileexplorer.dependencies.NativeDependencies
 
-class ThumbnailGeneratorPackage(private val dependencies: NativeDependencies) : ReactPackage {
+class ThumbnailGeneratorPackage(dependencies: NativeDependencies) : ReactPackage {
+    private val dependencies: NativeDependencies
+
+    init {
+        this.dependencies = dependencies
+    }
+
 
     override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> {
         return listOf(ThumbnailGeneratorModule(reactContext, dependencies.createThumbnailCache()))

@@ -4,20 +4,26 @@ import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
-import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.bridge.Arguments
+import com.facebook.react.bridge.ReadableMap
 import com.hhrcore.fileexplorer.dependencies.NativeDependencies
 import com.hhrcore.fileexplorer.thumbnail.ThumbnailCache
 import org.json.JSONObject
 import java.io.File
 import java.util.UUID
 
-class FileOperationModule(
-    private val context: ReactApplicationContext,
+class FileOperationModule(context: ReactApplicationContext, dependencies: NativeDependencies) : ReactContextBaseJavaModule(context) {
+    private val context: ReactApplicationContext
     private val dependencies: NativeDependencies
-) : ReactContextBaseJavaModule(context) {
-    private val store: OperationStore = dependencies.createOperationStore()
-    private val thumbnailCache: ThumbnailCache = dependencies.createThumbnailCache()
+    private val store: OperationStore
+    private val thumbnailCache: ThumbnailCache
+
+    init {
+        this.context = context
+        this.dependencies = dependencies
+        store = dependencies.createOperationStore()
+        thumbnailCache = dependencies.createThumbnailCache()
+    }
 
     override fun getName() = "FileOperation"
 
@@ -26,16 +32,19 @@ class FileOperationModule(
         Thread {
             try {
                 val directory = File(path)
-                if (!directory.isDirectory) throw IllegalArgumentException("La ruta no es una carpeta")
+                if (!directory.isDirectory) {
+                    throw IllegalArgumentException("La ruta no es una carpeta")
+                }
+
                 thumbnailCache.reconcileDirectory(directory)
                 val entries = Arguments.createArray().apply {
                     directory.listFiles()?.forEach { entry ->
                         pushMap(Arguments.createMap().apply {
-                        putString("name", entry.name)
-                        putString("path", entry.absolutePath)
-                        putDouble("size", entry.length().toDouble())
-                        putDouble("mtime", entry.lastModified().toDouble())
-                        putBoolean("isDirectory", entry.isDirectory)
+                            putString("name", entry.name)
+                            putString("path", entry.absolutePath)
+                            putDouble("size", entry.length().toDouble())
+                            putDouble("mtime", entry.lastModified().toDouble())
+                            putBoolean("isDirectory", entry.isDirectory)
                         })
                     }
                 }
@@ -55,6 +64,7 @@ class FileOperationModule(
                 promise.resolve(false)
                 return
             }
+
             AtomicFiles.reserve(folder, name, true, owner)
             promise.resolve(true)
         } catch (error: Throwable) {
@@ -75,6 +85,7 @@ class FileOperationModule(
                 promise.resolve(false)
                 return
             }
+
             val snapshot = thumbnailCache.snapshot(source)
             val target = AtomicFiles.rename(source, destination, name, owner)
             thumbnailCache.move(snapshot, source, target)

@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.SharedPreferences
 import android.os.Build
 import android.os.Environment
 import android.os.Handler
@@ -19,11 +20,12 @@ import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.modules.core.DeviceEventManagerModule
 import java.io.File
 
-class StorageVolumeModule(private val context: ReactApplicationContext) : ReactContextBaseJavaModule(context),
+class StorageVolumeModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext),
     LifecycleEventListener {
+    private val context: ReactApplicationContext
     private val handler = Handler(Looper.getMainLooper())
-    private val storageManager = context.getSystemService(StorageManager::class.java)
-    private val volumeNames = context.getSharedPreferences(VOLUME_NAMES_STORAGE, Context.MODE_PRIVATE)
+    private val storageManager: StorageManager
+    private val volumeNames: SharedPreferences
     private var externalStorageName = ""
     private val emitVolumesTask = Runnable { emitVolumes() }
     private val receiver = object : BroadcastReceiver() {
@@ -35,6 +37,12 @@ class StorageVolumeModule(private val context: ReactApplicationContext) : ReactC
         }
     } else {
         null
+    }
+
+    init {
+        context = reactContext
+        storageManager = context.getSystemService(StorageManager::class.java)
+        volumeNames = context.getSharedPreferences(VOLUME_NAMES_STORAGE, Context.MODE_PRIVATE)
     }
 
     override fun getName() = "StorageVolume"
@@ -57,6 +65,7 @@ class StorageVolumeModule(private val context: ReactApplicationContext) : ReactC
         } else {
             context.registerReceiver(receiver, filter)
         }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             storageVolumeCallback?.let { storageManager.registerStorageVolumeCallback(context.mainExecutor, it) }
         }
@@ -69,6 +78,7 @@ class StorageVolumeModule(private val context: ReactApplicationContext) : ReactC
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             storageVolumeCallback?.let(storageManager::unregisterStorageVolumeCallback)
         }
+
         super.invalidate()
     }
 
@@ -95,7 +105,10 @@ class StorageVolumeModule(private val context: ReactApplicationContext) : ReactC
     fun removeListeners(count: Double) = Unit
 
     private fun emitVolumes() {
-        if (!context.hasActiveReactInstance() || externalStorageName.isEmpty()) return
+        if (!context.hasActiveReactInstance() || externalStorageName.isEmpty()) {
+            return
+        }
+
         context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
             .emit(EVENT_NAME, externalRoots())
     }

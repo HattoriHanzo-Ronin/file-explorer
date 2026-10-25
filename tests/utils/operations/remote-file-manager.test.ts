@@ -25,12 +25,7 @@ function createManager() {
     };
     return {
         listener: () => listener,
-        manager: new RemoteFileManager(
-            remoteFileOperation as never,
-            storage,
-            permission,
-            "https://api.example.test"
-        ),
+        manager: new RemoteFileManager(remoteFileOperation as never, storage, permission, "https://api.example.test"),
         permission,
         remoteFileOperation,
         storage
@@ -127,7 +122,10 @@ describe("RemoteFileManager", () => {
             );
             return "upload-1";
         });
-        await expect(manager.upload(entries, " ")).resolves.toEqual({ success: true, data: { entries: [], version: "10" } });
+        await expect(manager.upload(entries, " ")).resolves.toEqual({
+            success: true,
+            data: { entries: [], version: "10" }
+        });
         expect(remoteFileOperation.startUpload).toHaveBeenCalledWith(expect.objectContaining({ entries }));
     });
 

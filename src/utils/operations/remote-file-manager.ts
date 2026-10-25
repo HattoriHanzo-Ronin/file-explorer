@@ -37,12 +37,7 @@ export default class RemoteFileManager {
     private readonly completionListeners = new Map<string, (operation: FileOperationSnapshot) => void>();
     private readonly completedOperations = new Map<string, FileOperationSnapshot>();
 
-    constructor(
-        remoteFileOperation: RemoteFileOperation,
-        storage: Storage,
-        permission: Permission,
-        apiUrl: string
-    ) {
+    constructor(remoteFileOperation: RemoteFileOperation, storage: Storage, permission: Permission, apiUrl: string) {
         this.remoteFileOperation = remoteFileOperation;
         this.storage = storage;
         this.permission = permission;
@@ -383,7 +378,9 @@ export default class RemoteFileManager {
         if (completionListener) {
             this.completionListeners.delete(id);
             completionListener(operation);
-        } else if (notifyError) {
+        }
+
+        if (!completionListener && notifyError) {
             this.completedOperations.set(id, operation);
         }
     }

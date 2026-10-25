@@ -1,9 +1,26 @@
 import type { PropsWithChildren } from "react";
+import type { DrawerContentComponentProps } from "@react-navigation/drawer";
 import type { ImageSourcePropType } from "react-native";
-import type { DirContent, LocalDirectoryUpdate } from "./files";
+import type { DirContent, LocalDirectoryUpdate, StorageRoot } from "./files";
 import type { FtpEntry } from "./ftp";
 import type { StorageType } from "./navigation";
 import type { ListViewMode, OperationAction } from "./ui";
+
+export interface SharedFilesReceiverProps {
+    onRequireLogin: () => void;
+}
+
+export interface DrawerNavigationItemProps {
+    navigation: DrawerContentComponentProps["navigation"];
+    root?: StorageRoot;
+    storage: "local" | "ftp";
+}
+
+export interface UserMenuProps {
+    visible: boolean;
+    onClose: () => void;
+    onLogout: () => void;
+}
 
 export type FileContent = DirContent | FtpEntry;
 export type FileAction<T extends FileContent = FileContent> = (name: string, type: T["type"]) => void;
@@ -77,4 +94,20 @@ export interface DestinationOperationModalProps {
     onOperationFinished?: () => void;
     selectedCount?: number;
     visible: boolean;
+}
+
+export interface DestinationStoragePickerProps {
+    remoteDestination: boolean;
+    root: StorageRoot;
+    roots: StorageRoot[];
+    showRoots: boolean;
+    onSelectRoot: (root: StorageRoot) => void;
+    onToggleRoots: () => void;
+}
+
+export interface DestinationDirectoryListProps {
+    directories: string[];
+    isLoading: boolean;
+    onOpenDirectory: (name: string) => void;
+    onNavigateToParent: () => void;
 }

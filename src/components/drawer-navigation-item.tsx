@@ -1,16 +1,9 @@
-import type { DrawerContentComponentProps } from "@react-navigation/drawer";
 import { Pressable, Text } from "react-native";
 import { useAppContext } from "./app-context-provider";
 import { useTheme } from "./theme-provider";
-import type { StorageRoot } from "../types/files";
+import type { DrawerNavigationItemProps } from "../types/components";
 import { appStyles } from "../styles/app/style";
 import { handleNavigationPress, openStorage } from "../utils/navigation-utils";
-
-interface DrawerNavigationItemProps {
-    navigation: DrawerContentComponentProps["navigation"];
-    root?: StorageRoot;
-    storage: "local" | "ftp";
-}
 
 export default function DrawerNavigationItem(props: DrawerNavigationItemProps) {
     const { navigation, root, storage } = props;

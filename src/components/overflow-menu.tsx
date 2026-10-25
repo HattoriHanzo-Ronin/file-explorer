@@ -8,18 +8,14 @@ import AppDialog from "./dialog";
 import CreateDirectoryDialog from "./create-directory-dialog";
 import OperationDestinationModal from "./operation-destination-modal";
 import UiUtils from "../utils/ui-utils";
-import type { MenuProps, OverflowMenuProps } from "../types/menu";
+import type { MenuItemProps, MenuProps, OverflowMenuProps } from "../types/menu";
 import type { OperationAction, ValidationErrors } from "../types/ui";
 import type { RenameEntryRequest } from "../types/ftp";
 import type { DrawerNavigation } from "../types/navigation";
+import type { ValidationErrorDetail } from "../types/response";
 import { overflowMenu } from "../styles/components/style";
 import { useTheme } from "./theme-provider";
 import { FILE_OPERATION_COMPLETED_MESSAGES } from "../constants/file-operations";
-
-interface MenuItemProps {
-    title: string;
-    onPress: () => void;
-}
 
 function MenuItem(props: MenuItemProps) {
     const { onPress, title } = props;
@@ -55,13 +51,65 @@ export const RenameMenu = (props: MenuProps & { onFinish: () => void }) => {
     const localEntry = useRef(storage !== "ftp" ? toRename[0] : undefined);
     const ftpDir = useRef<string>(ftpDirectory.dir);
 
+    function handleRenameError(details: ValidationErrorDetail[] | undefined): boolean {
+        const errors = UiUtils.mapValidationErrors<RenameEntryRequest>(details ?? []);
+        if (Object.keys(errors).length === 0) {
+            return false;
+        }
+
+        setValidationErrors(errors);
+        setShow(true);
+        return true;
+    }
+
+    async function renameRemote(): Promise<boolean> {
+        const entry = ftpEntry.current;
+        if (!entry) {
+            return false;
+        }
+
+        const dir = ftpDir.current;
+        const result = await executeApiRequest(
+            (apiUtils) =>
+                apiUtils.renameEntry({
+                    dir,
+                    entry: { name: entry.path, type: entry.type },
+                    newName: name
+                }),
+            { isBackground: true }
+        );
+        if (!result.success) {
+            return !handleRenameError(result.error.details);
+        }
+
+        setFtpDirectory((current) => (current.dir === dir ? { ...current, content: result.data } : current));
+        return true;
+    }
+
+    async function renameLocal(): Promise<boolean> {
+        const entry = localEntry.current;
+        if (!entry) {
+            return false;
+        }
+
+        const result = await executeLocalRequest((localFileManager) => localFileManager.rename(entry, name), {
+            isBackground: true
+        });
+        if (!result.success) {
+            return !handleRenameError(result.error.details);
+        }
+
+        UiUtils.applyLocalDirectoryUpdates(setLocalDirectory, result.data);
+        UiUtils.showMessage(FILE_OPERATION_COMPLETED_MESSAGES.LOCAL_RENAME);
+        return true;
+    }
+
     async function rename() {
         if (submitting.current) {
             return;
         }
 
-        const entry = storage === "ftp" ? ftpEntry.current : localEntry.current;
-        if (!entry) {
+        if (!(storage === "ftp" ? ftpEntry.current : localEntry.current)) {
             setShow(false);
             onFinish();
             return;
@@ -73,56 +121,11 @@ export const RenameMenu = (props: MenuProps & { onFinish: () => void }) => {
         setVisible(false);
 
         try {
-            if (storage === "ftp" && ftpEntry.current) {
-                const selectedEntry = ftpEntry.current;
-                const dir = ftpDir.current;
-                const request = executeApiRequest(
-                    (apiUtils) =>
-                        apiUtils.renameEntry({
-                            dir,
-                            entry: { name: selectedEntry.path, type: selectedEntry.type },
-                            newName: name
-                        }),
-                    { isBackground: true }
-                );
-                setModifyFtpFile([]);
-                setModifyLocalFile([]);
-                const result = await request;
-                if (!result.success) {
-                    const errors = UiUtils.mapValidationErrors<RenameEntryRequest>(result.error.details ?? []);
-                    if (Object.keys(errors).length > 0) {
-                        setValidationErrors(errors);
-                        setShow(true);
-                    } else {
-                        onFinish();
-                    }
-
-                    return;
-                }
-
-                setFtpDirectory((current) => (current.dir === dir ? { ...current, content: result.data } : current));
-            } else if (localEntry.current) {
-                const selectedEntry = localEntry.current;
-                const request = executeLocalRequest(
-                    (localFileManager) => localFileManager.rename(selectedEntry, name),
-                    {
-                        isBackground: true
-                    }
-                );
-                setModifyFtpFile([]);
-                setModifyLocalFile([]);
-                const result = await request;
-                if (result.success) {
-                    UiUtils.applyLocalDirectoryUpdates(setLocalDirectory, result.data);
-                    UiUtils.showMessage(FILE_OPERATION_COMPLETED_MESSAGES.LOCAL_RENAME);
-                } else {
-                    const errors = UiUtils.mapValidationErrors<RenameEntryRequest>(result.error.details ?? []);
-                    if (Object.keys(errors).length > 0) {
-                        setValidationErrors(errors);
-                        setShow(true);
-                        return;
-                    }
-                }
+            const completed = storage === "ftp" ? await renameRemote() : await renameLocal();
+            setModifyFtpFile([]);
+            setModifyLocalFile([]);
+            if (!completed) {
+                return;
             }
 
             setName("");
@@ -171,63 +174,6 @@ export const RenameMenu = (props: MenuProps & { onFinish: () => void }) => {
         </>
     );
 };
-export const RemoveMenu = (props: MenuProps) => {
-    const { setVisible, storage } = props;
-    const {
-        ftpDirectory,
-        modifyFtpFile,
-        modifyLocalFile,
-        setFtpDirectory,
-        setLocalDirectory,
-        setModifyFtpFile,
-        setModifyLocalFile
-    } = useAppContext();
-    const { executeApiRequest, executeLocalRequest } = useOperationContext();
-
-    async function removeLocalEntries() {
-        const result = await executeLocalRequest((localFileManager) => localFileManager.delete(modifyLocalFile), {
-            isBackground: true,
-            showError: true
-        });
-        if (result.success) {
-            UiUtils.applyLocalDirectoryUpdates(setLocalDirectory, result.data);
-        }
-    }
-
-    async function removeRemoteEntries() {
-        const remoteDir = ftpDirectory.dir;
-        const entries = modifyFtpFile.map(({ path, type }) => ({ name: path, type }));
-        const result = await executeApiRequest((apiUtils) => apiUtils.deleteEntries({ dir: remoteDir, entries }), {
-            isBackground: true,
-            showError: true
-        });
-        if (result.success) {
-            setFtpDirectory((current) =>
-                current.dir === remoteDir
-                    ? {
-                          ...current,
-                          content: current.content.filter(({ name }) => !result.data.some(({ path }) => path === name))
-                      }
-                    : current
-            );
-        }
-    }
-
-    async function removeEntries() {
-        if (storage === "ftp") {
-            void removeRemoteEntries();
-            setModifyFtpFile([]);
-        } else {
-            void removeLocalEntries();
-            setModifyLocalFile([]);
-        }
-
-        setVisible(false);
-    }
-
-    return <MenuItem onPress={removeEntries} title="Eliminar" />;
-};
-
 function getMenuVisibility(
     storage: "local" | "ftp",
     localSelectionCount: number,
@@ -259,8 +205,7 @@ export default function OverflowMenu(props: OverflowMenuProps) {
     const dialogId = useRef<number>(0);
     const { theme } = useTheme();
     const navigation = useNavigation<DrawerNavigation>();
-    const { authUtils, sharing } = useOperationContext();
-    const context = useAppContext();
+    const { authUtils, executeApiRequest, executeLocalRequest, sharing } = useOperationContext();
     const {
         activeStorageRoot,
         ftpDirectory,
@@ -270,8 +215,9 @@ export default function OverflowMenu(props: OverflowMenuProps) {
         modifyLocalFile,
         setFtpDirectory,
         setLocalDirectory,
+        setModifyFtpFile,
         setModifyLocalFile
-    } = context;
+    } = useAppContext();
     const { showCopy, showDownload, showMakeDir, showMove, showRemove, showRename, showShare, showUpload } =
         getMenuVisibility(
             storage,
@@ -300,6 +246,77 @@ export default function OverflowMenu(props: OverflowMenuProps) {
         }
     }
 
+    async function removeLocalEntries() {
+        const result = await executeLocalRequest((localFileManager) => localFileManager.delete(modifyLocalFile), {
+            isBackground: true,
+            showError: true
+        });
+        if (result.success) {
+            UiUtils.applyLocalDirectoryUpdates(setLocalDirectory, result.data);
+        }
+    }
+
+    async function removeRemoteEntries() {
+        const remoteDir = ftpDirectory.dir;
+        const entries = modifyFtpFile.map(({ path, type }) => ({ name: path, type }));
+        const result = await executeApiRequest((apiUtils) => apiUtils.deleteEntries({ dir: remoteDir, entries }), {
+            isBackground: true,
+            showError: true
+        });
+        if (result.success) {
+            setFtpDirectory((current) => {
+                if (current.dir !== remoteDir) {
+                    return current;
+                }
+
+                return {
+                    ...current,
+                    content: current.content.filter(({ name }) => !result.data.some(({ path }) => path === name))
+                };
+            });
+        }
+    }
+
+    function removeEntries() {
+        if (storage === "ftp") {
+            void removeRemoteEntries();
+            setModifyFtpFile([]);
+        } else {
+            void removeLocalEntries();
+            setModifyLocalFile([]);
+        }
+
+        setVisible(false);
+    }
+
+    function openDestination(action: OperationAction) {
+        setVisible(false);
+        setDestinationAction(action);
+    }
+
+    function openCreateDirectory() {
+        setVisible(false);
+        const id = ++dialogId.current;
+        setMakeDirDialogs((current) => [...current, id]);
+    }
+
+    function openRename() {
+        setVisible(false);
+        const id = ++dialogId.current;
+        setRenameDialogs((current) => [...current, id]);
+    }
+
+    const menuItems = [
+        { visible: showShare, title: "Compartir", onPress: () => void shareFiles() },
+        { visible: showUpload, title: "Subir", onPress: () => void openUploadDestination() },
+        { visible: showDownload, title: "Descargar", onPress: () => openDestination("download") },
+        { visible: showCopy, title: "Copiar", onPress: () => openDestination("copy") },
+        { visible: showMove, title: "Mover", onPress: () => openDestination("move") },
+        { visible: showMakeDir, title: "Crear carpeta", onPress: openCreateDirectory },
+        { visible: showRename, title: "Renombrar", onPress: openRename },
+        { visible: showRemove, title: "Eliminar", onPress: removeEntries }
+    ];
+
     return (
         <>
             <Ionicons name="ellipsis-vertical-outline" color={theme.text} size={25} onPress={() => setVisible(true)} />
@@ -309,56 +326,11 @@ export default function OverflowMenu(props: OverflowMenuProps) {
                         style={[overflowMenu.container, { backgroundColor: theme.surface, borderColor: theme.border }]}
                         onStartShouldSetResponder={() => true}
                     >
-                        {showShare && <MenuItem title="Compartir" onPress={() => void shareFiles()} />}
-                        {showUpload && <MenuItem title="Subir" onPress={() => void openUploadDestination()} />}
-                        {showDownload && (
-                            <MenuItem
-                                title="Descargar"
-                                onPress={() => {
-                                    setVisible(false);
-                                    setDestinationAction("download");
-                                }}
-                            />
-                        )}
-                        {showCopy && (
-                            <MenuItem
-                                title="Copiar"
-                                onPress={() => {
-                                    setVisible(false);
-                                    setDestinationAction("copy");
-                                }}
-                            />
-                        )}
-                        {showMove && (
-                            <MenuItem
-                                title="Mover"
-                                onPress={() => {
-                                    setVisible(false);
-                                    setDestinationAction("move");
-                                }}
-                            />
-                        )}
-                        {showMakeDir && (
-                            <MenuItem
-                                title="Crear carpeta"
-                                onPress={() => {
-                                    setVisible(false);
-                                    const id = ++dialogId.current;
-                                    setMakeDirDialogs((current) => [...current, id]);
-                                }}
-                            />
-                        )}
-                        {showRename && (
-                            <MenuItem
-                                title="Renombrar"
-                                onPress={() => {
-                                    setVisible(false);
-                                    const id = ++dialogId.current;
-                                    setRenameDialogs((current) => [...current, id]);
-                                }}
-                            />
-                        )}
-                        {showRemove && <RemoveMenu setVisible={setVisible} storage={storage} />}
+                        {menuItems
+                            .filter(({ visible: isVisible }) => isVisible)
+                            .map(({ onPress, title }) => (
+                                <MenuItem key={title} title={title} onPress={onPress} />
+                            ))}
                     </View>
                 </Pressable>
             </Modal>

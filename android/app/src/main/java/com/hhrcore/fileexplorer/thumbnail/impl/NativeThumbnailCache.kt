@@ -158,6 +158,7 @@ class NativeThumbnailCache(context: Context) : ThumbnailCache {
             trim()
             directory = writableCacheDirectory()
         }
+
         if (directory == null) {
             throw IllegalStateException("No hay espacio disponible para crear la miniatura")
         }
@@ -247,6 +248,7 @@ class NativeThumbnailCache(context: Context) : ThumbnailCache {
                 if (file.extension == "jpg" && !database.exists(file.nameWithoutExtension)) {
                     file.delete()
                 }
+
                 if (file.extension == "pending") {
                     file.delete()
                 }

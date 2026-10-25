@@ -25,7 +25,14 @@ describe("NativeSharing", () => {
     });
 
     it("returns files received before JavaScript was ready", async () => {
-        const files = [{ id: "report", name: "report.pdf", path: "/data/user/0/app/files/shared/report.pdf", status: "READY" as const }];
+        const files = [
+            {
+                id: "report",
+                name: "report.pdf",
+                path: "/data/user/0/app/files/shared/report.pdf",
+                status: "READY" as const
+            }
+        ];
         mockSharing.getReceivedFiles.mockResolvedValue(files);
         await expect(sharing.getReceivedFiles()).resolves.toEqual(files);
     });

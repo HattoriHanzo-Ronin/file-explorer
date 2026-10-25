@@ -21,7 +21,8 @@ import java.util.UUID
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
-class SharingModule(private val context: ReactApplicationContext) : ReactContextBaseJavaModule(context), ActivityEventListener {
+class SharingModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext), ActivityEventListener {
+    private val context: ReactApplicationContext
     private val executor: ExecutorService = Executors.newSingleThreadExecutor()
     private val pendingFiles = mutableListOf<SharedFile>()
     private var initialIntentHandled = false
@@ -29,6 +30,7 @@ class SharingModule(private val context: ReactApplicationContext) : ReactContext
     private var listenerCount = 0
 
     init {
+        context = reactContext
         context.addActivityEventListener(this)
     }
 
@@ -95,6 +97,7 @@ class SharingModule(private val context: ReactApplicationContext) : ReactContext
                         file.parentFile?.deleteRecursively()
                     }
                 }
+
                 promise.resolve(null)
             } catch (error: Throwable) {
                 promise.reject("SHARING_CLEANUP_FAILED", error.message, error)
