@@ -228,13 +228,19 @@ export const RemoveMenu = (props: MenuProps) => {
     return <MenuItem onPress={removeEntries} title="Eliminar" />;
 };
 
-function getMenuVisibility(storage: "local" | "ftp", localSelectionCount: number, ftpSelectionCount: number) {
+function getMenuVisibility(
+    storage: "local" | "ftp",
+    localSelectionCount: number,
+    ftpSelectionCount: number,
+    canShare: boolean
+) {
     const hasLocalSelection = localSelectionCount > 0;
     const hasFtpSelection = ftpSelectionCount > 0;
     const hasSelection = hasLocalSelection || hasFtpSelection;
     const activeSelectionCount = storage === "local" ? localSelectionCount : ftpSelectionCount;
     return {
         showUpload: hasLocalSelection && !hasFtpSelection,
+        showShare: storage === "local" && canShare,
         showDownload: hasFtpSelection && !hasLocalSelection,
         showCopy: storage === "local" && hasLocalSelection,
         showMove: activeSelectionCount > 0,
@@ -253,7 +259,7 @@ export default function OverflowMenu(props: OverflowMenuProps) {
     const dialogId = useRef<number>(0);
     const { theme } = useTheme();
     const navigation = useNavigation<DrawerNavigation>();
-    const { authUtils } = useOperationContext();
+    const { authUtils, sharing } = useOperationContext();
     const context = useAppContext();
     const {
         activeStorageRoot,
@@ -266,11 +272,13 @@ export default function OverflowMenu(props: OverflowMenuProps) {
         setLocalDirectory,
         setModifyLocalFile
     } = context;
-    const { showCopy, showDownload, showMakeDir, showMove, showRemove, showRename, showUpload } = getMenuVisibility(
-        storage,
-        modifyLocalFile.length,
-        modifyFtpFile.length
-    );
+    const { showCopy, showDownload, showMakeDir, showMove, showRemove, showRename, showShare, showUpload } =
+        getMenuVisibility(
+            storage,
+            modifyLocalFile.length,
+            modifyFtpFile.length,
+            modifyLocalFile.length > 0 && modifyLocalFile.every(({ type }) => type === "file")
+        );
 
     async function openUploadDestination() {
         setVisible(false);
@@ -283,6 +291,15 @@ export default function OverflowMenu(props: OverflowMenuProps) {
         setDestinationAction("upload");
     }
 
+    async function shareFiles() {
+        setVisible(false);
+        try {
+            await sharing.share(modifyLocalFile.map(({ path }) => path));
+        } catch {
+            UiUtils.showMessage("No se pudieron compartir los archivos");
+        }
+    }
+
     return (
         <>
             <Ionicons name="ellipsis-vertical-outline" color={theme.text} size={25} onPress={() => setVisible(true)} />
@@ -292,6 +309,7 @@ export default function OverflowMenu(props: OverflowMenuProps) {
                         style={[overflowMenu.container, { backgroundColor: theme.surface, borderColor: theme.border }]}
                         onStartShouldSetResponder={() => true}
                     >
+                        {showShare && <MenuItem title="Compartir" onPress={() => void shareFiles()} />}
                         {showUpload && <MenuItem title="Subir" onPress={() => void openUploadDestination()} />}
                         {showDownload && (
                             <MenuItem

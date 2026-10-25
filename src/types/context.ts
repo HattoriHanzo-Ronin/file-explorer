@@ -5,10 +5,12 @@ import type { LocalDirectoryState, LocalModifyElement, ModifyElement, StorageRoo
 import type { FtpDirectoryState, FtpEntryType } from "./ftp";
 import type { ExecuteLocalRequest } from "./local-response";
 import type { ListViewMode } from "./ui";
+import type { SharedFile } from "./sharing";
 import type AuthUtils from "../utils/auth-utils";
 import type LoadingUtils from "../utils/loading-utils";
 import type { Permission } from "../utils/permissions/permission";
 import type { ThumbnailGenerator } from "../utils/thumbnails/thumbnail-generator";
+import type { Sharing } from "../utils/sharing/sharing";
 
 /** Shared application state */
 export interface AppStateContextType {
@@ -41,6 +43,8 @@ export interface AppStateContextType {
     user: AuthUser | null;
     setUser: Dispatch<SetStateAction<AuthUser | null>>;
     permission: Permission;
+    sharedFiles: SharedFile[];
+    setSharedFiles: Dispatch<SetStateAction<SharedFile[]>>;
 }
 
 /** Shared application operations */
@@ -49,6 +53,7 @@ export interface OperationContextType {
     executeApiRequest: ExecuteApiRequest;
     executeLocalRequest: ExecuteLocalRequest;
     loadingUtils: LoadingUtils;
+    sharing: Sharing;
     thumbnailGenerator: ThumbnailGenerator;
 }
 

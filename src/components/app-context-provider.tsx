@@ -4,6 +4,7 @@ import type { AppContextType, AppStateContextType } from "../types/context";
 import type { LocalDirectoryState, LocalModifyElement, ModifyElement, StorageRoot } from "../types/files";
 import type { FtpDirectoryState, FtpEntryType } from "../types/ftp";
 import type { ListViewMode } from "../types/ui";
+import type { SharedFile } from "../types/sharing";
 import ReactNativePermission from "../utils/permissions/impl/react-native-permission";
 import OperationProvider from "./operation-provider";
 import ThemeProvider from "./theme-provider";
@@ -31,6 +32,7 @@ export default function AppContextProvider(props: PropsWithChildren) {
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
     const [user, setUser] = useState<AuthUser | null>(null);
+    const [sharedFiles, setSharedFiles] = useState<SharedFile[]>([]);
     const [permission] = useState<ReactNativePermission>(() => new ReactNativePermission());
 
     const contextValues: AppStateContextType = {
@@ -62,6 +64,8 @@ export default function AppContextProvider(props: PropsWithChildren) {
         setIsAuthenticated,
         user,
         setUser,
+        sharedFiles,
+        setSharedFiles,
         permission
     };
 

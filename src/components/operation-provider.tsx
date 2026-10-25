@@ -19,6 +19,7 @@ import KeychainStorage from "../utils/storage/impl/keychain-storage";
 import NativeDatabase from "../utils/database/impl/native-database";
 import DatabaseStorage from "../utils/storage/impl/database-storage";
 import NativeThumbnailGenerator from "../utils/thumbnails/impl/native-thumbnail-generator";
+import NativeSharing from "../utils/sharing/impl/native-sharing";
 import UiUtils from "../utils/ui-utils";
 import { useAppStateContext } from "./app-context-provider";
 
@@ -59,6 +60,7 @@ export default function OperationProvider(props: PropsWithChildren) {
     const [thumbnailGenerator] = useState<NativeThumbnailGenerator>(
         () => new NativeThumbnailGenerator(THUMBNAIL_CACHE)
     );
+    const [sharing] = useState<NativeSharing>(() => new NativeSharing());
     const [remoteFileOperation] = useState<NativeRemoteFileOperation>(() => new NativeRemoteFileOperation());
     const [localFileManager] = useState<LocalFileManager>(() => new LocalFileManager(localFileOperation, permission));
     const [remoteFileManager] = useState<RemoteFileManager>(
@@ -136,6 +138,7 @@ export default function OperationProvider(props: PropsWithChildren) {
         executeApiRequest,
         executeLocalRequest,
         loadingUtils,
+        sharing,
         thumbnailGenerator
     };
 

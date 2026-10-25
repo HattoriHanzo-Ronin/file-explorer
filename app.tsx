@@ -21,6 +21,7 @@ import UserMenu from "./src/app/_user-menu";
 import { useTheme } from "./src/components/theme-provider";
 import DrawerNavigationItem from "./src/components/drawer-navigation-item";
 import Breadcrumb from "./src/components/breadcrumb";
+import SharedFilesReceiver from "./src/components/shared-files-receiver";
 
 const Drawer = createDrawerNavigator();
 
@@ -74,6 +75,7 @@ const AppHeader = (props: DrawerHeaderProps) => {
     const storage = route.name as StorageType;
     const safeArea = useSafeAreaInsets().top;
     const showActions = storage !== "ftp" || isAuthenticated;
+    const requireLogin = React.useCallback(() => navigation.navigate("ftp", { screen: "login" }), [navigation]);
 
     return (
         <View style={[app.header, { paddingTop: safeArea }]}>
@@ -88,6 +90,7 @@ const AppHeader = (props: DrawerHeaderProps) => {
                     </View>
                 </>
             )}
+            <SharedFilesReceiver onRequireLogin={requireLogin} />
         </View>
     );
 };
