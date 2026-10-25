@@ -12,6 +12,7 @@ import com.hhrcore.fileexplorer.operation.FileOperationPackage
 import com.hhrcore.fileexplorer.permission.StoragePermissionPackage
 import com.hhrcore.fileexplorer.storage.StorageVolumePackage
 import com.hhrcore.fileexplorer.thumbnail.ThumbnailGeneratorPackage
+import com.hhrcore.fileexplorer.sharing.SharingPackage
 
 class MainApplication : Application(), ReactApplication {
 
@@ -27,6 +28,7 @@ class MainApplication : Application(), ReactApplication {
           add(FileOpenerPackage())
           add(FileOperationPackage())
           add(ThumbnailGeneratorPackage())
+          add(SharingPackage())
         },
     )
   }
