@@ -123,7 +123,7 @@ flowchart TD
 
 After login or refresh, `AuthUtils` installs the access token in an Axios request interceptor. The interceptor holds the active token in memory and adds the `Authorization` header to API requests. The previous interceptor is replaced when the session changes and removed on logout.
 
-The access token and refresh token are also stored through the generic `Storage` interface backed by `KeychainStorage`. This secure persistence lets native operations and other application components obtain the current token without depending on Axios, and supports session restoration after restarting the app. Tokens are removed when the session is cleared. `AsyncStorage` is reserved for non-secret interface preferences such as the selected view mode.
+The access token and refresh token are also stored through the generic `Storage` interface backed by `KeychainStorage`. This secure persistence lets native operations and other application components obtain the current token without depending on Axios, and supports session restoration after restarting the app. Tokens are removed when the session is cleared. Non-secret interface preferences, such as the selected view mode, use the native SQLite-backed database.
 
 ## Technical stack
 
@@ -131,12 +131,10 @@ The access token and refresh token are also stored through the generic `Storage`
 - TypeScript
 - React Navigation
 - Axios
-- React Native FS
 - React Native Keychain
-- AsyncStorage
 - React Native Gesture Handler and Reanimated
 - pnpm
-- Native Android modules for file operations, storage discovery and thumbnails
+- Native Android modules for file operations, storage discovery, SQLite persistence and thumbnails
 
 ## Installation
 
@@ -235,7 +233,7 @@ file-explorer/
 - **All-or-nothing transfers:** interrupted or failed transfers restart from zero rather than resuming partial data.
 - **Local operation recovery:** coordinated paths, staged writes and persisted operation records support cleanup and recovery after failures or interruptions, including downloads written to local storage.
 - **Version-based refresh:** lightweight directory versions avoid unnecessary content reloads.
-- **Separate preference storage:** the selected directory view mode belongs in AsyncStorage; authentication secrets do not. The application theme follows the system setting.
+- **Separate preference storage:** the selected directory view mode belongs in native SQLite storage; authentication secrets do not. The application theme follows the system setting.
 
 ## Scope and verification notes
 
