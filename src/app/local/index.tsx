@@ -113,13 +113,7 @@ export default function Local() {
                         thumbnailPath: path
                     }))}
                     doubleTapAction={(name: string, type: DirContent["type"]) => {
-                        const path = `${lastLocalDir}/${name}`;
                         if (type === "dir") {
-                            if (path.includes("Android/data") || path.includes("Android/obb")) {
-                                UiUtils.showMessage(`No se puede abrir la carpeta ${name}`);
-                                return;
-                            }
-
                             setLocalDirectory((current) => ({
                                 ...current,
                                 dir: current.dir === " " ? name : `${current.dir}/${name}`
@@ -135,16 +129,8 @@ export default function Local() {
                         }
                     }}
                     longPressAction={(name: string, type: DirContent["type"]) => {
-                        const path = `${lastLocalDir}/${name}`;
-                        const absolutePath = `${activeStorageRoot.path}/${lastLocalDir === " " ? name : path}`;
-                        const isRestrictedDir = UiUtils.isActionBlocked(
-                            path.includes("Android/data") || path.includes("Android/obb"),
-                            `No se puede seleccionar la carpeta ${name}`
-                        );
-                        if (isRestrictedDir) {
-                            return;
-                        }
-
+                        const relativePath = lastLocalDir === " " ? name : `${lastLocalDir}/${name}`;
+                        const absolutePath = `${activeStorageRoot.path}/${relativePath}`;
                         if (!modifyLocalFile.some(({ path: entryPath }) => entryPath === absolutePath)) {
                             setModifyLocalFile([
                                 ...modifyLocalFile,
@@ -161,17 +147,9 @@ export default function Local() {
                     }}
                     oneTapAction={(name: string, type: DirContent["type"]) => {
                         const size = modifyLocalFile.length;
-                        const relativePath = `${lastLocalDir}/${name}`;
-                        const absolutePath = `${activeStorageRoot.path}/${lastLocalDir === " " ? name : relativePath}`;
+                        const relativePath = lastLocalDir === " " ? name : `${lastLocalDir}/${name}`;
+                        const absolutePath = `${activeStorageRoot.path}/${relativePath}`;
                         if (size > 0) {
-                            const isRestrictedDir = UiUtils.isActionBlocked(
-                                relativePath.includes("Android/data") || relativePath.includes("Android/obb"),
-                                `No se puede seleccionar la carpeta ${name}`
-                            );
-                            if (isRestrictedDir) {
-                                return;
-                            }
-
                             setModifyLocalFile((current) => {
                                 const hasName = current.some(({ path }) => path === absolutePath);
                                 return hasName
@@ -187,12 +165,10 @@ export default function Local() {
                         }
 
                         setModifyLocalFile(
-                            dirContent
-                                .filter(({ name }) => lastLocalDir !== "Android" || (name !== "data" && name !== "obb"))
-                                .map(({ path, isDirectory }) => ({
-                                    path,
-                                    type: isDirectory() ? "dir" : "file"
-                                }))
+                            dirContent.map(({ path, isDirectory }) => ({
+                                path,
+                                type: isDirectory() ? "dir" : "file"
+                            }))
                         );
                     }}
                 />
