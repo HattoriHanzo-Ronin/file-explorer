@@ -9,12 +9,7 @@ import Ionicons from "@react-native-vector-icons/ionicons";
 import UiUtils from "../utils/ui-utils";
 import type { UpdatePasswordRequest, UpdateUsernameRequest } from "../types/users";
 import type { ValidationErrors } from "../types/ui";
-
-interface UserMenuProps {
-    visible: boolean;
-    onClose: () => void;
-    onLogout: () => void;
-}
+import type { UserMenuProps } from "../types/components";
 
 export default function UserMenu(props: UserMenuProps) {
     const { onClose, onLogout, visible } = props;

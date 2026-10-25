@@ -50,6 +50,7 @@ jest.mock("../src/app/ftp/index", () => () => null);
 jest.mock("../src/components/overflow-menu", () => () => null);
 jest.mock("../src/components/user-menu", () => () => null);
 jest.mock("../src/components/drawer-navigation-item", () => () => null);
+jest.mock("../src/components/shared-files-receiver", () => () => null);
 
 import App from "../app";
 

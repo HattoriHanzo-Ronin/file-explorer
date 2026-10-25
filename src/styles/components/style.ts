@@ -161,6 +161,7 @@ export const operationDestination = StyleSheet.create({
     directoryList: { height: 220, marginTop: 8, borderWidth: 1, borderRadius: 10, overflow: "hidden" },
     directory: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14 },
     directoryText: { flex: 1, fontSize: 15 },
+    parentDirectoryText: { color: darkTheme.textMuted },
     loading: { flex: 1, minHeight: 150 },
     footer: { marginTop: 4 },
     actions: { flexDirection: "row", justifyContent: "flex-end", gap: 8 },

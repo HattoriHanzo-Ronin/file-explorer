@@ -15,7 +15,10 @@ object FileOperationEvents {
 
     fun emit(record: FileOperationRecord) {
         val reactContext = context.get() ?: return
-        if (!reactContext.hasActiveReactInstance()) return
+        if (!reactContext.hasActiveReactInstance()) {
+            return
+        }
+
         val map = Arguments.createMap().apply {
             putString("id", record.id)
             putString("operation", record.operation)

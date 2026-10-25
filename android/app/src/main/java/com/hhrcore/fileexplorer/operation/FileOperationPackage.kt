@@ -6,7 +6,13 @@ import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.uimanager.ViewManager
 import com.hhrcore.fileexplorer.dependencies.NativeDependencies
 
-class FileOperationPackage(private val dependencies: NativeDependencies) : ReactPackage {
+class FileOperationPackage(dependencies: NativeDependencies) : ReactPackage {
+    private val dependencies: NativeDependencies
+
+    init {
+        this.dependencies = dependencies
+    }
+
     override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> =
         listOf(FileOperationModule(reactContext, dependencies))
 

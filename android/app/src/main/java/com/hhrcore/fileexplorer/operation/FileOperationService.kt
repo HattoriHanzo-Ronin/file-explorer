@@ -50,6 +50,7 @@ class FileOperationService : Service() {
                 if (snapshot.status == FileOperationRecord.STATUS_PENDING || snapshot.status == FileOperationRecord.STATUS_RUNNING) {
                     enqueueNotification(snapshot)
                 }
+
                 runCatching { FileOperationEvents.emit(snapshot) }
                     .onFailure { Log.e(LOG_TAG, "Could not emit operation update", it) }
             }
@@ -64,12 +65,16 @@ class FileOperationService : Service() {
             if (record != null && FileOperationRecord.isCancellable(record.operation)) {
                 engine.cancel(id)
             }
+
             return START_NOT_STICKY
         }
 
         val token = intent.getStringExtra(EXTRA_TOKEN)
         val record = store.get(id) ?: return START_NOT_STICKY
-        if (!activeOperations.add(id)) return START_NOT_STICKY
+        if (!activeOperations.add(id)) {
+            return START_NOT_STICKY
+        }
+
         records[id] = record
         createNotificationChannel(record)
         scheduleNotificationStart(record)
@@ -186,8 +191,14 @@ class FileOperationService : Service() {
                 ?: text(record, "failed")
         }
 
-        if (record.status == FileOperationRecord.STATUS_CANCELLED) return text(record, "cancelled")
-        if (record.status == FileOperationRecord.STATUS_INTERRUPTED) return text(record, "interrupted")
+        if (record.status == FileOperationRecord.STATUS_CANCELLED) {
+            return text(record, "cancelled")
+        }
+
+        if (record.status == FileOperationRecord.STATUS_INTERRUPTED) {
+            return text(record, "interrupted")
+        }
+
         if (isIndeterminate(record)) {
             val key = if (record.status == FileOperationRecord.STATUS_PENDING) "pending" else "running"
             return text(record, key)
@@ -215,10 +226,16 @@ class FileOperationService : Service() {
 
     private fun enqueueNotification(record: FileOperationRecord) {
         val active = record.status == FileOperationRecord.STATUS_PENDING || record.status == FileOperationRecord.STATUS_RUNNING
-        if (active && record.id !in notifiedOperations) return
+        if (active && record.id !in notifiedOperations) {
+            return
+        }
+
         if (active && record.id !in pendingNotifications &&
             displayedNotifications[record.id] == (notificationTitle(record) to notificationText(record))
-        ) return
+        ) {
+            return
+        }
+
         pendingNotifications[record.id] = record
         scheduleNotification()
     }
@@ -229,7 +246,10 @@ class FileOperationService : Service() {
             notificationDelays.remove(id)
             val current = records[id] ?: return@Runnable
             val active = current.status == FileOperationRecord.STATUS_PENDING || current.status == FileOperationRecord.STATUS_RUNNING
-            if (id !in activeOperations || !active) return@Runnable
+            if (id !in activeOperations || !active) {
+                return@Runnable
+            }
+
             notifiedOperations.add(id)
             if (foregroundId == null) {
                 promote(current)
@@ -237,12 +257,16 @@ class FileOperationService : Service() {
                 enqueueNotification(current)
             }
         }
+
         notificationDelays[id] = delay
         handler.postDelayed(delay, NOTIFICATION_START_DELAY)
     }
 
     private fun scheduleNotification() {
-        if (notificationScheduled || pendingNotifications.isEmpty()) return
+        if (notificationScheduled || pendingNotifications.isEmpty()) {
+            return
+        }
+
         val delay = (NOTIFICATION_INTERVAL - (SystemClock.uptimeMillis() - lastNotificationAt)).coerceAtLeast(0)
         notificationScheduled = true
         handler.postDelayed({
@@ -258,6 +282,7 @@ class FileOperationService : Service() {
                 if (record.id in pendingConfirmations) {
                     handler.postDelayed({ confirmFinalNotification(record) }, NOTIFICATION_INTERVAL)
                 }
+
                 scheduleNotification()
                 stopWhenFinished()
             }
@@ -284,7 +309,11 @@ class FileOperationService : Service() {
         ) {
             pendingConfirmations.remove(record.id)
             notifiedOperations.remove(record.id)
-        } else if (attempts < FINAL_NOTIFICATION_RETRIES) {
+            stopWhenFinished()
+            return
+        }
+
+        if (attempts < FINAL_NOTIFICATION_RETRIES) {
             pendingConfirmations[record.id] = attempts + 1
             enqueueNotification(record)
         } else {
@@ -308,13 +337,16 @@ class FileOperationService : Service() {
                 it.id in notifiedOperations &&
                     (it.status == FileOperationRecord.STATUS_PENDING || it.status == FileOperationRecord.STATUS_RUNNING)
             }
-            if (remainingRecord != null) promote(remainingRecord)
+            if (remainingRecord != null) {
+                promote(remainingRecord)
+            }
         }
 
         if (id in notifiedOperations) {
             pendingConfirmations[id] = 0
             enqueueNotification(record)
         }
+
         runCatching { FileOperationEvents.emit(record) }
             .onFailure { Log.e(LOG_TAG, "Could not emit final operation update", it) }
         stopWhenFinished()

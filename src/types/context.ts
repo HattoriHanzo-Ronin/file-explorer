@@ -6,11 +6,17 @@ import type { FtpDirectoryState, FtpEntryType } from "./ftp";
 import type { ExecuteLocalRequest } from "./local-response";
 import type { ListViewMode } from "./ui";
 import type { SharedFile } from "./sharing";
+import type { ThemeColors, ThemeMode } from "../styles/style";
 import type AuthUtils from "../utils/auth-utils";
 import type LoadingUtils from "../utils/loading-utils";
 import type { Permission } from "../utils/permissions/permission";
 import type { ThumbnailGenerator } from "../utils/thumbnails/thumbnail-generator";
 import type { Sharing } from "../utils/sharing/sharing";
+
+export interface ThemeContextValue {
+    mode: ThemeMode;
+    theme: ThemeColors;
+}
 
 /** Shared application state */
 export interface AppStateContextType {

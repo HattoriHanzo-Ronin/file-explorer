@@ -4,10 +4,7 @@ import { useOperationContext } from "./operation-provider";
 import OperationDestinationModal from "./operation-destination-modal";
 import UiUtils from "../utils/ui-utils";
 import type { SharedFile } from "../types/sharing";
-
-interface SharedFilesReceiverProps {
-    onRequireLogin: () => void;
-}
+import type { SharedFilesReceiverProps } from "../types/components";
 
 export default function SharedFilesReceiver(props: SharedFilesReceiverProps) {
     const { onRequireLogin } = props;

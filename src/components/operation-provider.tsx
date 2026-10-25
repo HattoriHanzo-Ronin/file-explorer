@@ -106,14 +106,6 @@ export default function OperationProvider(props: PropsWithChildren) {
         [apiUtils, authUtils, loadingUtils]
     );
 
-    /**
-     * Executes a local file request
-     *
-     * @param request Local file request
-     * @param options.isBackground Whether to execute without changing the loading state
-     * @param options.showError Whether to display returned error messages
-     * @returns Local file response
-     */
     const executeLocalRequest = useCallback(
         async function executeLocal<T>(
             request: (localFileManager: LocalFileManager) => Promise<LocalResponse<T>>,

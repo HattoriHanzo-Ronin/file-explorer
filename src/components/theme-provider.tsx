@@ -1,11 +1,7 @@
 import { createContext, PropsWithChildren, useContext } from "react";
 import { useColorScheme } from "react-native";
-import { darkTheme, lightTheme, type ThemeColors, type ThemeMode } from "../styles/style";
-
-interface ThemeContextValue {
-    mode: ThemeMode;
-    theme: ThemeColors;
-}
+import { darkTheme, lightTheme, type ThemeMode } from "../styles/style";
+import type { ThemeContextValue } from "../types/context";
 
 const ThemeContext = createContext<ThemeContextValue>({ mode: "dark", theme: darkTheme });
 

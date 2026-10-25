@@ -105,6 +105,7 @@ class SqliteOperationStore(context: Context) : OperationStore {
                 if (record.revision <= 0) {
                     record.revision = nextRevision(this)
                 }
+
                 insertWithOnConflict(TABLE, null, record.values(), SQLiteDatabase.CONFLICT_REPLACE)
                 saveRecovery(record)
             }
@@ -151,15 +152,19 @@ class SqliteOperationStore(context: Context) : OperationStore {
         if (cleanupPending) {
             return OperationRecovery(RECOVERY_CLEANUP, RECOVERY_PENDING)
         }
+
         if (operation == FileOperationRecord.OPERATION_LOCAL_MOVE && moveCommitStarted) {
             return OperationRecovery(RECOVERY_ROLLBACK, RECOVERY_PENDING)
         }
+
         if (status !in RECOVERY_STATUSES) {
             return null
         }
+
         if (operation == FileOperationRecord.OPERATION_LOCAL_MOVE) {
             return OperationRecovery(RECOVERY_ROLLBACK, RECOVERY_COMPLETED)
         }
+
         if (operation in LOCAL_CLEANUP_OPERATIONS) {
             return OperationRecovery(RECOVERY_CLEANUP, RECOVERY_COMPLETED)
         }

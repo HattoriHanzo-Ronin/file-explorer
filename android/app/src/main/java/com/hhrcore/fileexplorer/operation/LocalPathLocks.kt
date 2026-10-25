@@ -31,7 +31,10 @@ object LocalPathLocks {
     }
 
     fun tryAcquire(owner: String, claims: List<Claim>): Boolean = synchronized(monitor) {
-        if (!available(owner, claims)) return@synchronized false
+        if (!available(owner, claims)) {
+            return@synchronized false
+        }
+
         held.getOrPut(owner) { mutableListOf() }.addAll(claims)
         true
     }
@@ -54,8 +57,13 @@ object LocalPathLocks {
     }
 
     private fun conflicts(first: Claim, second: Claim): Boolean {
-        if (!first.write && !second.write) return false
-        if (first.path == second.path) return true
+        if (!first.write && !second.write) {
+            return false
+        }
+
+        if (first.path == second.path) {
+            return true
+        }
         return (first.subtree && isChild(first.path, second.path)) ||
             (second.subtree && isChild(second.path, first.path))
     }

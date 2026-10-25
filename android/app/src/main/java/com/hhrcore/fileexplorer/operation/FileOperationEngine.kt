@@ -113,7 +113,10 @@ class FileOperationEngine(
     fun cancel(id: String) {
         val record = store.get(id) ?: return
         synchronized(cancellationLock) {
-            if (!FileOperationRecord.isCancellable(record.operation) || committing.contains(id)) return
+            if (!FileOperationRecord.isCancellable(record.operation) || committing.contains(id)) {
+                return
+            }
+
             cancelled.add(id)
             calls[id]?.forEach(Call::cancel)
         }
@@ -134,24 +137,31 @@ class FileOperationEngine(
         if (record.status in setOf(FileOperationRecord.STATUS_PENDING, FileOperationRecord.STATUS_RUNNING)) {
             record.status = FileOperationRecord.STATUS_INTERRUPTED
         }
+
         record.error = null
         if (!cleanupPendingStage(record)) {
             record.cleanupPending = true
             persist(record)
             return
         }
+
         if (record.operation == FileOperationRecord.OPERATION_LOCAL_MOVE && record.moveCommitStarted) {
             rollbackMove(record)
-        } else if (record.operation == FileOperationRecord.OPERATION_DOWNLOAD ||
+        }
+
+        if (record.operation == FileOperationRecord.OPERATION_DOWNLOAD ||
             record.operation == FileOperationRecord.OPERATION_LOCAL_COPY ||
             record.operation == FileOperationRecord.OPERATION_LOCAL_MOVE ||
             record.operation == FileOperationRecord.OPERATION_LOCAL_EXTRACT
         ) {
             cleanupLocal(record)
             reconcileThumbnailDestination(record)
-        } else if (record.operation == FileOperationRecord.OPERATION_UPLOAD) {
+        }
+
+        if (record.operation == FileOperationRecord.OPERATION_UPLOAD) {
             record.apiSessionId = null
         }
+
         persist(record)
     }
 
@@ -194,7 +204,10 @@ class FileOperationEngine(
             for (index in 0 until selectedEntries.length()) {
                 val selected = selectedEntries.getJSONObject(index)
                 val source = File(selected.getString("path"))
-                if (!source.exists()) throw IllegalArgumentException("No existe ${source.path}")
+                if (!source.exists()) {
+                    throw IllegalArgumentException("No existe ${source.path}")
+                }
+
                 appendUploadEntries(this, source, source.name, selected.getString("type"))
             }
         }
@@ -241,7 +254,10 @@ class FileOperationEngine(
             val url = "${record.request.getString("apiUrl")}/ftp/uploads/${encode(record.apiSessionId!!)}/entries" +
                 "?path=${encode(remotePath)}&offset=$offset"
             val nextOffset = JSONObject(execute(record, token, Request.Builder().url(url).put(body).build())).getLong("nextOffset")
-            if (nextOffset != offset + length) throw IllegalStateException("Offset de subida no válido")
+            if (nextOffset != offset + length) {
+                throw IllegalStateException("Offset de subida no válido")
+            }
+
             addTransferredBytes(record, length - sentBefore)
             offset = nextOffset
             synchronized(record) {
@@ -274,17 +290,23 @@ class FileOperationEngine(
                 }
                 val localFile = if (parts.size == 1) localRoot else File(localRoot, parts.drop(1).joinToString("/"))
                 if (entry.getString("type") == "DIR") {
-                    if (!localFile.mkdirs() && !localFile.isDirectory) throw IllegalStateException("No se pudo crear ${localFile.path}")
+                    if (!localFile.mkdirs() && !localFile.isDirectory) {
+                        throw IllegalStateException("No se pudo crear ${localFile.path}")
+                    }
                 } else {
                     val size = entry.getLong("size")
                     localFile.parentFile?.let { parent ->
                         if (!parent.exists()) {
-                            if (!parent.mkdirs() && !parent.isDirectory) throw IllegalStateException("No se pudo crear ${parent.path}")
+                            if (!parent.mkdirs() && !parent.isDirectory) {
+                                throw IllegalStateException("No se pudo crear ${parent.path}")
+                            }
                         }
                     }
+
                     if (parts.size > 1 && !localFile.createNewFile()) {
                         throw IllegalStateException("El archivo ya existe: ${localFile.path}")
                     }
+
                     add(DownloadFile(relativePath, localFile, size))
                 }
             }
@@ -315,7 +337,10 @@ class FileOperationEngine(
         registerCall(record.id, call)
         try {
             call.execute().use { response ->
-                if (!response.isSuccessful) throw ApiException(response.body?.string(), response.code)
+                if (!response.isSuccessful) {
+                    throw ApiException(response.body?.string(), response.code)
+                }
+
                 val contentLength = response.body?.contentLength() ?: -1L
                 if (contentLength >= 0 && contentLength != expectedSize) {
                     throw IllegalStateException("Tamaño de descarga no válido")
@@ -329,7 +354,10 @@ class FileOperationEngine(
                         while (true) {
                             checkCancelled(record.id)
                             val read = input.read(buffer)
-                            if (read < 0) break
+                            if (read < 0) {
+                                break
+                            }
+
                             if (fileBytesTransferred > expectedSize - read) {
                                 throw IllegalStateException("La descarga supera el tamaño declarado")
                             }
@@ -372,7 +400,10 @@ class FileOperationEngine(
         try {
             call.execute().use { response ->
                 val responseBody = response.body?.string().orEmpty()
-                if (!response.isSuccessful) throw ApiException(responseBody, response.code)
+                if (!response.isSuccessful) {
+                    throw ApiException(responseBody, response.code)
+                }
+
                 val version = response.header("Data-Version") ?: throw IllegalStateException("Falta la versión del directorio")
                 record.result = JSONObject().put("entries", JSONArray(responseBody)).put("version", version)
             }
@@ -418,7 +449,10 @@ class FileOperationEngine(
         registerCall(record.id, call)
         try {
             call.execute().use { response ->
-                if (!response.isSuccessful) throw ApiException(response.body?.string(), response.code)
+                if (!response.isSuccessful) {
+                    throw ApiException(response.body?.string(), response.code)
+                }
+
                 val source = response.body?.source() ?: throw IllegalStateException("Respuesta de operación vacía")
                 var completed = 0
                 var complete = false
@@ -527,11 +561,13 @@ class FileOperationEngine(
             if (!move) {
                 thumbnailCache.copy(thumbnailSnapshot, target)
             }
+
             if (trackEntries) {
                 record.bytesTransferred = (index + 1).toLong()
                 persist(record)
             }
         }
+
         if (move) {
             synchronized(cancellationLock) {
                 checkCancelled(record.id)
@@ -559,8 +595,13 @@ class FileOperationEngine(
 
     private fun deleteMoveSource(source: File): Boolean {
         repeat(MOVE_DELETE_ATTEMPTS) { attempt ->
-            if (!source.exists() || source.deleteRecursively()) return true
-            if (attempt < MOVE_DELETE_ATTEMPTS - 1) Thread.sleep(MOVE_DELETE_RETRY_DELAY)
+            if (!source.exists() || source.deleteRecursively()) {
+                return true
+            }
+
+            if (attempt < MOVE_DELETE_ATTEMPTS - 1) {
+                Thread.sleep(MOVE_DELETE_RETRY_DELAY)
+            }
         }
 
         return false
@@ -588,24 +629,32 @@ class FileOperationEngine(
             if (!reserved && !destination.mkdir()) {
                 throw IllegalStateException("No se pudo crear ${destination.path}")
             }
+
             val children = source.listFiles() ?: throw IllegalStateException("No se pudo leer ${source.path}")
             children.forEach { copyLocal(record, it, File(destination, it.name), false) }
             return
         }
 
         destination.parentFile?.let {
-            if (!it.exists() && !it.mkdirs()) throw IllegalStateException("No se pudo crear ${it.path}")
+            if (!it.exists() && !it.mkdirs()) {
+                throw IllegalStateException("No se pudo crear ${it.path}")
+            }
         }
+
         if (!reserved && !destination.createNewFile()) {
             throw IllegalStateException("El archivo ya existe: ${destination.path}")
         }
+
         source.inputStream().buffered().use { input ->
             destination.outputStream().buffered().use { output ->
                 val buffer = ByteArray(BUFFER_SIZE)
                 while (true) {
                     checkCancelled(record.id)
                     val read = input.read(buffer)
-                    if (read < 0) break
+                    if (read < 0) {
+                        break
+                    }
+
                     output.write(buffer, 0, read)
                     record.bytesTransferred += read
                     notifyProgress(record)
@@ -650,9 +699,14 @@ class FileOperationEngine(
             } else {
                 extracted.inputStream().use { input -> target.outputStream().use { output -> input.copyTo(output) } }
             }
-            if (!extracted.deleteRecursively()) throw IllegalStateException("No se pudo finalizar la extracción")
+            if (!extracted.deleteRecursively()) {
+                throw IllegalStateException("No se pudo finalizar la extracción")
+            }
         }
-        if (!temporary.deleteRecursively()) throw IllegalStateException("No se pudo limpiar la extracción temporal")
+
+        if (!temporary.deleteRecursively()) {
+            throw IllegalStateException("No se pudo limpiar la extracción temporal")
+        }
     }
 
     private fun extractSevenZip(record: FileOperationRecord, source: File, destination: File) {
@@ -663,7 +717,9 @@ class FileOperationEngine(
                 val output = safeArchiveDestination(destination, entry.name)
                 record.currentFileName = entry.name
                 if (entry.isDirectory) {
-                    if (!output.mkdirs() && !output.isDirectory) throw IllegalStateException("No se pudo crear ${output.path}")
+                    if (!output.mkdirs() && !output.isDirectory) {
+                        throw IllegalStateException("No se pudo crear ${output.path}")
+                    }
                 } else {
                     output.parentFile?.mkdirs()
                     output.outputStream().buffered().use { stream ->
@@ -671,7 +727,10 @@ class FileOperationEngine(
                         while (true) {
                             checkCancelled(record.id)
                             val read = archive.read(buffer)
-                            if (read < 0) break
+                            if (read < 0) {
+                                break
+                            }
+
                             stream.write(buffer, 0, read)
                             record.bytesTransferred += read
                             notifyProgress(record)
@@ -709,11 +768,16 @@ class FileOperationEngine(
             while (true) {
                 checkCancelled(record.id)
                 val entry = archive.nextEntry ?: break
-                if (!archive.canReadEntryData(entry)) throw IllegalStateException("Formato de entrada no compatible")
+                if (!archive.canReadEntryData(entry)) {
+                    throw IllegalStateException("Formato de entrada no compatible")
+                }
+
                 val output = safeArchiveDestination(destination, entry.name)
                 record.currentFileName = entry.name
                 if (entry.isDirectory) {
-                    if (!output.mkdirs() && !output.isDirectory) throw IllegalStateException("No se pudo crear ${output.path}")
+                    if (!output.mkdirs() && !output.isDirectory) {
+                        throw IllegalStateException("No se pudo crear ${output.path}")
+                    }
                 } else {
                     output.parentFile?.mkdirs()
                     copyExtractedStream(record, archive, output)
@@ -729,7 +793,10 @@ class FileOperationEngine(
             while (true) {
                 checkCancelled(record.id)
                 val read = input.read(buffer)
-                if (read < 0) break
+                if (read < 0) {
+                    break
+                }
+
                 stream.write(buffer, 0, read)
                 record.bytesTransferred += read
                 notifyProgress(record)
@@ -740,7 +807,10 @@ class FileOperationEngine(
     private fun safeArchiveDestination(destination: File, name: String): File {
         val output = File(destination, name)
         val root = destination.canonicalPath + File.separator
-        if (!output.canonicalPath.startsWith(root)) throw IllegalArgumentException("Ruta de archivo no válida")
+        if (!output.canonicalPath.startsWith(root)) {
+            throw IllegalArgumentException("Ruta de archivo no válida")
+        }
+
         return output
     }
 
@@ -763,7 +833,10 @@ class FileOperationEngine(
         if (file.isDirectory) {
             file.listFiles()?.forEach { deleteLocal(record, it) }
         }
-        if (file.exists() && !file.delete()) throw IllegalStateException("No se pudo eliminar ${file.path}")
+
+        if (file.exists() && !file.delete()) {
+            throw IllegalStateException("No se pudo eliminar ${file.path}")
+        }
     }
 
     private fun fileSize(file: File): Long = if (file.isDirectory) {
@@ -812,7 +885,9 @@ class FileOperationEngine(
     private fun rollback(record: FileOperationRecord, token: String?) {
         if (record.operation == FileOperationRecord.OPERATION_LOCAL_MOVE && record.moveCommitStarted) {
             rollbackMove(record)
-        } else if (record.operation == FileOperationRecord.OPERATION_DOWNLOAD ||
+        }
+
+        if (record.operation == FileOperationRecord.OPERATION_DOWNLOAD ||
             record.operation == FileOperationRecord.OPERATION_LOCAL_COPY ||
             record.operation == FileOperationRecord.OPERATION_LOCAL_MOVE ||
             record.operation == FileOperationRecord.OPERATION_LOCAL_EXTRACT
@@ -897,10 +972,14 @@ class FileOperationEngine(
             val actual = if (stat.st_ino > 0) "${stat.st_dev}:${stat.st_ino}" else ""
             if (expected.isEmpty() || actual.isEmpty()) {
                 cleaned = false
-            } else if (actual == expected && !file.deleteRecursively()) {
+                return@forEach
+            }
+
+            if (actual == expected && !file.deleteRecursively()) {
                 cleaned = false
             }
         }
+
         if (record.createdPaths.any { !record.ownedIdentities.has(it) && File(it).exists() }) cleaned = false
         record.cleanupPending = !cleaned
     }
@@ -916,11 +995,17 @@ class FileOperationEngine(
         val path = record.pendingStagePath ?: return true
         val file = File(path)
         val prefix = ".file-explorer-${record.id}-"
-        if (!file.name.startsWith(prefix) || runCatching { UUID.fromString(file.name.removePrefix(prefix)) }.isFailure) return false
+        if (!file.name.startsWith(prefix) || runCatching { UUID.fromString(file.name.removePrefix(prefix)) }.isFailure) {
+            return false
+        }
+
         val stat = try {
             Os.lstat(path)
         } catch (error: ErrnoException) {
-            if (error.errno != OsConstants.ENOENT) return false
+            if (error.errno != OsConstants.ENOENT) {
+                return false
+            }
+
             record.pendingStagePath = null
             return true
         }
@@ -929,7 +1014,10 @@ class FileOperationEngine(
             OsConstants.S_ISDIR(stat.st_mode) -> file.list()?.isEmpty() == true
             else -> false
         }
-        if (!empty || !file.delete()) return false
+        if (!empty || !file.delete()) {
+            return false
+        }
+
         record.pendingStagePath = null
         return true
     }
@@ -989,7 +1077,10 @@ class FileOperationEngine(
         try {
             call.execute().use { response ->
                 val body = response.body?.string().orEmpty()
-                if (!response.isSuccessful) throw ApiException(body, response.code)
+                if (!response.isSuccessful) {
+                    throw ApiException(body, response.code)
+                }
+
                 return body
             }
         } finally {
@@ -1015,7 +1106,10 @@ class FileOperationEngine(
             if (!created) {
                 record.pendingStagePath = null
                 persist(record)
-                if (file.exists()) continue
+                if (file.exists()) {
+                    continue
+                }
+
                 throw IllegalStateException("No se pudo preparar ${file.path}")
             }
 
@@ -1042,10 +1136,12 @@ class FileOperationEngine(
                     index++
                     continue
                 }
+
                 if (!LocalPathLocks.tryAcquire(record.id, listOf(LocalPathLocks.claim(target, true)))) {
                     index++
                     continue
                 }
+
                 record.ownedIdentities.put(target.path, expected)
                 persist(record)
                 when (val error = AtomicRename.rename(file.path, target.path)) {
@@ -1111,6 +1207,7 @@ class FileOperationEngine(
                         if (failure.compareAndSet(null, error)) {
                             cancelCalls(record.id)
                         }
+
                         return@submit
                     }
                 }
@@ -1125,6 +1222,7 @@ class FileOperationEngine(
                 }
             }
         }
+
         failure.get()?.let { throw it }
         checkCancelled(record.id)
     }
@@ -1170,7 +1268,10 @@ class FileOperationEngine(
     }
 
     private fun checkCancelled(id: String) {
-        if (cancelled.contains(id)) throw InterruptedException("Transferencia cancelada")
+        if (cancelled.contains(id)) {
+            throw InterruptedException("Transferencia cancelada")
+        }
+
     }
 
     private fun requireToken(token: String?): String = token
@@ -1196,7 +1297,10 @@ class FileOperationEngine(
                 var sent = 0L
                 while (remaining > 0) {
                     val read = source.read(buffer, 0, minOf(buffer.size.toLong(), remaining).toInt())
-                    if (read < 0) throw IllegalStateException("El archivo terminó antes del offset esperado")
+                    if (read < 0) {
+                        throw IllegalStateException("El archivo terminó antes del offset esperado")
+                    }
+
                     sink.write(buffer, 0, read)
                     remaining -= read
                     sent += read
