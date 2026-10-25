@@ -1,14 +1,16 @@
-package com.hhrcore.fileexplorer.operation
+package com.hhrcore.fileexplorer.operation.impl
 
 import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import com.hhrcore.fileexplorer.database.ExplorerDatabaseHelper
+import com.hhrcore.fileexplorer.operation.FileOperationRecord
+import com.hhrcore.fileexplorer.operation.OperationRegistry
+import com.hhrcore.fileexplorer.operation.OperationStore
 import org.json.JSONArray
 import org.json.JSONObject
-import java.util.concurrent.ConcurrentHashMap
 
-class FileOperationStore(context: Context) {
+class SqliteOperationStore(context: Context) : OperationStore {
     private val helper: ExplorerDatabaseHelper
     private val legacyPreferences = context.getSharedPreferences(LEGACY_PREFERENCES, Context.MODE_PRIVATE)
 
@@ -17,7 +19,7 @@ class FileOperationStore(context: Context) {
         migrateLegacyRecords()
     }
 
-    fun save(record: FileOperationRecord) = synchronized(lock) {
+    override fun save(record: FileOperationRecord) = synchronized(lock) {
         val database = helper.writableDatabase
         record.revision = nextRevision(database)
         record.updatedAt = System.currentTimeMillis()
@@ -27,7 +29,7 @@ class FileOperationStore(context: Context) {
         }
     }
 
-    fun get(id: String): FileOperationRecord? = synchronized(lock) {
+    override fun get(id: String): FileOperationRecord? = synchronized(lock) {
         helper.readableDatabase.query(
             TABLE,
             arrayOf(COLUMN_RECORD),
@@ -46,7 +48,7 @@ class FileOperationStore(context: Context) {
         }
     }
 
-    fun list(): List<FileOperationRecord> = synchronized(lock) {
+    override fun list(): List<FileOperationRecord> = synchronized(lock) {
         helper.readableDatabase.query(
             TABLE,
             arrayOf(COLUMN_RECORD),
@@ -64,13 +66,13 @@ class FileOperationStore(context: Context) {
         }
     }
 
-    fun reconcileInterrupted(engine: FileOperationEngine): String = synchronized(reconciliationLock) {
-        list().filter { (it.status in ACTIVE_STATUSES || it.moveCommitStarted || it.cleanupPending || it.pendingStagePath != null) && it.id !in activeIds }
-            .forEach(engine::reconcile)
+    override fun reconcileInterrupted(reconcile: (FileOperationRecord) -> Unit): String = synchronized(reconciliationLock) {
+        list().filter { (it.status in ACTIVE_STATUSES || it.moveCommitStarted || it.cleanupPending || it.pendingStagePath != null) && !OperationRegistry.isActive(it.id) }
+            .forEach(reconcile)
         JSONArray(list().map { it.toJson() }).toString()
     }
 
-    fun removeSettled() = synchronized(lock) {
+    override fun removeSettled() = synchronized(lock) {
         val settledIds = list()
             .filter { it.status !in ACTIVE_STATUSES && !it.moveCommitStarted && !it.cleanupPending && it.pendingStagePath == null }
             .map(FileOperationRecord::id)
@@ -83,7 +85,7 @@ class FileOperationStore(context: Context) {
         }
     }
 
-    fun close() {
+    override fun close() {
         helper.close()
     }
 
@@ -190,7 +192,6 @@ class FileOperationStore(context: Context) {
         private const val LEGACY_REVISION_KEY = "__revision__"
         private val lock = Any()
         private val reconciliationLock = Any()
-        private val activeIds = ConcurrentHashMap.newKeySet<String>()
         private val ACTIVE_STATUSES = setOf(FileOperationRecord.STATUS_PENDING, FileOperationRecord.STATUS_RUNNING)
         private val RECOVERY_STATUSES = setOf(
             FileOperationRecord.STATUS_FAILED,
@@ -207,13 +208,6 @@ class FileOperationStore(context: Context) {
         private const val RECOVERY_PENDING = "PENDING"
         private const val RECOVERY_COMPLETED = "COMPLETED"
 
-        fun markActive(id: String) {
-            activeIds.add(id)
-        }
-
-        fun markInactive(id: String) {
-            activeIds.remove(id)
-        }
     }
 
     private data class OperationRecovery(val type: String, val status: String)

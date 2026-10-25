@@ -10,7 +10,6 @@ import android.system.OsConstants
 import okhttp3.Call
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -34,16 +33,16 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import java.util.UUID
 
-class FileOperationEngine(store: FileOperationStore, onChange: (FileOperationRecord) -> Unit, thumbnailCache: ThumbnailCache) {
-    private val store: FileOperationStore
+class FileOperationEngine(
+    store: OperationStore,
+    onChange: (FileOperationRecord) -> Unit,
+    thumbnailCache: ThumbnailCache,
+    remoteTransferClient: RemoteTransferClient
+) {
+    private val store: OperationStore
     private val onChange: (FileOperationRecord) -> Unit
     private val thumbnailCache: ThumbnailCache
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(10, TimeUnit.MINUTES)
-        .writeTimeout(10, TimeUnit.MINUTES)
-        .retryOnConnectionFailure(true)
-        .build()
+    private val remoteTransferClient: RemoteTransferClient
     private val calls = ConcurrentHashMap<String, MutableSet<Call>>()
     private val cancelled = ConcurrentHashMap.newKeySet<String>()
     private val committing = ConcurrentHashMap.newKeySet<String>()
@@ -54,6 +53,7 @@ class FileOperationEngine(store: FileOperationStore, onChange: (FileOperationRec
         this.store = store
         this.onChange = onChange
         this.thumbnailCache = thumbnailCache
+        this.remoteTransferClient = remoteTransferClient
     }
 
     fun execute(record: FileOperationRecord, accessToken: String?) {
@@ -311,7 +311,7 @@ class FileOperationEngine(store: FileOperationStore, onChange: (FileOperationRec
         }
         val url = "${record.request.getString("apiUrl")}/ftp/downloads/${encode(record.apiSessionId!!)}/entries" +
             "?path=${encode(remotePath)}&offset=0"
-        val call = client.newCall(Request.Builder().url(url).get().header("Authorization", "Bearer $token").build())
+        val call = remoteTransferClient.newCall(Request.Builder().url(url).get().header("Authorization", "Bearer $token").build())
         registerCall(record.id, call)
         try {
             call.execute().use { response ->
@@ -367,7 +367,7 @@ class FileOperationEngine(store: FileOperationStore, onChange: (FileOperationRec
             .header("Authorization", "Bearer $token")
             .post(body.toString().toRequestBody(JSON_MEDIA_TYPE))
             .build()
-        val call = client.newBuilder().readTimeout(0, TimeUnit.MILLISECONDS).build().newCall(httpRequest)
+        val call = remoteTransferClient.newCall(httpRequest, 0)
         registerCall(record.id, call)
         try {
             call.execute().use { response ->
@@ -414,7 +414,7 @@ class FileOperationEngine(store: FileOperationStore, onChange: (FileOperationRec
         record.totalBytes = expectedTotal.toLong()
         record.result = JSONObject().put("changes", changes)
         persist(record)
-        val call = client.newCall(request.newBuilder().header("Authorization", "Bearer $token").build())
+        val call = remoteTransferClient.newCall(request.newBuilder().header("Authorization", "Bearer $token").build())
         registerCall(record.id, call)
         try {
             call.execute().use { response ->
@@ -961,7 +961,7 @@ class FileOperationEngine(store: FileOperationStore, onChange: (FileOperationRec
             .post(EMPTY_BODY)
             .header("Authorization", "Bearer $token")
             .build()
-        val call = client.newCall(request)
+        val call = remoteTransferClient.newCall(request)
         registerCall(record.id, call)
         try {
             call.execute().use { response ->
@@ -984,7 +984,7 @@ class FileOperationEngine(store: FileOperationStore, onChange: (FileOperationRec
     private fun execute(record: FileOperationRecord, token: String, request: Request): String {
         checkCancelled(record.id)
         val authorized = request.newBuilder().header("Authorization", "Bearer $token").build()
-        val call = client.newCall(authorized)
+        val call = remoteTransferClient.newCall(authorized)
         registerCall(record.id, call)
         try {
             call.execute().use { response ->
@@ -999,7 +999,7 @@ class FileOperationEngine(store: FileOperationStore, onChange: (FileOperationRec
 
     private fun executeCleanup(token: String, request: Request) {
         val authorized = request.newBuilder().header("Authorization", "Bearer $token").build()
-        client.newCall(authorized).execute().use { response ->
+        remoteTransferClient.newCall(authorized).execute().use { response ->
             if (!response.isSuccessful) {
                 throw ApiException(response.body?.string(), response.code)
             }

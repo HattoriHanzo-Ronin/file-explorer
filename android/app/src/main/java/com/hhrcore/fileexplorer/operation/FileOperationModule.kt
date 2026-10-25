@@ -6,14 +6,18 @@ import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.bridge.Arguments
+import com.hhrcore.fileexplorer.dependencies.NativeDependencies
 import com.hhrcore.fileexplorer.thumbnail.ThumbnailCache
 import org.json.JSONObject
 import java.io.File
 import java.util.UUID
 
-class FileOperationModule(private val context: ReactApplicationContext) : ReactContextBaseJavaModule(context) {
-    private val store = FileOperationStore(context)
-    private val thumbnailCache = ThumbnailCache(context)
+class FileOperationModule(
+    private val context: ReactApplicationContext,
+    private val dependencies: NativeDependencies
+) : ReactContextBaseJavaModule(context) {
+    private val store: OperationStore = dependencies.createOperationStore()
+    private val thumbnailCache: ThumbnailCache = dependencies.createThumbnailCache()
 
     override fun getName() = "FileOperation"
 
@@ -143,8 +147,8 @@ class FileOperationModule(private val context: ReactApplicationContext) : ReactC
     fun listOperations(promise: Promise) {
         Thread {
             try {
-                val engine = FileOperationEngine(store, {}, thumbnailCache)
-                val snapshot = store.reconcileInterrupted(engine)
+                val engine = dependencies.createFileOperationEngine(store, {}, thumbnailCache)
+                val snapshot = store.reconcileInterrupted(engine::reconcile)
                 promise.resolve(snapshot)
             } catch (error: Throwable) {
                 promise.reject("FILE_OPERATION_RESTORE_FAILED", error.message, error)
@@ -188,13 +192,13 @@ class FileOperationModule(private val context: ReactApplicationContext) : ReactC
                 notificationTexts = notificationTexts
             )
             operationId = record.id
-            FileOperationStore.markActive(record.id)
+            OperationRegistry.markActive(record.id)
             store.save(record)
             FileOperationEvents.emit(record)
             FileOperationService.start(context, record.id, token)
             promise.resolve(record.id)
         } catch (error: Throwable) {
-            operationId?.let(FileOperationStore::markInactive)
+            operationId?.let(OperationRegistry::markInactive)
             promise.reject("FILE_OPERATION_START_FAILED", error.message, error)
         }
     }
