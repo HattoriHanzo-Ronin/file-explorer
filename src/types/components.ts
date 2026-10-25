@@ -70,6 +70,11 @@ export type CreateDirectoryDialogProps =
 
 export interface DestinationOperationModalProps {
     action: OperationAction;
+    acceptDisabled?: boolean;
+    acceptText?: string;
     onClose: () => void;
+    onCancel?: () => void;
+    onOperationFinished?: () => void;
+    selectedCount?: number;
     visible: boolean;
 }

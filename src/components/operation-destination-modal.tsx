@@ -13,7 +13,7 @@ import Breadcrumb from "./breadcrumb";
 import CreateDirectoryDialog from "./create-directory-dialog";
 
 export default function OperationDestinationModal(props: DestinationOperationModalProps) {
-    const { action, onClose, visible } = props;
+    const { acceptDisabled = false, acceptText, action, onCancel, onClose, onOperationFinished, selectedCount, visible } = props;
     const {
         externalRoots,
         ftpSelectionDir,
@@ -198,9 +198,18 @@ export default function OperationDestinationModal(props: DestinationOperationMod
         setModifyLocalFile([]);
     }
 
-    function confirm() {
-        void executeOperation();
+    async function confirm() {
         onClose();
+        try {
+            await executeOperation();
+        } finally {
+            onOperationFinished?.();
+        }
+    }
+
+    function cancel() {
+        onClose();
+        onCancel?.();
     }
 
     function updateCreatedDirectory(content: FtpEntry[] | LocalDirectoryUpdate[]) {
@@ -220,12 +229,12 @@ export default function OperationDestinationModal(props: DestinationOperationMod
         ? (entries as FtpEntry[]).filter(({ type }) => type === "DIR").map(({ name }) => name)
         : (entries as FileSystemEntry[]).filter((entry) => entry.isDirectory()).map(({ name }) => name);
     const roots = [internalRoot, ...externalRoots];
-    const selectedCount = modifyLocalFile.length || modifyFtpFile.length;
+    const operationSelectedCount = selectedCount ?? (modifyLocalFile.length || modifyFtpFile.length);
     const actionLabel =
         action === "upload" ? "Subir" : action === "download" ? "Descargar" : action === "copy" ? "Copiar" : "Mover";
 
     return (
-        <Modal animationType="fade" transparent visible={visible} onRequestClose={onClose}>
+        <Modal animationType="fade" transparent visible={visible} onRequestClose={cancel}>
             <View style={operationDestination.backdrop}>
                 <View
                     style={[
@@ -235,7 +244,7 @@ export default function OperationDestinationModal(props: DestinationOperationMod
                 >
                     <View style={operationDestination.titleRow}>
                         <Text style={[operationDestination.title, { color: theme.text }]}>
-                            {actionLabel} {selectedCount} {selectedCount === 1 ? "archivo" : "archivos"}
+                            {actionLabel} {operationSelectedCount} {operationSelectedCount === 1 ? "archivo" : "archivos"}
                         </Text>
                     </View>
                     <Text style={[operationDestination.label, { color: theme.textMuted }]}>Almacenamiento</Text>
@@ -310,14 +319,17 @@ export default function OperationDestinationModal(props: DestinationOperationMod
                             <Text style={[operationDestination.createText, { color: theme.text }]}>Nueva carpeta</Text>
                         </Pressable>
                         <View style={operationDestination.actions}>
-                            <Pressable style={operationDestination.cancel} onPress={onClose}>
+                            <Pressable style={operationDestination.cancel} onPress={cancel}>
                                 <Text style={[operationDestination.cancelText, { color: theme.danger }]}>Cancelar</Text>
                             </Pressable>
                             <Pressable
+                                disabled={acceptDisabled}
                                 style={[operationDestination.accept, { backgroundColor: theme.accent }]}
-                                onPress={confirm}
+                                onPress={() => void confirm()}
                             >
-                                <Text style={operationDestination.acceptText}>{actionLabel} aquí</Text>
+                                <Text style={operationDestination.acceptText}>
+                                    {acceptText ?? `${actionLabel} aquí`}
+                                </Text>
                             </Pressable>
                         </View>
                     </View>
