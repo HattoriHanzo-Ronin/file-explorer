@@ -9,7 +9,7 @@ jest.mock("../../src/components/theme-provider", () => ({ useTheme: () => ({ the
 
 import { useAppContext } from "../../src/components/app-context-provider";
 import { useOperationContext } from "../../src/components/operation-provider";
-import { RenameMenu } from "../../src/app/_overflow-menu";
+import { RenameMenu } from "../../src/components/overflow-menu";
 
 test("allows independent renames while another is pending", async () => {
     const rename = jest.fn(() => new Promise(() => {}));
