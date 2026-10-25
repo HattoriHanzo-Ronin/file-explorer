@@ -18,7 +18,7 @@ import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
 import kotlin.math.max
 
-class ThumbnailGeneratorModule(context: ReactApplicationContext) : ReactContextBaseJavaModule(context) {
+class ThumbnailGeneratorModule(context: ReactApplicationContext, cache: ThumbnailCache) : ReactContextBaseJavaModule(context) {
     private val context: ReactApplicationContext
     private val executor: ExecutorService
     private val cleanupExecutor: ScheduledExecutorService
@@ -35,7 +35,7 @@ class ThumbnailGeneratorModule(context: ReactApplicationContext) : ReactContextB
         cleanupExecutor = Executors.newSingleThreadScheduledExecutor()
         locks = Array(32) { Any() }
         cacheLock = Any()
-        cache = ThumbnailCache(context)
+        this.cache = cache
     }
 
     override fun getName() = "ThumbnailGenerator"

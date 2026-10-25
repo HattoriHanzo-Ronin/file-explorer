@@ -14,6 +14,7 @@ import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.hhrcore.fileexplorer.MainActivity
+import com.hhrcore.fileexplorer.MainApplication
 import com.hhrcore.fileexplorer.thumbnail.ThumbnailCache
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
@@ -33,15 +34,16 @@ class FileOperationService : Service() {
     private var notificationScheduled = false
     private var foregroundId: String? = null
     private var latestStartId = 0
-    private lateinit var store: FileOperationStore
+    private lateinit var store: OperationStore
     private lateinit var engine: FileOperationEngine
     private lateinit var thumbnailCache: ThumbnailCache
 
     override fun onCreate() {
         super.onCreate()
-        store = FileOperationStore(this)
-        thumbnailCache = ThumbnailCache(this)
-        engine = FileOperationEngine(store, { record ->
+        val dependencies = (application as MainApplication).nativeDependencies
+        store = dependencies.createOperationStore()
+        thumbnailCache = dependencies.createThumbnailCache()
+        engine = dependencies.createFileOperationEngine(store, { record ->
             val snapshot = FileOperationRecord.fromJson(JSONObject(record.toJson().toString()))
             handler.post {
                 records[snapshot.id] = snapshot
@@ -83,7 +85,7 @@ class FileOperationService : Service() {
                         .onFailure { Log.e(LOG_TAG, "Could not save operation failure", it) }
                 }
                 val snapshot = FileOperationRecord.fromJson(JSONObject(record.toJson().toString()))
-                FileOperationStore.markInactive(id)
+                OperationRegistry.markInactive(id)
                 handler.post { finishOperation(snapshot) }
             }
         }
