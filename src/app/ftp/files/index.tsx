@@ -71,7 +71,7 @@ export default function Files() {
                         }
                     }
                 })();
-            }, 2000);
+            }, 1000);
             return () => clearInterval(interval);
         }, [executeApiRequest, isLoading, lastFtpDir, loadDirectory])
     );

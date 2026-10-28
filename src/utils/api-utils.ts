@@ -27,6 +27,7 @@ import type {
 } from "../types/ftp";
 import type { UpdatePasswordRequest, UpdateUsernameRequest, UpdateUsernameResponse } from "../types/users";
 import type { FileOperationSelection, RemoteDirectoryOperationResult } from "../types/file-operations";
+import type { SocketSession, SocketVersions } from "../types/socket-session";
 import type RemoteFileManager from "./operations/remote-file-manager";
 import type { Storage } from "./storage/storage";
 import { STORAGE_KEYS } from "../constants/storage";
@@ -42,6 +43,14 @@ export default class ApiUtils {
     private readonly remoteFileManager: RemoteFileManager;
     private readonly storage: Storage;
     private readonly apiUrl: string;
+    private socket: WebSocket | null = null;
+    private socketSession: SocketSession | null = null;
+    private socketConnection: Promise<void> | null = null;
+    private socketRequest: Promise<ApiResponse<SocketVersions>> | null = null;
+    private resolveSocketRequest: ((response: ApiResponse<SocketVersions>) => void) | null = null;
+    private isSocketSessionSuspended = true;
+    private isSocketTokenInvalid = false;
+    private resumeSocketRequest: Promise<void> | null = null;
 
     constructor(remoteFileManager: RemoteFileManager, storage: Storage, apiUrl: string) {
         this.remoteFileManager = remoteFileManager;
@@ -54,6 +63,86 @@ export default class ApiUtils {
      */
     async restoreOperations(): Promise<void> {
         await this.remoteFileManager.restore();
+    }
+
+    /**
+     * Creates or renews the socket session
+     */
+    async refreshSocketSession(): Promise<void> {
+        this.isSocketSessionSuspended = false;
+        this.isSocketTokenInvalid = false;
+        const session = this.socketSession
+            ? await this.executeRequest(async () => {
+                  const { data } = await axios.post<SocketSession>(
+                      this.buildUrl(`socket-sessions/${this.socketSession!.id}/refresh`)
+                  );
+                  return data;
+              })
+            : await this.executeRequest(async () => {
+                  const { data } = await axios.post<SocketSession>(this.buildUrl("socket-sessions"));
+                  return data;
+              });
+        if (!session.success && this.socketSession) {
+            this.socketSession = null;
+            this.closeSocket();
+            await this.refreshSocketSession();
+            return;
+        }
+
+        if (!session.success) {
+            return;
+        }
+
+        this.socketSession = session.data;
+        void this.openSocket().catch(() => undefined);
+    }
+
+    /**
+     * Closes the current socket session
+     */
+    async closeSocketSession(): Promise<void> {
+        const session = this.socketSession;
+        this.suspendSocketSession();
+        this.socketSession = null;
+        if (!session) {
+            return;
+        }
+
+        await this.executeRequest(async () => {
+            await axios.delete(this.buildUrl(`socket-sessions/${session.id}`));
+        });
+    }
+
+    /** Clears the local socket state */
+    clearSocketSession(): void {
+        this.suspendSocketSession();
+        this.socketSession = null;
+    }
+
+    /**
+     * Resumes the socket session
+     */
+    async resumeSocketSession(): Promise<void> {
+        if (this.resumeSocketRequest) {
+            await this.resumeSocketRequest;
+            return;
+        }
+
+        if (!this.isSocketSessionSuspended) {
+            return;
+        }
+
+        this.isSocketSessionSuspended = false;
+        this.resumeSocketRequest = this.refreshSocketSession().finally(() => {
+            this.resumeSocketRequest = null;
+        });
+        await this.resumeSocketRequest;
+    }
+
+    /** Suspends the socket session */
+    suspendSocketSession(): void {
+        this.isSocketSessionSuspended = true;
+        this.closeSocket();
     }
 
     /** Clears completed remote operations */
@@ -116,13 +205,16 @@ export default class ApiUtils {
             return { success: true, data: { version: ApiUtils.FTP_VERSION } };
         }
 
-        return this.executeRequest(async () => {
-            const { dir } = request;
-            const { data } = await axios.get<FtpVersionResponse>(this.buildUrl("data-versions/ftp"), {
-                params: { dir: this.normalizeDir(dir) }
-            });
-            return data;
-        });
+        if (this.isSocketSessionSuspended) {
+            return { success: true, data: { version: ApiUtils.FTP_VERSION } };
+        }
+
+        const response = await this.getSocketVersions(request.dir);
+        if (!response.success) {
+            return response;
+        }
+
+        return { success: true, data: { version: response.data.ftp } };
     }
 
     /**
@@ -361,6 +453,142 @@ export default class ApiUtils {
 
     private buildUrl(entity: string): string {
         return `${this.apiUrl}/${entity}`;
+    }
+
+    private async getSocketVersions(dir?: string): Promise<ApiResponse<SocketVersions>> {
+        if (this.socketRequest) {
+            return this.socketRequest;
+        }
+
+        this.socketRequest = this.requestSocketVersions(dir).finally(() => {
+            this.socketRequest = null;
+        });
+        return this.socketRequest;
+    }
+
+    private async requestSocketVersions(dir?: string): Promise<ApiResponse<SocketVersions>> {
+        const accessToken = await this.storage.get<string>(STORAGE_KEYS.accessToken);
+        if (!accessToken || !this.socketSession) {
+            return { success: false, error: { code: "SOCKET_SESSION_NOT_FOUND", message: "Sesión de versiones no disponible" } };
+        }
+
+        try {
+            await this.openSocket();
+        } catch {
+            return { success: false, error: { code: "SOCKET_CONNECTION_FAILED", message: "No se pudo conectar al socket" } };
+        }
+
+        const socket = this.socket;
+        if (!socket) {
+            return { success: false, error: { code: "SOCKET_CONNECTION_FAILED", message: "No se pudo conectar al socket" } };
+        }
+
+        return new Promise((resolve) => {
+            this.resolveSocketRequest = resolve;
+            socket.onmessage = ({ data }) => {
+                try {
+                    const response = JSON.parse(data) as SocketVersions | ApiError;
+                    if ("code" in response) {
+                        if (response.code === "INVALID_TOKEN") {
+                            this.isSocketTokenInvalid = true;
+                        }
+
+                        this.completeSocketRequest({ success: false, error: response });
+                        return;
+                    }
+
+                    if (typeof response.ftp !== "string") {
+                        this.completeSocketRequest({
+                            success: false,
+                            error: { code: "SOCKET_RESPONSE_INVALID", message: "El socket devolvió una respuesta no válida" }
+                        });
+                        return;
+                    }
+
+                    this.completeSocketRequest({ success: true, data: response });
+                } catch {
+                    this.completeSocketRequest({
+                        success: false,
+                        error: { code: "SOCKET_RESPONSE_INVALID", message: "El socket devolvió una respuesta no válida" }
+                    });
+                }
+            };
+            socket.send(JSON.stringify({ accessToken, entities: ["ftp"], dir: this.normalizeDir(dir) }));
+        });
+    }
+
+    private completeSocketRequest(response: ApiResponse<SocketVersions>): void {
+        const resolve = this.resolveSocketRequest;
+        this.resolveSocketRequest = null;
+        if (resolve) {
+            resolve(response);
+        }
+    }
+
+    private openSocket(): Promise<void> {
+        if (!this.socketSession) {
+            return Promise.reject();
+        }
+
+        if (this.socket?.readyState === WebSocket.OPEN) {
+            return Promise.resolve();
+        }
+
+        if (this.socketConnection) {
+            return this.socketConnection;
+        }
+
+        const socket = new WebSocket(this.buildSocketUrl(this.socketSession.id));
+        let opened = false;
+        this.socket = socket;
+        this.socketConnection = new Promise((resolve, reject) => {
+            socket.onopen = () => {
+                opened = true;
+                this.socketConnection = null;
+                resolve();
+            };
+            socket.onerror = () => {
+                this.socketConnection = null;
+                reject();
+            };
+            socket.onclose = () => {
+                this.socketConnection = null;
+                if (!opened) {
+                    reject();
+                }
+
+                if (this.socket !== socket) {
+                    return;
+                }
+
+                this.socket = null;
+                this.completeSocketRequest({
+                    success: false,
+                    error: { code: "SOCKET_CONNECTION_FAILED", message: "No se pudo conectar al socket" }
+                });
+                if (!this.isSocketSessionSuspended && !this.isSocketTokenInvalid && this.socketSession) {
+                    void this.refreshSocketSession();
+                }
+            };
+        });
+        return this.socketConnection;
+    }
+
+    private closeSocket(): void {
+        const socket = this.socket;
+        this.socket = null;
+        this.socketConnection = null;
+        this.completeSocketRequest({
+            success: false,
+            error: { code: "SOCKET_CONNECTION_FAILED", message: "No se pudo conectar al socket" }
+        });
+        socket?.close();
+    }
+
+    private buildSocketUrl(id: string): string {
+        const url = new URL(this.apiUrl);
+        const protocol = url.protocol === "https:" ? "wss:" : "ws:";
+        return `${protocol}//${url.host}/events/${encodeURIComponent(id)}`;
     }
 
     private normalizeDir(dir?: string): string | undefined {
