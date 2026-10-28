@@ -25,6 +25,7 @@ import { useAppStateContext } from "./app-context-provider";
 
 const OperationContext = createContext<OperationContextType>({} as OperationContextType);
 const API_URL = Config.API_URL.replace(/\/+$/, "");
+const ACTIVITY_TIMEOUT = 900000;
 
 export const useOperationContext = () => useContext(OperationContext);
 
@@ -69,6 +70,16 @@ export default function OperationProvider(props: PropsWithChildren) {
     const [apiUtils] = useState<ApiUtils>(() => new ApiUtils(remoteFileManager, storage, API_URL));
     const [authUtils] = useState<AuthUtils>(() => new AuthUtils(setIsAuthenticated, setUser, apiUtils, storage));
     const [loadingUtils] = useState<LoadingUtils>(() => new LoadingUtils(setIsLoading));
+    const activityTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const resetActivityTimeout = useCallback((): void => {
+        if (activityTimeout.current) {
+            clearTimeout(activityTimeout.current);
+        }
+
+        void apiUtils.resumeSocketSession();
+        activityTimeout.current = setTimeout(() => apiUtils.suspendSocketSession(), ACTIVITY_TIMEOUT);
+    }, [apiUtils]);
 
     /**
      * Executes an API request and retries it once after restoring the session
@@ -84,6 +95,10 @@ export default function OperationProvider(props: PropsWithChildren) {
             options: ApiRequestOptions = {}
         ): Promise<ApiResponse<T>> {
             const { isBackground = false, showError = !isBackground } = options;
+            if (!isBackground) {
+                resetActivityTimeout();
+            }
+
             return (async function execute(canRetry: boolean): Promise<ApiResponse<T>> {
                 const executeRequest = async (): Promise<ApiResponse<T>> => {
                     const result = await request(apiUtils);
@@ -103,7 +118,7 @@ export default function OperationProvider(props: PropsWithChildren) {
                 return isBackground ? executeRequest() : loadingUtils.run(executeRequest);
             })(true);
         },
-        [apiUtils, authUtils, loadingUtils]
+        [apiUtils, authUtils, loadingUtils, resetActivityTimeout]
     );
 
     const executeLocalRequest = useCallback(
@@ -214,6 +229,17 @@ export default function OperationProvider(props: PropsWithChildren) {
             apiUtils.clearSettledOperations();
         })();
     }, [apiUtils, localFileManager]);
+
+    useEffect(
+        () => () => {
+            if (activityTimeout.current) {
+                clearTimeout(activityTimeout.current);
+            }
+
+            apiUtils.suspendSocketSession();
+        },
+        [apiUtils]
+    );
 
     if (!isInitialized) {
         return null;

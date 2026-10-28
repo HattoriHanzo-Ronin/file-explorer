@@ -91,6 +91,7 @@ export default class AuthUtils {
             return;
         }
 
+        await this.apiUtils.closeSocketSession();
         const result = await this.apiUtils.logout(refreshToken);
         if (result.success) {
             await this.clearSession();
@@ -141,6 +142,7 @@ export default class AuthUtils {
                 config.headers.Authorization = `Bearer ${accessToken}`;
                 return config;
             });
+            await this.apiUtils.refreshSocketSession();
             this.setUser(user);
             this.setIsAuthenticated(true);
         }
@@ -161,6 +163,7 @@ export default class AuthUtils {
 
     private async clearSession(): Promise<void> {
         AuthUtils.SESSION_GENERATION++;
+        this.apiUtils.clearSocketSession();
         if (AuthUtils.AUTH_INTERCEPTOR_ID !== null) {
             axios.interceptors.request.eject(AuthUtils.AUTH_INTERCEPTOR_ID);
             AuthUtils.AUTH_INTERCEPTOR_ID = null;

@@ -13,7 +13,10 @@ function createAuthUtils() {
     const apiUtils = {
         login: jest.fn(),
         refreshToken: jest.fn(),
-        logout: jest.fn()
+        logout: jest.fn(),
+        closeSocketSession: jest.fn(),
+        clearSocketSession: jest.fn(),
+        refreshSocketSession: jest.fn()
     };
     const storage = {
         get: jest.fn(),
@@ -49,6 +52,7 @@ describe("AuthUtils", () => {
         expect(storage.set).toHaveBeenCalledWith(STORAGE_KEYS.refreshToken, { refreshToken: "refresh" });
         expect(setUser).toHaveBeenCalledWith(USER);
         expect(setIsAuthenticated).toHaveBeenCalledWith(true);
+        expect(apiUtils.refreshSocketSession).toHaveBeenCalled();
     });
 
     it("returns validation details without showing a message", async () => {
