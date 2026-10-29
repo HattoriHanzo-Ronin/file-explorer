@@ -92,7 +92,7 @@ export default function Local() {
                         (localFileManager) => localFileManager.getVersion(activeStorageRoot.path, lastLocalDir),
                         { isBackground: true }
                     );
-                    if (result.success && result.data.version !== LocalFileManager.LOCAL_VERSION) {
+                    if (result.success && result.data.version !== LocalFileManager.localVersion) {
                         void loadDirectory(lastLocalDir, true);
                     }
                 }

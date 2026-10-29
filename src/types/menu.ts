@@ -15,4 +15,8 @@ export interface MenuProps extends StorageMenuProps {
     setVisible: SetVisible;
 }
 
+export interface RenameMenuProps extends MenuProps {
+    onFinish: () => void;
+}
+
 export type OverflowMenuProps = StorageMenuProps;

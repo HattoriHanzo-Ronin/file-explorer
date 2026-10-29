@@ -8,7 +8,7 @@ import AppDialog from "./dialog";
 import CreateDirectoryDialog from "./create-directory-dialog";
 import OperationDestinationModal from "./operation-destination-modal";
 import UiUtils from "../utils/ui-utils";
-import type { MenuItemProps, MenuProps, OverflowMenuProps } from "../types/menu";
+import type { MenuItemProps, OverflowMenuProps, RenameMenuProps } from "../types/menu";
 import type { OperationAction, ValidationErrors } from "../types/ui";
 import type { RenameEntryRequest } from "../types/ftp";
 import type { DrawerNavigation } from "../types/navigation";
@@ -27,7 +27,7 @@ function MenuItem(props: MenuItemProps) {
     );
 }
 
-export const RenameMenu = (props: MenuProps & { onFinish: () => void }) => {
+export const RenameMenu = (props: RenameMenuProps) => {
     const { onFinish, setVisible, storage } = props;
     const { theme } = useTheme();
     const {

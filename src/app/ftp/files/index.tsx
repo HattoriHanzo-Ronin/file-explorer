@@ -66,7 +66,7 @@ export default function Files() {
                         const result = await executeApiRequest((apiUtils) => apiUtils.getVersion({ dir: lastFtpDir }), {
                             isBackground: true
                         });
-                        if (result.success && result.data.version !== ApiUtils.FTP_VERSION) {
+                        if (result.success && result.data.version !== ApiUtils.ftpVersion) {
                             void loadDirectory(true);
                         }
                     }
