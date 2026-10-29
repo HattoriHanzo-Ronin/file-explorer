@@ -468,12 +468,27 @@ class FileOperationEngine(
                             throw IllegalStateException("Finalización remota no válida")
                         }
 
-                        val version = event.getString("version")
-                        if (version.isEmpty()) {
-                            throw IllegalStateException("Versión remota no válida")
-                        }
+                        if (record.operation == FileOperationRecord.OPERATION_REMOTE_MOVE) {
+                            val sourceVersion = event.getJSONObject("source")
+                            val destinationVersion = event.getJSONObject("destination")
+                            if (
+                                sourceVersion.getString("dir").isEmpty() ||
+                                sourceVersion.getString("version").isEmpty() ||
+                                destinationVersion.getString("dir").isEmpty() ||
+                                destinationVersion.getString("version").isEmpty()
+                            ) {
+                                throw IllegalStateException("Versiones remotas no válidas")
+                            }
 
-                        record.result?.put("version", version)
+                            record.result?.put("source", sourceVersion)?.put("destination", destinationVersion)
+                        } else {
+                            val version = event.getString("version")
+                            if (version.isEmpty()) {
+                                throw IllegalStateException("Versión remota no válida")
+                            }
+
+                            record.result?.put("version", version)
+                        }
                         complete = true
                         persist(record)
                         continue

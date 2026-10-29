@@ -99,9 +99,20 @@ export interface RemoteFileChange {
     total: number;
 }
 
-export interface RemoteChangeOperationResult {
+export interface RemoteDeleteOperationResult {
     changes: RemoteFileChange[];
     version: string;
+}
+
+export interface RemoteDirectoryVersion {
+    dir: string;
+    version: string;
+}
+
+export interface RemoteMoveOperationResult {
+    changes: RemoteFileChange[];
+    source: RemoteDirectoryVersion;
+    destination: RemoteDirectoryVersion;
 }
 
 export interface FileOperationSnapshot {
@@ -112,7 +123,7 @@ export interface FileOperationSnapshot {
     totalBytes: number;
     revision: number;
     error?: ResponseError;
-    result?: RemoteDirectoryOperationResult | RemoteChangeOperationResult;
+    result?: RemoteDirectoryOperationResult | RemoteDeleteOperationResult | RemoteMoveOperationResult;
     remoteDir: string;
     destinationDir: string;
     localDir: string;

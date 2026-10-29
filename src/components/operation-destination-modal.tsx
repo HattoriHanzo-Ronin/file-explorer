@@ -10,7 +10,7 @@ import type {
     DestinationStoragePickerProps
 } from "../types/components";
 import type { FileSystemEntry, LocalDirectoryUpdate, StorageRoot } from "../types/files";
-import type { FtpEntry } from "../types/ftp";
+import type { CreateDirectoryResponse, FtpEntry } from "../types/ftp";
 import { operationDestination } from "../styles/components/style";
 import UiUtils from "../utils/ui-utils";
 import Breadcrumb from "./breadcrumb";
@@ -153,7 +153,7 @@ export default function OperationDestinationModal(props: DestinationOperationMod
                     isBackground: true
                 });
                 if (result.success) {
-                    setEntries(result.data);
+                    setEntries(result.data.entries);
                 }
 
                 return;
@@ -225,7 +225,9 @@ export default function OperationDestinationModal(props: DestinationOperationMod
         });
         if (result.success) {
             setFtpDirectory((current) =>
-                current.dir === dir ? { ...current, content: result.data.entries } : current
+                current.dir === dir
+                    ? { ...current, content: result.data.entries, version: result.data.version }
+                    : current
             );
         }
     }
@@ -253,19 +255,29 @@ export default function OperationDestinationModal(props: DestinationOperationMod
         );
         if (result.success) {
             setFtpDirectory((current) => {
-                let content = current.content;
+                const { changes, destination, source } = result.data;
                 if (current.dir === ftpSelectionDir) {
-                    content = content.filter(({ name }) => !result.data.some(({ path }) => path === name));
+                    return {
+                        ...current,
+                        content: current.content.filter(
+                            ({ name }) => !changes.some(({ path }) => path === name)
+                        ),
+                        version: source.version
+                    };
                 }
 
                 if (current.dir === dir) {
-                    content = [
-                        ...content,
-                        ...result.data.map(({ path, targetPath, type }) => ({ name: targetPath ?? path, type }))
-                    ];
+                    return {
+                        ...current,
+                        content: [
+                            ...current.content,
+                            ...changes.map(({ path, targetPath, type }) => ({ name: targetPath ?? path, type }))
+                        ],
+                        version: destination.version
+                    };
                 }
 
-                return { ...current, content };
+                return current;
             });
         }
     }
@@ -321,9 +333,13 @@ export default function OperationDestinationModal(props: DestinationOperationMod
         onCancel?.();
     }
 
-    function updateCreatedDirectory(content: FtpEntry[] | LocalDirectoryUpdate[]) {
+    function updateCreatedDirectory(content: CreateDirectoryResponse | LocalDirectoryUpdate[]) {
         if (remoteDestination) {
-            setEntries(content as FtpEntry[]);
+            const { entries: createdEntries, version } = content as CreateDirectoryResponse;
+            setEntries(createdEntries);
+            setFtpDirectory((current) =>
+                current.dir === dir ? { ...current, content: createdEntries, version } : current
+            );
             return;
         }
 

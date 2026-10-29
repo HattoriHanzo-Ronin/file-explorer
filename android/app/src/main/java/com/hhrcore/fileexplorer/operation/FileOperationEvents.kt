@@ -57,6 +57,10 @@ object FileOperationEvents {
             if (result.has("version")) {
                 putString("version", result.getString("version"))
             }
+            if (result.has("source")) {
+                putMap("source", toDirectoryVersionMap(result.getJSONObject("source")))
+                putMap("destination", toDirectoryVersionMap(result.getJSONObject("destination")))
+            }
 
             putArray("changes", Arguments.createArray().apply {
                 val changes = result.getJSONArray("changes")
@@ -87,5 +91,10 @@ object FileOperationEvents {
                 }
             })
         }
+    }
+
+    private fun toDirectoryVersionMap(directory: org.json.JSONObject): WritableMap = Arguments.createMap().apply {
+        putString("dir", directory.getString("dir"))
+        putString("version", directory.getString("version"))
     }
 }
