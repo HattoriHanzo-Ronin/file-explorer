@@ -17,9 +17,8 @@ export default class AuthUtils {
     private static SESSION_GENERATION = 0;
     private setIsAuthenticated: (isAuthenticated: boolean) => void;
     private setUser: (user: AuthUser | null) => void;
-    private apiUtils: ApiUtils;
     private storage: Storage;
-    private restoreSessionRequest: Promise<boolean> | null = null;
+    private apiUtils: ApiUtils;
 
     constructor(
         setIsAuthenticated: (isAuthenticated: boolean) => void,
@@ -40,22 +39,7 @@ export default class AuthUtils {
      * @returns Validation error details or nothing
      */
     async login(credentials: LoginRequest): Promise<ApiValidationErrorDetail[] | undefined> {
-        const { username, password } = credentials;
-        const normalizedUsername = username.trim();
-        const errors: ApiValidationErrorDetail[] = [];
-        if (!normalizedUsername) {
-            errors.push({ field: "username", message: "Introduce el usuario" });
-        }
-
-        if (!password) {
-            errors.push({ field: "password", message: "Introduce la contraseña" });
-        }
-
-        if (errors.length > 0) {
-            return errors;
-        }
-
-        const result = await this.authenticate(() => this.apiUtils.login({ username: normalizedUsername, password }));
+        const result = await this.authenticate(() => this.apiUtils.login(credentials));
         if (!result.success) {
             const { code, details } = result.error;
             if (code === "VALIDATION_FAILED" && details) {
@@ -72,13 +56,14 @@ export default class AuthUtils {
      * @returns Whether the session was restored
      */
     async restoreSession(): Promise<boolean> {
-        if (!this.restoreSessionRequest) {
-            this.restoreSessionRequest = this.restoreCurrentSession().finally(() => {
-                this.restoreSessionRequest = null;
-            });
+        const refreshToken = await this.storage.get<RefreshTokenRequest>(STORAGE_KEYS.refreshToken);
+        if (!refreshToken) {
+            this.clearSession();
+            return false;
         }
 
-        return this.restoreSessionRequest;
+        const { success } = await this.authenticate(() => this.apiUtils.refreshToken(refreshToken));
+        return success;
     }
 
     /**
@@ -87,29 +72,27 @@ export default class AuthUtils {
     async logout(): Promise<void> {
         const refreshToken = await this.storage.get<RefreshTokenRequest>(STORAGE_KEYS.refreshToken);
         if (!refreshToken) {
-            await this.clearSession();
+            this.clearSession();
             return;
         }
 
         await this.apiUtils.closeSocketSession();
         const result = await this.apiUtils.logout(refreshToken);
         if (result.success) {
-            await this.clearSession();
+            await this.clearStoredTokens();
+            this.clearSession();
+            return;
+        }
+
+        if (result.error.code === "INVALID_TOKEN") {
+            if (await this.restoreSession()) {
+                await this.logout();
+            }
+
             return;
         }
 
         UiUtils.showMessage(result.error.message);
-    }
-
-    private async restoreCurrentSession(): Promise<boolean> {
-        const refreshToken = await this.storage.get<RefreshTokenRequest>(STORAGE_KEYS.refreshToken);
-        if (!refreshToken) {
-            await this.clearSession();
-            return false;
-        }
-
-        const { success } = await this.authenticate(() => this.apiUtils.refreshToken(refreshToken));
-        return success;
     }
 
     /**
@@ -149,7 +132,8 @@ export default class AuthUtils {
         if (!success) {
             const { error } = result;
             if (error.code === "INVALID_TOKEN") {
-                await this.clearSession();
+                await this.clearStoredTokens();
+                this.clearSession();
             }
 
             if (error.code !== "VALIDATION_FAILED") {
@@ -160,7 +144,14 @@ export default class AuthUtils {
         return result;
     }
 
-    private async clearSession(): Promise<void> {
+    private async clearStoredTokens(): Promise<void> {
+        await Promise.all([
+            this.storage.delete(STORAGE_KEYS.accessToken),
+            this.storage.delete(STORAGE_KEYS.refreshToken)
+        ]);
+    }
+
+    private clearSession(): void {
         AuthUtils.SESSION_GENERATION++;
         this.apiUtils.clearSocketSession();
         if (AuthUtils.AUTH_INTERCEPTOR_ID !== null) {
@@ -168,10 +159,6 @@ export default class AuthUtils {
             AuthUtils.AUTH_INTERCEPTOR_ID = null;
         }
 
-        await Promise.all([
-            this.storage.delete(STORAGE_KEYS.accessToken),
-            this.storage.delete(STORAGE_KEYS.refreshToken)
-        ]);
         this.setUser(null);
         this.setIsAuthenticated(false);
     }
