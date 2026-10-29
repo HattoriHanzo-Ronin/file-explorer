@@ -64,13 +64,15 @@ describe("AuthUtils", () => {
         expect(UiUtils.showMessage).not.toHaveBeenCalled();
     });
 
-    it("validates credentials before requesting login", async () => {
+    it("forwards credentials to the API", async () => {
         const { apiUtils, authUtils } = createAuthUtils();
-        await expect(authUtils.login({ username: " ", password: "" })).resolves.toEqual([
-            { field: "username", message: "Introduce el usuario" },
-            { field: "password", message: "Introduce la contraseña" }
-        ]);
-        expect(apiUtils.login).not.toHaveBeenCalled();
+        const credentials = { username: " ", password: "" };
+        apiUtils.login.mockResolvedValue({
+            success: false,
+            error: { code: "VALIDATION_FAILED", message: "", details: [] }
+        });
+        await expect(authUtils.login(credentials)).resolves.toEqual([]);
+        expect(apiUtils.login).toHaveBeenCalledWith(credentials);
     });
 
     it("clears a missing persisted session", async () => {
@@ -78,8 +80,7 @@ describe("AuthUtils", () => {
         storage.get.mockResolvedValue(null);
         await expect(authUtils.restoreSession()).resolves.toBe(false);
         expect(apiUtils.refreshToken).not.toHaveBeenCalled();
-        expect(storage.delete).toHaveBeenCalledWith(STORAGE_KEYS.accessToken);
-        expect(storage.delete).toHaveBeenCalledWith(STORAGE_KEYS.refreshToken);
+        expect(storage.delete).not.toHaveBeenCalled();
         expect(setUser).toHaveBeenCalledWith(null);
         expect(setIsAuthenticated).toHaveBeenCalledWith(false);
     });
@@ -91,5 +92,23 @@ describe("AuthUtils", () => {
         apiUtils.refreshToken.mockResolvedValue({ success: true, data: RESPONSE });
         await expect(authUtils.restoreSession()).resolves.toBe(true);
         expect(apiUtils.refreshToken).toHaveBeenCalledWith(refreshToken);
+    });
+
+    it("refreshes an expired access token before retrying logout", async () => {
+        const { apiUtils, authUtils, storage } = createAuthUtils();
+        const refreshToken = { refreshToken: "stored" };
+        storage.get
+            .mockResolvedValueOnce(refreshToken)
+            .mockResolvedValueOnce(refreshToken)
+            .mockResolvedValueOnce({ refreshToken: "renewed" });
+        apiUtils.logout
+            .mockResolvedValueOnce({ success: false, error: { code: "INVALID_TOKEN", message: "Caducado" } })
+            .mockResolvedValueOnce({ success: true, data: undefined });
+        apiUtils.refreshToken.mockResolvedValue({ success: true, data: { ...RESPONSE, refreshToken: "renewed" } });
+        await authUtils.logout();
+        expect(apiUtils.refreshToken).toHaveBeenCalledWith(refreshToken);
+        expect(apiUtils.logout).toHaveBeenNthCalledWith(2, { refreshToken: "renewed" });
+        expect(storage.delete).toHaveBeenCalledWith(STORAGE_KEYS.accessToken);
+        expect(storage.delete).toHaveBeenCalledWith(STORAGE_KEYS.refreshToken);
     });
 });
