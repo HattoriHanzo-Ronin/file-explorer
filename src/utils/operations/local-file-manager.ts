@@ -14,7 +14,7 @@ import FileUtils from "../file-utils";
  * @author HattoriHanzo-Ronin
  */
 export default class LocalFileManager {
-    static LOCAL_VERSION = "";
+    private static LOCAL_VERSION = "";
     private readonly localFileOperation: LocalFileOperation;
     private readonly permission: Permission;
     private readonly activeDirectories = new Map<string, Set<string>>();
@@ -270,6 +270,10 @@ export default class LocalFileManager {
             })
         );
         return { success: true, data: updates.filter((update) => update !== null) };
+    }
+
+    static get localVersion(): string {
+        return LocalFileManager.LOCAL_VERSION;
     }
 
     private async startCopyMove(

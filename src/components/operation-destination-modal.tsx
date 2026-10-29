@@ -109,7 +109,7 @@ function getDirectories(entries: FtpEntry[] | FileSystemEntry[], remote: boolean
         return (entries as FtpEntry[]).filter(({ type }) => type === "DIR").map(({ name }) => name);
     }
 
-    return (entries as FileSystemEntry[]).filter((entry) => entry.isDirectory()).map(({ name }) => name);
+    return (entries as FileSystemEntry[]).filter(({ isDirectory }) => isDirectory()).map(({ name }) => name);
 }
 
 export default function OperationDestinationModal(props: DestinationOperationModalProps) {

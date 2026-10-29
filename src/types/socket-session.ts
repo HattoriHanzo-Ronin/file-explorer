@@ -1,9 +1,9 @@
 export interface SocketSession {
-    id: string;
-    expiresAt: string;
-    activityInterval: number;
+    readonly id: string;
+    readonly expiresAt: string;
+    readonly activityInterval: number;
 }
 
 export interface SocketVersions {
-    ftp: string;
+    readonly ftp: string;
 }

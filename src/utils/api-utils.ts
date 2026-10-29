@@ -39,7 +39,7 @@ import FileUtils from "./file-utils";
  * @author HattoriHanzo-Ronin
  */
 export default class ApiUtils {
-    static FTP_VERSION = "";
+    private static FTP_VERSION = "";
     private readonly remoteFileManager: RemoteFileManager;
     private readonly storage: Storage;
     private readonly apiUrl: string;
@@ -449,6 +449,10 @@ export default class ApiUtils {
             this.updateFtpVersion(version);
             return changes;
         });
+    }
+
+    static get ftpVersion(): string {
+        return ApiUtils.FTP_VERSION;
     }
 
     private buildUrl(entity: string): string {

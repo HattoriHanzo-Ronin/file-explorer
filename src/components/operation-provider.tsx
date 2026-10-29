@@ -1,6 +1,6 @@
 import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useRef, useState } from "react";
 import Config from "react-native-config";
-import { STORAGE_KEYS } from "../constants/storage";
+import { DATABASE_KEYS } from "../constants/database";
 import { STORAGE_ROOT_NAMES } from "../constants/storage-roots";
 import { THUMBNAIL_CACHE } from "../constants/thumbnails";
 import type { ApiRequestOptions, ApiResponse } from "../types/api-response";
@@ -81,14 +81,6 @@ export default function OperationProvider(props: PropsWithChildren) {
         activityTimeout.current = setTimeout(() => apiUtils.suspendSocketSession(), ACTIVITY_TIMEOUT);
     }, [apiUtils]);
 
-    /**
-     * Executes an API request and retries it once after restoring the session
-     *
-     * @param request API request
-     * @param options.isBackground Whether to execute without changing the loading state
-     * @param options.showError Whether to display returned error messages
-     * @returns API response
-     */
     const executeApiRequest = useCallback(
         async function executeApi<T>(
             request: (apiUtils: ApiUtils) => Promise<ApiResponse<T>>,
@@ -160,7 +152,7 @@ export default function OperationProvider(props: PropsWithChildren) {
 
     useEffect(() => {
         let mounted = true;
-        void preferenceStorage.get<ListViewMode>(STORAGE_KEYS.viewMode).then(
+        void preferenceStorage.get<ListViewMode>(DATABASE_KEYS.viewMode).then(
             (storedViewMode) => {
                 if (mounted && isListViewMode(storedViewMode)) {
                     setViewMode(storedViewMode);
@@ -179,7 +171,7 @@ export default function OperationProvider(props: PropsWithChildren) {
 
     useEffect(() => {
         if (viewModeRestored.current) {
-            void preferenceStorage.set(STORAGE_KEYS.viewMode, viewMode);
+            void preferenceStorage.set(DATABASE_KEYS.viewMode, viewMode);
         }
     }, [preferenceStorage, viewMode]);
 

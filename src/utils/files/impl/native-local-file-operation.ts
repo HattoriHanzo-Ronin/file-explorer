@@ -43,16 +43,16 @@ interface NativeStorageVolumeModule {
  * @author HattoriHanzo-Ronin
  */
 export default class NativeLocalFileOperation implements LocalFileOperation {
-    readonly internalRoot: StorageRoot;
     private readonly module = NativeModules.FileOperation as NativeFileOperationModule;
     private readonly eventEmitter = new NativeEventEmitter(NativeModules.FileOperation);
     private readonly storageVolume = NativeModules.StorageVolume as NativeStorageVolumeModule;
     private readonly storageVolumeEmitter = new NativeEventEmitter(NativeModules.StorageVolume);
     private readonly storageRootNames: StorageRootNames;
+    private readonly root: StorageRoot;
 
     constructor(storageRootNames: StorageRootNames) {
         this.storageRootNames = storageRootNames;
-        this.internalRoot = {
+        this.root = {
             id: "internal",
             name: storageRootNames.internal,
             path: this.storageVolume.internalRootPath,
@@ -195,5 +195,9 @@ export default class NativeLocalFileOperation implements LocalFileOperation {
             listener(operation as unknown as FileOperationSnapshot)
         );
         return () => subscription.remove();
+    }
+
+    get internalRoot(): StorageRoot {
+        return this.root;
     }
 }
