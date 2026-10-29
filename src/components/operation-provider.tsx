@@ -42,6 +42,7 @@ export default function OperationProvider(props: PropsWithChildren) {
         permission,
         setActiveStorageRoot,
         setExternalRoots,
+        setFtpDirectory,
         setInternalRoot,
         setIsAuthenticated,
         setIsLoading,
@@ -49,6 +50,7 @@ export default function OperationProvider(props: PropsWithChildren) {
         setLastLocalRootId,
         setLocalDirectory,
         setModifyLocalFile,
+        setModifyFtpFile,
         setUser,
         setViewMode,
         viewMode
@@ -215,6 +217,13 @@ export default function OperationProvider(props: PropsWithChildren) {
             apiUtils.clearSettledOperations();
         })();
     }, [apiUtils, localFileManager]);
+
+    useEffect(() => {
+        if (!isAuthenticated) {
+            setFtpDirectory({ dir: " ", content: [], version: "" });
+            setModifyFtpFile([]);
+        }
+    }, [isAuthenticated, setFtpDirectory, setModifyFtpFile]);
 
     useEffect(() => {
         let refreshInterval: ReturnType<typeof setInterval> | null = null;
