@@ -43,10 +43,17 @@ function completedOperation(operation: "REMOTE_MOVE" | "REMOTE_DELETE"): FileOpe
         remoteDir: "source",
         destinationDir: "target",
         localDir: "",
-        result: {
-            version: "9",
-            changes: [{ path: "file.txt", targetPath: "target/file.txt", type: "FILE", completed: 1, total: 1 }]
-        }
+        result:
+            operation === "REMOTE_MOVE"
+                ? {
+                      source: { dir: "source", version: "8" },
+                      destination: { dir: "target", version: "9" },
+                      changes: [{ path: "file.txt", targetPath: "target/file.txt", type: "FILE", completed: 1, total: 1 }]
+                  }
+                : {
+                      version: "9",
+                      changes: [{ path: "file.txt", type: "FILE", completed: 1, total: 1 }]
+                  }
     };
 }
 

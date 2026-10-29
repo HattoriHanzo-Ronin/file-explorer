@@ -14,7 +14,7 @@ import { RenameMenu } from "../../src/components/overflow-menu";
 test("allows independent renames while another is pending", async () => {
     const rename = jest.fn(() => new Promise(() => {}));
     const context = {
-        ftpDirectory: { dir: " ", content: [] },
+        ftpDirectory: { dir: " ", content: [], version: "" },
         modifyFtpFile: [],
         modifyLocalFile: [{ path: "/storage/first.txt", type: "file" }],
         setFtpDirectory: jest.fn(),
