@@ -100,20 +100,6 @@ describe("ApiUtils", () => {
         expect(listener).not.toHaveBeenCalled();
     });
 
-    it("publishes FTP notifications whose version is already loaded for the screen to filter", async () => {
-        const { apiUtils, storage } = createApiUtils();
-        const listener = jest.fn();
-        apiUtils.addFtpChangeListener(listener);
-        storage.get.mockResolvedValue("access-token");
-        jest.mocked(axios.get).mockResolvedValue({ data: ENTRIES, headers: { "data-version": "4" } });
-        jest.mocked(axios.post).mockResolvedValue({ data: SOCKET_SESSION });
-        await apiUtils.getDirectory("docs");
-        await apiUtils.refreshSocketSession();
-        await Promise.resolve();
-        MockWebSocket.instances[0].onmessage?.({ data: JSON.stringify({ entity: "ftp", dir: "docs", version: "4" }) });
-        expect(listener).toHaveBeenCalledWith({ entity: "ftp", dir: "docs", version: "4" });
-    });
-
     it("does not reconnect a rejected socket session", async () => {
         const { apiUtils, storage } = createApiUtils();
         storage.get.mockResolvedValue("access-token");
@@ -173,8 +159,10 @@ describe("ApiUtils", () => {
     it("lists an FTP directory", async () => {
         const { apiUtils } = createApiUtils();
         jest.mocked(axios.get).mockResolvedValue({ data: ENTRIES, headers: { "data-version": "4" } });
-        await expect(apiUtils.getDirectory("pictures")).resolves.toEqual({ success: true, data: ENTRIES });
-        expect(ApiUtils.getFtpVersion("pictures")).toBe("4");
+        await expect(apiUtils.getDirectory("pictures")).resolves.toEqual({
+            success: true,
+            data: { entries: ENTRIES, version: "4" }
+        });
         expect(axios.get).toHaveBeenCalledWith(`${API_URL}/ftp`, { params: { dir: "pictures" } });
     });
 
@@ -220,8 +208,7 @@ describe("ApiUtils", () => {
             operation === "createDirectory"
                 ? await apiUtils.createDirectory({ name: "folder", dir: "pictures" })
                 : await apiUtils.renameEntry({ entry: ENTRIES[0], newName: "new.jpg", dir: "pictures" });
-        expect(result).toEqual({ success: true, data: ENTRIES });
-        expect(ApiUtils.getFtpVersion("pictures")).toBe("12");
+        expect(result).toEqual({ success: true, data: { entries: ENTRIES, version: "12" } });
     });
 
     it("preserves native API errors and validation details", async () => {
@@ -253,15 +240,22 @@ describe("ApiUtils", () => {
         const { apiUtils, remoteFileManager } = createApiUtils();
         remoteFileManager.move.mockResolvedValue({
             success: true,
-            data: { version: "8", changes: [{ path: "photo.jpg", type: "FILE", completed: 1, total: 1 }] }
+            data: {
+                source: { dir: ".", version: "7" },
+                destination: { dir: "target", version: "8" },
+                changes: [{ path: "photo.jpg", type: "FILE", completed: 1, total: 1 }]
+            }
         });
         await expect(apiUtils.moveEntries({ dir: "source", destination: "target", entries: ENTRIES })).resolves.toEqual(
             {
                 success: true,
-                data: [{ path: "photo.jpg", type: "FILE", completed: 1, total: 1 }]
+                data: {
+                    source: { dir: ".", version: "7" },
+                    destination: { dir: "target", version: "8" },
+                    changes: [{ path: "photo.jpg", type: "FILE", completed: 1, total: 1 }]
+                }
             }
         );
-        expect(ApiUtils.getFtpVersion("target")).toBe("8");
     });
 
     it("rejects a remote move to the source directory", async () => {

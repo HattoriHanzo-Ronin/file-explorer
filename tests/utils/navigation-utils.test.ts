@@ -37,7 +37,7 @@ test("applies completed operation results only to the matching storage and direc
 
 test("clears selections when navigating through the drawer", () => {
     const context = {
-        ftpDirectory: { dir: "docs", content: [] },
+        ftpDirectory: { dir: "docs", content: [], version: "1" },
         setFtpDirectory: jest.fn(),
         setModifyFtpFile: jest.fn(),
         setModifyLocalFile: jest.fn()
