@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from "react";
-import { useFocusEffect, useIsFocused, useNavigation } from "@react-navigation/native";
+import { useIsFocused, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { View } from "react-native";
 import { useAppContext } from "../../../components/app-context-provider";
@@ -19,13 +19,12 @@ export default function Files() {
     const {
         ftpDirectory,
         isAuthenticated,
-        isLoading,
         setFtpDirectory,
         setModifyFtpFile,
         setFtpSelectionDir,
         modifyFtpFile
     } = useAppContext();
-    const { executeApiRequest } = useOperationContext();
+    const { addFtpChangeListener, executeApiRequest } = useOperationContext();
     const { mode } = useTheme();
     const common = commonStyles[mode];
     const { content: ftpDirContent, dir: lastFtpDir } = ftpDirectory;
@@ -58,22 +57,14 @@ export default function Files() {
         void loadDirectory();
     }, [loadDirectory]);
 
-    useFocusEffect(
-        useCallback(() => {
-            const interval = setInterval(() => {
-                void (async () => {
-                    if (!isLoading) {
-                        const result = await executeApiRequest((apiUtils) => apiUtils.getVersion({ dir: lastFtpDir }), {
-                            isBackground: true
-                        });
-                        if (result.success && result.data.version !== ApiUtils.ftpVersion) {
-                            void loadDirectory(true);
-                        }
-                    }
-                })();
-            }, 1000);
-            return () => clearInterval(interval);
-        }, [executeApiRequest, isLoading, lastFtpDir, loadDirectory])
+    useEffect(
+        () =>
+            addFtpChangeListener(({ dir, version }) => {
+                if (dir === lastFtpDir && version !== ApiUtils.getFtpVersion(dir)) {
+                    void loadDirectory(true);
+                }
+            }),
+        [addFtpChangeListener, lastFtpDir, loadDirectory]
     );
 
     return (

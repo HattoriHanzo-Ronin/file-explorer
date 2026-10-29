@@ -1,5 +1,6 @@
 import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useRef, useState } from "react";
 import Config from "react-native-config";
+import { AppState } from "react-native";
 import { DATABASE_KEYS } from "../constants/database";
 import { STORAGE_ROOT_NAMES } from "../constants/storage-roots";
 import { THUMBNAIL_CACHE } from "../constants/thumbnails";
@@ -8,6 +9,7 @@ import type { OperationContextType } from "../types/context";
 import type { StorageRoot } from "../types/files";
 import type { LocalRequestOptions, LocalResponse } from "../types/local-response";
 import type { ListViewMode } from "../types/ui";
+import type { SocketNotification } from "../types/socket-session";
 import ApiUtils from "../utils/api-utils";
 import AuthUtils from "../utils/auth-utils";
 import NativeLocalFileOperation from "../utils/files/impl/native-local-file-operation";
@@ -25,7 +27,7 @@ import { useAppStateContext } from "./app-context-provider";
 
 const OperationContext = createContext<OperationContextType>({} as OperationContextType);
 const API_URL = Config.API_URL.replace(/\/+$/, "");
-const ACTIVITY_TIMEOUT = 900000;
+const SOCKET_SESSION_REFRESH_INTERVAL = 600000;
 
 export const useOperationContext = () => useContext(OperationContext);
 
@@ -34,6 +36,7 @@ export default function OperationProvider(props: PropsWithChildren) {
     const {
         activeStorageRoot,
         externalRoots,
+        isAuthenticated,
         localDirectory,
         modifyLocalFile,
         permission,
@@ -70,16 +73,10 @@ export default function OperationProvider(props: PropsWithChildren) {
     const [apiUtils] = useState<ApiUtils>(() => new ApiUtils(remoteFileManager, storage, API_URL));
     const [authUtils] = useState<AuthUtils>(() => new AuthUtils(setIsAuthenticated, setUser, apiUtils, storage));
     const [loadingUtils] = useState<LoadingUtils>(() => new LoadingUtils(setIsLoading));
-    const activityTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-    const resetActivityTimeout = useCallback((): void => {
-        if (activityTimeout.current) {
-            clearTimeout(activityTimeout.current);
-        }
-
-        void apiUtils.resumeSocketSession();
-        activityTimeout.current = setTimeout(() => apiUtils.suspendSocketSession(), ACTIVITY_TIMEOUT);
-    }, [apiUtils]);
+    const addFtpChangeListener = useCallback(
+        (listener: (notification: SocketNotification) => void): (() => void) => apiUtils.addFtpChangeListener(listener),
+        [apiUtils]
+    );
 
     const executeApiRequest = useCallback(
         async function executeApi<T>(
@@ -87,10 +84,6 @@ export default function OperationProvider(props: PropsWithChildren) {
             options: ApiRequestOptions = {}
         ): Promise<ApiResponse<T>> {
             const { isBackground = false, showError = !isBackground } = options;
-            if (!isBackground) {
-                resetActivityTimeout();
-            }
-
             return (async function execute(canRetry: boolean): Promise<ApiResponse<T>> {
                 const executeRequest = async (): Promise<ApiResponse<T>> => {
                     const result = await request(apiUtils);
@@ -110,7 +103,7 @@ export default function OperationProvider(props: PropsWithChildren) {
                 return isBackground ? executeRequest() : loadingUtils.run(executeRequest);
             })(true);
         },
-        [apiUtils, authUtils, loadingUtils, resetActivityTimeout]
+        [apiUtils, authUtils, loadingUtils]
     );
 
     const executeLocalRequest = useCallback(
@@ -133,6 +126,7 @@ export default function OperationProvider(props: PropsWithChildren) {
     );
 
     const contextValues: OperationContextType = {
+        addFtpChangeListener,
         authUtils,
         executeApiRequest,
         executeLocalRequest,
@@ -222,15 +216,51 @@ export default function OperationProvider(props: PropsWithChildren) {
         })();
     }, [apiUtils, localFileManager]);
 
-    useEffect(
-        () => () => {
-            if (activityTimeout.current) {
-                clearTimeout(activityTimeout.current);
+    useEffect(() => {
+        let refreshInterval: ReturnType<typeof setInterval> | null = null;
+        const stopSocketSession = (): void => {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+                refreshInterval = null;
             }
 
             apiUtils.suspendSocketSession();
-        },
-        [apiUtils]
+        };
+        const startSocketSession = (): void => {
+            if (!isAuthenticated || refreshInterval) {
+                return;
+            }
+
+            void executeApiRequest((client) => client.refreshSocketSession(), { isBackground: true });
+            refreshInterval = setInterval(
+                () => void executeApiRequest((client) => client.refreshSocketSession(), { isBackground: true }),
+                SOCKET_SESSION_REFRESH_INTERVAL
+            );
+        };
+        const subscription = AppState.addEventListener("change", (state) => {
+            if (state === "active") {
+                startSocketSession();
+                return;
+            }
+
+            stopSocketSession();
+        });
+        if (AppState.currentState !== "background" && AppState.currentState !== "inactive") {
+            startSocketSession();
+        }
+
+        return () => {
+            subscription.remove();
+            stopSocketSession();
+        };
+    }, [apiUtils, executeApiRequest, isAuthenticated]);
+
+    useEffect(
+        () =>
+            apiUtils.addSocketReconnectListener(() => {
+                void executeApiRequest((client) => client.refreshSocketSession(), { isBackground: true });
+            }),
+        [apiUtils, executeApiRequest]
     );
 
     if (!isInitialized) {

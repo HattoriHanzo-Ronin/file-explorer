@@ -29,12 +29,6 @@ export interface ThumbnailResponse {
     headers?: Record<string, string>;
 }
 
-export type FtpVersionRequest = FtpDirectoryRequest;
-
-export interface FtpVersionResponse {
-    version: string;
-}
-
 export interface CreateDirectoryRequest extends FtpDirectoryRequest {
     name: string;
 }
