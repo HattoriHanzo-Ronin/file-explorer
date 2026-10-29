@@ -50,10 +50,14 @@ function createApiUtils() {
     };
 }
 
+async function updateFtpVersion(apiUtils: ApiUtils, version: string): Promise<void> {
+    jest.mocked(axios.get).mockResolvedValue({ data: ENTRIES, headers: { "data-version": version } });
+    await apiUtils.getDirectory();
+}
+
 describe("ApiUtils", () => {
     beforeEach(() => {
         jest.clearAllMocks();
-        ApiUtils.FTP_VERSION = "";
         MockWebSocket.instances = [];
         MockWebSocket.response = { ftp: "3" };
         globalThis.WebSocket = MockWebSocket as unknown as typeof WebSocket;
@@ -73,8 +77,8 @@ describe("ApiUtils", () => {
 
     it("does not check the remote version while the directory is busy", async () => {
         const { apiUtils, remoteFileManager } = createApiUtils();
+        await updateFtpVersion(apiUtils, "4");
         remoteFileManager.isRemoteDirectoryBusy.mockReturnValue(true);
-        ApiUtils.FTP_VERSION = "4";
         await expect(apiUtils.getVersion({ dir: "docs" })).resolves.toEqual({ success: true, data: { version: "4" } });
         expect(MockWebSocket.instances).toHaveLength(0);
     });
@@ -89,7 +93,7 @@ describe("ApiUtils", () => {
 
     it("does not request versions while the socket session is suspended", async () => {
         const { apiUtils } = createApiUtils();
-        ApiUtils.FTP_VERSION = "4";
+        await updateFtpVersion(apiUtils, "4");
         await expect(apiUtils.getVersion({ dir: "docs" })).resolves.toEqual({ success: true, data: { version: "4" } });
         expect(MockWebSocket.instances).toHaveLength(0);
     });
@@ -124,7 +128,7 @@ describe("ApiUtils", () => {
         const { apiUtils } = createApiUtils();
         jest.mocked(axios.get).mockResolvedValue({ data: ENTRIES, headers: { "data-version": "4" } });
         await expect(apiUtils.getDirectory("pictures")).resolves.toEqual({ success: true, data: ENTRIES });
-        expect(ApiUtils.FTP_VERSION).toBe("4");
+        expect(ApiUtils.ftpVersion).toBe("4");
         expect(axios.get).toHaveBeenCalledWith(`${API_URL}/ftp`, { params: { dir: "pictures" } });
     });
 
@@ -171,7 +175,7 @@ describe("ApiUtils", () => {
                 ? await apiUtils.createDirectory({ name: "folder", dir: "pictures" })
                 : await apiUtils.renameEntry({ entry: ENTRIES[0], newName: "new.jpg", dir: "pictures" });
         expect(result).toEqual({ success: true, data: ENTRIES });
-        expect(ApiUtils.FTP_VERSION).toBe("12");
+        expect(ApiUtils.ftpVersion).toBe("12");
     });
 
     it("preserves native API errors and validation details", async () => {
@@ -182,9 +186,9 @@ describe("ApiUtils", () => {
             details: [{ field: "name", message: "No válido" }]
         };
         remoteFileManager.createDirectory.mockResolvedValue({ success: false, error });
-        ApiUtils.FTP_VERSION = "previous";
+        await updateFtpVersion(apiUtils, "previous");
         await expect(apiUtils.createDirectory({ name: "folder" })).resolves.toEqual({ success: false, error });
-        expect(ApiUtils.FTP_VERSION).toBe("previous");
+        expect(ApiUtils.ftpVersion).toBe("previous");
     });
 
     it("validates names before starting remote directory operations", async () => {
@@ -213,7 +217,7 @@ describe("ApiUtils", () => {
                 data: [{ path: "photo.jpg", type: "FILE", completed: 1, total: 1 }]
             }
         );
-        expect(ApiUtils.FTP_VERSION).toBe("8");
+        expect(ApiUtils.ftpVersion).toBe("8");
     });
 
     it("rejects a remote move to the source directory", async () => {

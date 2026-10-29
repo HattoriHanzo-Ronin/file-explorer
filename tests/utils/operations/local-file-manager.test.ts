@@ -33,10 +33,6 @@ function createManager() {
 }
 
 describe("LocalFileManager", () => {
-    beforeEach(() => {
-        LocalFileManager.LOCAL_VERSION = "";
-    });
-
     it("lists a directory and stores its version", async () => {
         const { localFileOperation, manager } = createManager();
         localFileOperation.readDir.mockResolvedValue([
@@ -46,7 +42,7 @@ describe("LocalFileManager", () => {
         expect(result.success).toBe(true);
         if (result.success) {
             expect(result.data.entries).toHaveLength(1);
-            expect(LocalFileManager.LOCAL_VERSION).toBe(result.data.version);
+            expect(LocalFileManager.localVersion).toBe(result.data.version);
         }
         expect(localFileOperation.readDir).toHaveBeenCalledWith("/storage");
     });
