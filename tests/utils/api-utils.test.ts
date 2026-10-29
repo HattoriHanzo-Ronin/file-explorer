@@ -5,24 +5,26 @@ jest.mock("axios");
 
 const API_URL = "https://api.example.test";
 const ENTRIES = [{ name: "photo.jpg", type: "FILE" as const }];
-const SOCKET_SESSION = { id: "socket-1", expiresAt: "2026-10-28T20:00:00.000Z", activityInterval: 600000 };
+const SOCKET_SESSION = { id: "socket-1", expiresAt: "2026-10-28T20:00:00.000Z" };
 
 class MockWebSocket {
     static OPEN = 1;
+    static autoOpen = true;
     static instances: MockWebSocket[] = [];
-    static response: Record<string, unknown> = { ftp: "3" };
     onclose: (() => void) | null = null;
     onerror: (() => void) | null = null;
     onmessage: ((event: { data: string }) => void) | null = null;
     onopen: (() => void) | null = null;
     readyState = MockWebSocket.OPEN;
-    send = jest.fn(() => this.onmessage?.({ data: JSON.stringify(MockWebSocket.response) }));
+    send = jest.fn();
     readonly url: string;
 
     constructor(url: string) {
         this.url = url;
         MockWebSocket.instances.push(this);
-        void Promise.resolve().then(() => this.onopen?.());
+        if (MockWebSocket.autoOpen) {
+            void Promise.resolve().then(() => this.onopen?.());
+        }
     }
 
     close = jest.fn(() => {
@@ -50,85 +52,129 @@ function createApiUtils() {
     };
 }
 
-async function updateFtpVersion(apiUtils: ApiUtils, version: string): Promise<void> {
-    jest.mocked(axios.get).mockResolvedValue({ data: ENTRIES, headers: { "data-version": version } });
-    await apiUtils.getDirectory();
-}
-
 describe("ApiUtils", () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        MockWebSocket.autoOpen = true;
         MockWebSocket.instances = [];
-        MockWebSocket.response = { ftp: "3" };
         globalThis.WebSocket = MockWebSocket as unknown as typeof WebSocket;
     });
 
-    it("gets the FTP version through the socket session", async () => {
+    it("subscribes to FTP notifications and publishes changed directories", async () => {
         const { apiUtils, storage } = createApiUtils();
+        const listener = jest.fn();
+        apiUtils.addFtpChangeListener(listener);
         storage.get.mockResolvedValue("access-token");
         jest.mocked(axios.post).mockResolvedValue({ data: SOCKET_SESSION });
-        await apiUtils.resumeSocketSession();
-        await expect(apiUtils.getVersion({ dir: " " })).resolves.toEqual({ success: true, data: { version: "3" } });
+        await apiUtils.refreshSocketSession();
+        await Promise.resolve();
         expect(MockWebSocket.instances[0].url).toBe("wss://api.example.test/events/socket-1");
         expect(MockWebSocket.instances[0].send).toHaveBeenCalledWith(
-            JSON.stringify({ accessToken: "access-token", entities: ["ftp"], dir: undefined })
+            JSON.stringify({ accessToken: "access-token", entities: ["ftp"] })
         );
-    });
-
-    it("does not check the remote version while the directory is busy", async () => {
-        const { apiUtils, remoteFileManager } = createApiUtils();
-        await updateFtpVersion(apiUtils, "4");
-        remoteFileManager.isRemoteDirectoryBusy.mockReturnValue(true);
-        await expect(apiUtils.getVersion({ dir: "docs" })).resolves.toEqual({ success: true, data: { version: "4" } });
-        expect(MockWebSocket.instances).toHaveLength(0);
+        MockWebSocket.instances[0].onmessage?.({ data: JSON.stringify({ entity: "ftp", dir: "docs", version: "3" }) });
+        expect(listener).toHaveBeenCalledWith({ entity: "ftp", dir: "docs", version: "3" });
+        MockWebSocket.instances[0].onmessage?.({ data: JSON.stringify({ entity: "ftp", dir: " ", version: "4" }) });
+        expect(listener).toHaveBeenCalledWith({ entity: "ftp", dir: " ", version: "4" });
     });
 
     it("closes the socket when it becomes inactive", async () => {
-        const { apiUtils } = createApiUtils();
+        const { apiUtils, storage } = createApiUtils();
+        storage.get.mockResolvedValue("access-token");
         jest.mocked(axios.post).mockResolvedValue({ data: SOCKET_SESSION });
-        await apiUtils.resumeSocketSession();
+        await apiUtils.refreshSocketSession();
         apiUtils.suspendSocketSession();
         expect(MockWebSocket.instances[0].close).toHaveBeenCalled();
     });
 
-    it("does not request versions while the socket session is suspended", async () => {
-        const { apiUtils } = createApiUtils();
-        await updateFtpVersion(apiUtils, "4");
-        await expect(apiUtils.getVersion({ dir: "docs" })).resolves.toEqual({ success: true, data: { version: "4" } });
-        expect(MockWebSocket.instances).toHaveLength(0);
+    it("ignores FTP notifications while the directory is being modified", async () => {
+        const { apiUtils, remoteFileManager, storage } = createApiUtils();
+        const listener = jest.fn();
+        apiUtils.addFtpChangeListener(listener);
+        storage.get.mockResolvedValue("access-token");
+        remoteFileManager.isRemoteDirectoryBusy.mockReturnValue(true);
+        jest.mocked(axios.post).mockResolvedValue({ data: SOCKET_SESSION });
+        await apiUtils.refreshSocketSession();
+        await Promise.resolve();
+        MockWebSocket.instances[0].onmessage?.({ data: JSON.stringify({ entity: "ftp", dir: "docs", version: "3" }) });
+        expect(listener).not.toHaveBeenCalled();
     });
 
-    it("returns invalid tokens to the API request executor", async () => {
+    it("publishes FTP notifications whose version is already loaded for the screen to filter", async () => {
+        const { apiUtils, storage } = createApiUtils();
+        const listener = jest.fn();
+        apiUtils.addFtpChangeListener(listener);
+        storage.get.mockResolvedValue("access-token");
+        jest.mocked(axios.get).mockResolvedValue({ data: ENTRIES, headers: { "data-version": "4" } });
+        jest.mocked(axios.post).mockResolvedValue({ data: SOCKET_SESSION });
+        await apiUtils.getDirectory("docs");
+        await apiUtils.refreshSocketSession();
+        await Promise.resolve();
+        MockWebSocket.instances[0].onmessage?.({ data: JSON.stringify({ entity: "ftp", dir: "docs", version: "4" }) });
+        expect(listener).toHaveBeenCalledWith({ entity: "ftp", dir: "docs", version: "4" });
+    });
+
+    it("does not reconnect a rejected socket session", async () => {
         const { apiUtils, storage } = createApiUtils();
         storage.get.mockResolvedValue("access-token");
-        MockWebSocket.response = { code: "INVALID_TOKEN", message: "Sesión no válida" };
         jest.mocked(axios.post).mockResolvedValue({ data: SOCKET_SESSION });
-        await apiUtils.resumeSocketSession();
-        await expect(apiUtils.getVersion({ dir: "docs" })).resolves.toEqual({
-            success: false,
-            error: { code: "INVALID_TOKEN", message: "Sesión no válida" }
+        await apiUtils.refreshSocketSession();
+        MockWebSocket.instances[0].onmessage?.({
+            data: JSON.stringify({ code: "INVALID_TOKEN", message: "Sesión no válida" })
         });
-        MockWebSocket.instances[0].close();
         expect(axios.post).toHaveBeenCalledTimes(1);
     });
 
     it("creates a socket session when its renewal fails", async () => {
-        const { apiUtils } = createApiUtils();
+        const { apiUtils, storage } = createApiUtils();
+        storage.get.mockResolvedValue("access-token");
         jest.mocked(axios.post)
             .mockResolvedValueOnce({ data: SOCKET_SESSION })
-            .mockRejectedValueOnce({ code: "SESSION_NOT_FOUND", message: "No existe" })
+            .mockRejectedValueOnce({ code: "SOCKET_SESSION_NOT_FOUND", message: "No existe" })
             .mockResolvedValueOnce({ data: { ...SOCKET_SESSION, id: "socket-2" } });
-        await apiUtils.resumeSocketSession();
+        await apiUtils.refreshSocketSession();
         await apiUtils.refreshSocketSession();
         expect(axios.post).toHaveBeenLastCalledWith(`${API_URL}/socket-sessions`);
         expect(MockWebSocket.instances[1].url).toBe("wss://api.example.test/events/socket-2");
     });
 
-    it("updates the FTP version after listing a directory", async () => {
+    it("keeps the session and waits for the next refresh when the socket handshake is rejected", async () => {
+        const { apiUtils, storage } = createApiUtils();
+        storage.get.mockResolvedValue("access-token");
+        jest.mocked(axios.post).mockResolvedValue({ data: SOCKET_SESSION });
+        MockWebSocket.autoOpen = false;
+        await apiUtils.refreshSocketSession();
+        MockWebSocket.instances[0].onerror?.();
+        MockWebSocket.instances[0].onclose?.();
+        await Promise.resolve();
+        expect(axios.post).toHaveBeenCalledTimes(1);
+        expect(MockWebSocket.instances).toHaveLength(1);
+        MockWebSocket.autoOpen = true;
+        await apiUtils.refreshSocketSession();
+        expect(axios.post).toHaveBeenCalledTimes(2);
+        expect(MockWebSocket.instances).toHaveLength(2);
+    });
+
+    it("shares a socket session refresh already in progress", async () => {
+        const { apiUtils } = createApiUtils();
+        let resolveRequest: ((response: { data: typeof SOCKET_SESSION }) => void) | undefined;
+        jest.mocked(axios.post).mockReturnValue(
+            new Promise((resolve) => {
+                resolveRequest = resolve;
+            })
+        );
+        const first = apiUtils.refreshSocketSession();
+        const second = apiUtils.refreshSocketSession();
+        expect(axios.post).toHaveBeenCalledTimes(1);
+        resolveRequest?.({ data: SOCKET_SESSION });
+        await Promise.all([first, second]);
+    });
+
+    it("lists an FTP directory", async () => {
         const { apiUtils } = createApiUtils();
         jest.mocked(axios.get).mockResolvedValue({ data: ENTRIES, headers: { "data-version": "4" } });
         await expect(apiUtils.getDirectory("pictures")).resolves.toEqual({ success: true, data: ENTRIES });
-        expect(ApiUtils.ftpVersion).toBe("4");
+        expect(ApiUtils.getFtpVersion("pictures")).toBe("4");
         expect(axios.get).toHaveBeenCalledWith(`${API_URL}/ftp`, { params: { dir: "pictures" } });
     });
 
@@ -175,7 +221,7 @@ describe("ApiUtils", () => {
                 ? await apiUtils.createDirectory({ name: "folder", dir: "pictures" })
                 : await apiUtils.renameEntry({ entry: ENTRIES[0], newName: "new.jpg", dir: "pictures" });
         expect(result).toEqual({ success: true, data: ENTRIES });
-        expect(ApiUtils.ftpVersion).toBe("12");
+        expect(ApiUtils.getFtpVersion("pictures")).toBe("12");
     });
 
     it("preserves native API errors and validation details", async () => {
@@ -186,9 +232,7 @@ describe("ApiUtils", () => {
             details: [{ field: "name", message: "No válido" }]
         };
         remoteFileManager.createDirectory.mockResolvedValue({ success: false, error });
-        await updateFtpVersion(apiUtils, "previous");
         await expect(apiUtils.createDirectory({ name: "folder" })).resolves.toEqual({ success: false, error });
-        expect(ApiUtils.ftpVersion).toBe("previous");
     });
 
     it("validates names before starting remote directory operations", async () => {
@@ -217,7 +261,7 @@ describe("ApiUtils", () => {
                 data: [{ path: "photo.jpg", type: "FILE", completed: 1, total: 1 }]
             }
         );
-        expect(ApiUtils.ftpVersion).toBe("8");
+        expect(ApiUtils.getFtpVersion("target")).toBe("8");
     });
 
     it("rejects a remote move to the source directory", async () => {
