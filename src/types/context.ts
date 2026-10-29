@@ -6,6 +6,7 @@ import type { FtpDirectoryState, FtpEntryType } from "./ftp";
 import type { ExecuteLocalRequest } from "./local-response";
 import type { ListViewMode } from "./ui";
 import type { SharedFile } from "./sharing";
+import type { SocketNotification } from "./socket-session";
 import type { ThemeColors, ThemeMode } from "../styles/style";
 import type AuthUtils from "../utils/auth-utils";
 import type LoadingUtils from "../utils/loading-utils";
@@ -55,6 +56,7 @@ export interface AppStateContextType {
 
 /** Shared application operations */
 export interface OperationContextType {
+    addFtpChangeListener: (listener: (notification: SocketNotification) => void) => () => void;
     authUtils: AuthUtils;
     executeApiRequest: ExecuteApiRequest;
     executeLocalRequest: ExecuteLocalRequest;

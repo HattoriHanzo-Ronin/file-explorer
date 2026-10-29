@@ -142,7 +142,6 @@ export default class AuthUtils {
                 config.headers.Authorization = `Bearer ${accessToken}`;
                 return config;
             });
-            await this.apiUtils.refreshSocketSession();
             this.setUser(user);
             this.setIsAuthenticated(true);
         }

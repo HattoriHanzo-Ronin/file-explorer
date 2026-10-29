@@ -14,8 +14,6 @@ import type {
     CreateDirectoryResponse,
     DeleteEntriesRequest,
     DeleteEntriesResponse,
-    FtpVersionRequest,
-    FtpVersionResponse,
     GetDirectoryResponse,
     MoveEntriesRequest,
     MoveEntriesResponse,
@@ -27,7 +25,7 @@ import type {
 } from "../types/ftp";
 import type { UpdatePasswordRequest, UpdateUsernameRequest, UpdateUsernameResponse } from "../types/users";
 import type { FileOperationSelection, RemoteDirectoryOperationResult } from "../types/file-operations";
-import type { SocketSession, SocketVersions } from "../types/socket-session";
+import type { SocketNotification, SocketSession } from "../types/socket-session";
 import type RemoteFileManager from "./operations/remote-file-manager";
 import type { Storage } from "./storage/storage";
 import { STORAGE_KEYS } from "../constants/storage";
@@ -39,18 +37,17 @@ import FileUtils from "./file-utils";
  * @author HattoriHanzo-Ronin
  */
 export default class ApiUtils {
-    private static FTP_VERSION = "";
+    private static readonly FTP_VERSIONS = new Map<string, string>();
     private readonly remoteFileManager: RemoteFileManager;
     private readonly storage: Storage;
     private readonly apiUrl: string;
     private socket: WebSocket | null = null;
     private socketSession: SocketSession | null = null;
     private socketConnection: Promise<void> | null = null;
-    private socketRequest: Promise<ApiResponse<SocketVersions>> | null = null;
-    private resolveSocketRequest: ((response: ApiResponse<SocketVersions>) => void) | null = null;
+    private readonly ftpChangeListeners = new Set<(notification: SocketNotification) => void>();
+    private readonly socketReconnectListeners = new Set<() => void>();
+    private socketSessionRequest: Promise<ApiResponse<void>> | null = null;
     private isSocketSessionSuspended = true;
-    private isSocketTokenInvalid = false;
-    private resumeSocketRequest: Promise<void> | null = null;
 
     constructor(remoteFileManager: RemoteFileManager, storage: Storage, apiUrl: string) {
         this.remoteFileManager = remoteFileManager;
@@ -68,33 +65,15 @@ export default class ApiUtils {
     /**
      * Creates or renews the socket session
      */
-    async refreshSocketSession(): Promise<void> {
-        this.isSocketSessionSuspended = false;
-        this.isSocketTokenInvalid = false;
-        const session = this.socketSession
-            ? await this.executeRequest(async () => {
-                  const { data } = await axios.post<SocketSession>(
-                      this.buildUrl(`socket-sessions/${this.socketSession!.id}/refresh`)
-                  );
-                  return data;
-              })
-            : await this.executeRequest(async () => {
-                  const { data } = await axios.post<SocketSession>(this.buildUrl("socket-sessions"));
-                  return data;
-              });
-        if (!session.success && this.socketSession) {
-            this.socketSession = null;
-            this.closeSocket();
-            await this.refreshSocketSession();
-            return;
+    async refreshSocketSession(): Promise<ApiResponse<void>> {
+        if (this.socketSessionRequest) {
+            return this.socketSessionRequest;
         }
 
-        if (!session.success) {
-            return;
-        }
-
-        this.socketSession = session.data;
-        void this.openSocket().catch(() => undefined);
+        this.socketSessionRequest = this.executeSocketSessionRefresh().finally(() => {
+            this.socketSessionRequest = null;
+        });
+        return this.socketSessionRequest;
     }
 
     /**
@@ -104,6 +83,7 @@ export default class ApiUtils {
         const session = this.socketSession;
         this.suspendSocketSession();
         this.socketSession = null;
+        ApiUtils.FTP_VERSIONS.clear();
         if (!session) {
             return;
         }
@@ -117,32 +97,25 @@ export default class ApiUtils {
     clearSocketSession(): void {
         this.suspendSocketSession();
         this.socketSession = null;
-    }
-
-    /**
-     * Resumes the socket session
-     */
-    async resumeSocketSession(): Promise<void> {
-        if (this.resumeSocketRequest) {
-            await this.resumeSocketRequest;
-            return;
-        }
-
-        if (!this.isSocketSessionSuspended) {
-            return;
-        }
-
-        this.isSocketSessionSuspended = false;
-        this.resumeSocketRequest = this.refreshSocketSession().finally(() => {
-            this.resumeSocketRequest = null;
-        });
-        await this.resumeSocketRequest;
+        ApiUtils.FTP_VERSIONS.clear();
     }
 
     /** Suspends the socket session */
     suspendSocketSession(): void {
         this.isSocketSessionSuspended = true;
         this.closeSocket();
+    }
+
+    /** Adds an FTP change listener */
+    addFtpChangeListener(listener: (notification: SocketNotification) => void): () => void {
+        this.ftpChangeListeners.add(listener);
+        return () => this.ftpChangeListeners.delete(listener);
+    }
+
+    /** Adds a socket reconnection listener */
+    addSocketReconnectListener(listener: () => void): () => void {
+        this.socketReconnectListeners.add(listener);
+        return () => this.socketReconnectListeners.delete(listener);
     }
 
     /** Clears completed remote operations */
@@ -164,7 +137,7 @@ export default class ApiUtils {
                 throw result.error;
             }
 
-            this.updateFtpVersion(result.data.version);
+            this.updateFtpVersion(remoteDir, result.data.version);
             return result.data;
         });
     }
@@ -192,29 +165,6 @@ export default class ApiUtils {
 
             return result.data;
         });
-    }
-
-    /**
-     * Returns the current FTP directory version
-     *
-     * @param request FTP directory
-     * @returns FTP directory version
-     */
-    async getVersion(request: FtpVersionRequest): Promise<ApiResponse<FtpVersionResponse>> {
-        if (this.remoteFileManager.isRemoteDirectoryBusy(request.dir ?? " ")) {
-            return { success: true, data: { version: ApiUtils.FTP_VERSION } };
-        }
-
-        if (this.isSocketSessionSuspended) {
-            return { success: true, data: { version: ApiUtils.FTP_VERSION } };
-        }
-
-        const response = await this.getSocketVersions(request.dir);
-        if (!response.success) {
-            return response;
-        }
-
-        return { success: true, data: { version: response.data.ftp } };
     }
 
     /**
@@ -294,7 +244,7 @@ export default class ApiUtils {
             const { data, headers } = await axios.get<GetDirectoryResponse>(this.buildUrl("ftp"), {
                 params: { dir: this.normalizeDir(dir) }
             });
-            this.updateFtpVersion(headers["data-version"]);
+            this.updateFtpVersion(dir, headers["data-version"]);
             return data;
         });
     }
@@ -377,7 +327,7 @@ export default class ApiUtils {
             }
 
             const { version, entries } = result.data;
-            this.updateFtpVersion(version);
+            this.updateFtpVersion(request.dir, version);
             return entries;
         });
     }
@@ -403,7 +353,7 @@ export default class ApiUtils {
             }
 
             const { version, changes } = result.data;
-            this.updateFtpVersion(version);
+            this.updateFtpVersion(request.destination, version);
             return changes;
         });
     }
@@ -427,7 +377,7 @@ export default class ApiUtils {
             }
 
             const { version, entries } = result.data;
-            this.updateFtpVersion(version);
+            this.updateFtpVersion(request.dir, version);
             return entries;
         });
     }
@@ -446,100 +396,65 @@ export default class ApiUtils {
             }
 
             const { version, changes } = result.data;
-            this.updateFtpVersion(version);
+            this.updateFtpVersion(request.dir, version);
             return changes;
         });
     }
 
-    static get ftpVersion(): string {
-        return ApiUtils.FTP_VERSION;
+    /** Returns the stored FTP directory version */
+    static getFtpVersion(dir?: string): string {
+        return ApiUtils.FTP_VERSIONS.get(ApiUtils.getFtpDirectoryKey(dir)) ?? "";
     }
 
     private buildUrl(entity: string): string {
         return `${this.apiUrl}/${entity}`;
     }
 
-    private async getSocketVersions(dir?: string): Promise<ApiResponse<SocketVersions>> {
-        if (this.socketRequest) {
-            return this.socketRequest;
+    private async executeSocketSessionRefresh(): Promise<ApiResponse<void>> {
+        this.isSocketSessionSuspended = false;
+        const session = this.socketSession
+            ? await this.executeRequest(async () => {
+                  const { data } = await axios.post<SocketSession>(
+                      this.buildUrl(`socket-sessions/${this.socketSession!.id}/refresh`)
+                  );
+                  return data;
+              })
+            : await this.executeRequest(async () => {
+                  const { data } = await axios.post<SocketSession>(this.buildUrl("socket-sessions"));
+                  return data;
+              });
+        if (!session.success && this.socketSession && session.error.code === "SOCKET_SESSION_NOT_FOUND") {
+            this.socketSession = null;
+            this.closeSocket();
+            return this.executeSocketSessionRefresh();
         }
 
-        this.socketRequest = this.requestSocketVersions(dir).finally(() => {
-            this.socketRequest = null;
-        });
-        return this.socketRequest;
+        if (!session.success) {
+            return { success: false, error: session.error };
+        }
+
+        this.socketSession = session.data;
+        void this.openSocket().catch(() => undefined);
+        return { success: true, data: undefined };
     }
 
-    private async requestSocketVersions(dir?: string): Promise<ApiResponse<SocketVersions>> {
-        const accessToken = await this.storage.get<string>(STORAGE_KEYS.accessToken);
-        if (!accessToken || !this.socketSession) {
-            return { success: false, error: { code: "SOCKET_SESSION_NOT_FOUND", message: "Sesión de versiones no disponible" } };
-        }
-
-        try {
-            await this.openSocket();
-        } catch {
-            return { success: false, error: { code: "SOCKET_CONNECTION_FAILED", message: "No se pudo conectar al socket" } };
-        }
-
-        const socket = this.socket;
-        if (!socket) {
-            return { success: false, error: { code: "SOCKET_CONNECTION_FAILED", message: "No se pudo conectar al socket" } };
-        }
-
-        return new Promise((resolve) => {
-            this.resolveSocketRequest = resolve;
-            socket.onmessage = ({ data }) => {
-                try {
-                    const response = JSON.parse(data) as SocketVersions | ApiError;
-                    if ("code" in response) {
-                        if (response.code === "INVALID_TOKEN") {
-                            this.isSocketTokenInvalid = true;
-                        }
-
-                        this.completeSocketRequest({ success: false, error: response });
-                        return;
-                    }
-
-                    if (typeof response.ftp !== "string") {
-                        this.completeSocketRequest({
-                            success: false,
-                            error: { code: "SOCKET_RESPONSE_INVALID", message: "El socket devolvió una respuesta no válida" }
-                        });
-                        return;
-                    }
-
-                    this.completeSocketRequest({ success: true, data: response });
-                } catch {
-                    this.completeSocketRequest({
-                        success: false,
-                        error: { code: "SOCKET_RESPONSE_INVALID", message: "El socket devolvió una respuesta no válida" }
-                    });
-                }
-            };
-            socket.send(JSON.stringify({ accessToken, entities: ["ftp"], dir: this.normalizeDir(dir) }));
-        });
-    }
-
-    private completeSocketRequest(response: ApiResponse<SocketVersions>): void {
-        const resolve = this.resolveSocketRequest;
-        this.resolveSocketRequest = null;
-        if (resolve) {
-            resolve(response);
-        }
-    }
-
-    private openSocket(): Promise<void> {
+    private async openSocket(): Promise<void> {
         if (!this.socketSession) {
-            return Promise.reject();
+            throw new Error("Socket session not found");
         }
 
         if (this.socket?.readyState === WebSocket.OPEN) {
-            return Promise.resolve();
+            return;
         }
 
         if (this.socketConnection) {
-            return this.socketConnection;
+            await this.socketConnection;
+            return;
+        }
+
+        const accessToken = await this.storage.get<string>(STORAGE_KEYS.accessToken);
+        if (!accessToken) {
+            throw new Error("Access token not found");
         }
 
         const socket = new WebSocket(this.buildSocketUrl(this.socketSession.id));
@@ -549,8 +464,10 @@ export default class ApiUtils {
             socket.onopen = () => {
                 opened = true;
                 this.socketConnection = null;
+                socket.send(JSON.stringify({ accessToken, entities: ["ftp"] }));
                 resolve();
             };
+            socket.onmessage = ({ data }) => this.handleSocketMessage(data);
             socket.onerror = () => {
                 this.socketConnection = null;
                 reject();
@@ -558,7 +475,12 @@ export default class ApiUtils {
             socket.onclose = () => {
                 this.socketConnection = null;
                 if (!opened) {
+                    if (this.socket === socket) {
+                        this.socket = null;
+                    }
+
                     reject();
+                    return;
                 }
 
                 if (this.socket !== socket) {
@@ -566,26 +488,41 @@ export default class ApiUtils {
                 }
 
                 this.socket = null;
-                this.completeSocketRequest({
-                    success: false,
-                    error: { code: "SOCKET_CONNECTION_FAILED", message: "No se pudo conectar al socket" }
-                });
-                if (!this.isSocketSessionSuspended && !this.isSocketTokenInvalid && this.socketSession) {
-                    void this.refreshSocketSession();
+                if (!this.isSocketSessionSuspended && this.socketSession) {
+                    this.socketReconnectListeners.forEach((listener) => listener());
                 }
             };
         });
-        return this.socketConnection;
+        await this.socketConnection;
+    }
+
+    private handleSocketMessage(data: string): void {
+        try {
+            const response = JSON.parse(data) as SocketNotification | ApiError;
+            if ("code" in response) {
+                this.socketSession = null;
+                this.closeSocket();
+                return;
+            }
+
+            if (response.entity !== "ftp" || typeof response.dir !== "string" || typeof response.version !== "string") {
+                return;
+            }
+
+            if (this.remoteFileManager.isRemoteDirectoryBusy(response.dir)) {
+                return;
+            }
+
+            this.ftpChangeListeners.forEach((listener) => listener(response));
+        } catch {
+            return;
+        }
     }
 
     private closeSocket(): void {
         const socket = this.socket;
         this.socket = null;
         this.socketConnection = null;
-        this.completeSocketRequest({
-            success: false,
-            error: { code: "SOCKET_CONNECTION_FAILED", message: "No se pudo conectar al socket" }
-        });
         socket?.close();
     }
 
@@ -599,10 +536,14 @@ export default class ApiUtils {
         return dir?.trim() ? dir : undefined;
     }
 
-    private updateFtpVersion(version: unknown): void {
+    private updateFtpVersion(dir: string | undefined, version: unknown): void {
         if (version !== undefined) {
-            ApiUtils.FTP_VERSION = String(version);
+            ApiUtils.FTP_VERSIONS.set(ApiUtils.getFtpDirectoryKey(dir), String(version));
         }
+    }
+
+    private static getFtpDirectoryKey(dir?: string): string {
+        return dir?.trim() ? dir : " ";
     }
 
     /**
