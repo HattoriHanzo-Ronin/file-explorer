@@ -1,4 +1,8 @@
-import type { RemoteFileChange } from "./file-operations";
+import type {
+    RemoteDeleteOperationResult,
+    RemoteDirectoryOperationResult,
+    RemoteMoveOperationResult
+} from "./file-operations";
 
 export type FtpEntryType = "DIR" | "FILE";
 
@@ -11,6 +15,7 @@ export interface FtpEntry {
 export interface FtpDirectoryState {
     dir: string;
     content: FtpEntry[];
+    version: string;
 }
 
 interface FtpDirectoryRequest {
@@ -55,8 +60,8 @@ interface EntriesRequest extends FtpDirectoryRequest {
 
 export type DeleteEntriesRequest = EntriesRequest;
 
-export type GetDirectoryResponse = FtpEntry[];
-export type CreateDirectoryResponse = FtpEntry[];
-export type MoveEntriesResponse = RemoteFileChange[];
-export type RenameEntryResponse = FtpEntry[];
-export type DeleteEntriesResponse = RemoteFileChange[];
+export type GetDirectoryResponse = RemoteDirectoryOperationResult;
+export type CreateDirectoryResponse = RemoteDirectoryOperationResult;
+export type MoveEntriesResponse = RemoteMoveOperationResult;
+export type RenameEntryResponse = RemoteDirectoryOperationResult;
+export type DeleteEntriesResponse = RemoteDeleteOperationResult;

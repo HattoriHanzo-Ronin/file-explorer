@@ -14,6 +14,7 @@ import type {
     CreateDirectoryResponse,
     DeleteEntriesRequest,
     DeleteEntriesResponse,
+    FtpEntry,
     GetDirectoryResponse,
     MoveEntriesRequest,
     MoveEntriesResponse,
@@ -37,7 +38,6 @@ import FileUtils from "./file-utils";
  * @author HattoriHanzo-Ronin
  */
 export default class ApiUtils {
-    private static readonly FTP_VERSIONS = new Map<string, string>();
     private readonly remoteFileManager: RemoteFileManager;
     private readonly storage: Storage;
     private readonly apiUrl: string;
@@ -83,7 +83,6 @@ export default class ApiUtils {
         const session = this.socketSession;
         this.suspendSocketSession();
         this.socketSession = null;
-        ApiUtils.FTP_VERSIONS.clear();
         if (!session) {
             return;
         }
@@ -97,7 +96,6 @@ export default class ApiUtils {
     clearSocketSession(): void {
         this.suspendSocketSession();
         this.socketSession = null;
-        ApiUtils.FTP_VERSIONS.clear();
     }
 
     /** Suspends the socket session */
@@ -137,7 +135,6 @@ export default class ApiUtils {
                 throw result.error;
             }
 
-            this.updateFtpVersion(remoteDir, result.data.version);
             return result.data;
         });
     }
@@ -241,11 +238,10 @@ export default class ApiUtils {
      */
     async getDirectory(dir?: string): Promise<ApiResponse<GetDirectoryResponse>> {
         return this.executeRequest(async () => {
-            const { data, headers } = await axios.get<GetDirectoryResponse>(this.buildUrl("ftp"), {
+            const { data, headers } = await axios.get<FtpEntry[]>(this.buildUrl("ftp"), {
                 params: { dir: this.normalizeDir(dir) }
             });
-            this.updateFtpVersion(dir, headers["data-version"]);
-            return data;
+            return { entries: data, version: String(headers["data-version"] ?? "") };
         });
     }
 
@@ -326,9 +322,7 @@ export default class ApiUtils {
                 throw result.error;
             }
 
-            const { version, entries } = result.data;
-            this.updateFtpVersion(request.dir, version);
-            return entries;
+            return result.data;
         });
     }
 
@@ -352,9 +346,7 @@ export default class ApiUtils {
                 throw result.error;
             }
 
-            const { version, changes } = result.data;
-            this.updateFtpVersion(request.destination, version);
-            return changes;
+            return result.data;
         });
     }
 
@@ -376,9 +368,7 @@ export default class ApiUtils {
                 throw result.error;
             }
 
-            const { version, entries } = result.data;
-            this.updateFtpVersion(request.dir, version);
-            return entries;
+            return result.data;
         });
     }
 
@@ -395,15 +385,8 @@ export default class ApiUtils {
                 throw result.error;
             }
 
-            const { version, changes } = result.data;
-            this.updateFtpVersion(request.dir, version);
-            return changes;
+            return result.data;
         });
-    }
-
-    /** Returns the stored FTP directory version */
-    static getFtpVersion(dir?: string): string {
-        return ApiUtils.FTP_VERSIONS.get(ApiUtils.getFtpDirectoryKey(dir)) ?? "";
     }
 
     private buildUrl(entity: string): string {
@@ -536,15 +519,6 @@ export default class ApiUtils {
         return dir?.trim() ? dir : undefined;
     }
 
-    private updateFtpVersion(dir: string | undefined, version: unknown): void {
-        if (version !== undefined) {
-            ApiUtils.FTP_VERSIONS.set(ApiUtils.getFtpDirectoryKey(dir), String(version));
-        }
-    }
-
-    private static getFtpDirectoryKey(dir?: string): string {
-        return dir?.trim() ? dir : " ";
-    }
 
     /**
      * Returns a normalized API response

@@ -23,7 +23,7 @@ export default function AppContextProvider(props: PropsWithChildren) {
     const [activeStorageRoot, setActiveStorageRoot] = useState<StorageRoot>(EMPTY_STORAGE_ROOT);
     const [lastLocalRootId, setLastLocalRootId] = useState<string>("");
     const [lastLocalDir, setLastLocalDir] = useState<string>(" ");
-    const [ftpDirectory, setFtpDirectory] = useState<FtpDirectoryState>({ dir: " ", content: [] });
+    const [ftpDirectory, setFtpDirectory] = useState<FtpDirectoryState>({ dir: " ", content: [], version: "" });
     const [localDirectory, setLocalDirectory] = useState<LocalDirectoryState>({ rootPath: "", dir: " ", content: [] });
     const [modifyLocalFile, setModifyLocalFile] = useState<LocalModifyElement[]>([]);
     const [modifyFtpFile, setModifyFtpFile] = useState<ModifyElement<FtpEntryType>[]>([]);

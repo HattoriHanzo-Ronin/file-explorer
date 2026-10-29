@@ -12,8 +12,9 @@ import type { ApiResponse } from "../../types/api-response";
 import type {
     FileOperationSelection,
     FileOperationSnapshot,
-    RemoteChangeOperationResult,
-    RemoteDirectoryOperationResult
+    RemoteDeleteOperationResult,
+    RemoteDirectoryOperationResult,
+    RemoteMoveOperationResult
 } from "../../types/file-operations";
 import type { RemoteFileOperation } from "../files/remote-file-operation";
 import type { Permission } from "../permissions/permission";
@@ -189,7 +190,7 @@ export default class RemoteFileManager {
      * @param request Delete request
      * @returns Remote operation response
      */
-    async delete(request: DeleteEntriesRequest): Promise<ApiResponse<RemoteChangeOperationResult>> {
+    async delete(request: DeleteEntriesRequest): Promise<ApiResponse<RemoteDeleteOperationResult>> {
         const { dir, entries } = request;
         const accessToken = await this.prepareOperation();
         if (!accessToken.success) {
@@ -209,7 +210,7 @@ export default class RemoteFileManager {
                 return result;
             }
 
-            const operationResult = this.getRemoteChangeResult(result.data, "REMOTE_DELETE");
+            const operationResult = this.getRemoteDeleteResult(result.data);
             if (!operationResult) {
                 return this.operationError();
             }
@@ -226,7 +227,7 @@ export default class RemoteFileManager {
      * @param request Move request
      * @returns Remote operation response
      */
-    async move(request: MoveEntriesRequest): Promise<ApiResponse<RemoteChangeOperationResult>> {
+    async move(request: MoveEntriesRequest): Promise<ApiResponse<RemoteMoveOperationResult>> {
         const { destination, dir, entries } = request;
         const accessToken = await this.prepareOperation();
         if (!accessToken.success) {
@@ -247,7 +248,7 @@ export default class RemoteFileManager {
                 return result;
             }
 
-            const operationResult = this.getRemoteChangeResult(result.data, "REMOTE_MOVE");
+            const operationResult = this.getRemoteMoveResult(result.data);
             if (!operationResult) {
                 return this.operationError();
             }
@@ -448,16 +449,34 @@ export default class RemoteFileManager {
         return { success: false, error: { code: "FILE_OPERATION_FAILED", message: "" } };
     }
 
-    private getRemoteChangeResult(
-        operation: FileOperationSnapshot,
-        type: "REMOTE_MOVE" | "REMOTE_DELETE"
-    ): RemoteChangeOperationResult | undefined {
+    private getRemoteDeleteResult(operation: FileOperationSnapshot): RemoteDeleteOperationResult | undefined {
         const { operation: operationType, result } = operation;
-        if (operationType !== type || !result) {
+        if (operationType !== "REMOTE_DELETE" || !result) {
             return undefined;
         }
 
         return "changes" in result && "version" in result ? result : undefined;
+    }
+
+    private getRemoteMoveResult(operation: FileOperationSnapshot): RemoteMoveOperationResult | undefined {
+        const { operation: operationType, result } = operation;
+        if (operationType !== "REMOTE_MOVE" || !result) {
+            return undefined;
+        }
+
+        if (!("changes" in result) || !("source" in result) || !("destination" in result)) {
+            return undefined;
+        }
+
+        return {
+            ...result,
+            source: { ...result.source, dir: this.normalizeRemoteDir(result.source.dir) },
+            destination: { ...result.destination, dir: this.normalizeRemoteDir(result.destination.dir) }
+        };
+    }
+
+    private normalizeRemoteDir(dir: string): string {
+        return dir === "." ? " " : dir;
     }
 
     private async prepareOperation(): Promise<ApiResponse<string>> {

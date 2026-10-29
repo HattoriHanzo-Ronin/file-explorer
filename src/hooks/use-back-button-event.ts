@@ -35,7 +35,7 @@ function navigateToParent(context: AppContextType, storage: StorageType): boolea
     if (storage === "local") {
         setLocalDirectory((current) => ({ ...current, dir }));
     } else {
-        setFtpDirectory((current) => ({ ...current, dir }));
+        setFtpDirectory((current) => ({ ...current, dir, version: "" }));
     }
 
     return true;

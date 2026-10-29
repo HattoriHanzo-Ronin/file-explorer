@@ -2,7 +2,7 @@ import type { PropsWithChildren } from "react";
 import type { DrawerContentComponentProps } from "@react-navigation/drawer";
 import type { ImageSourcePropType } from "react-native";
 import type { DirContent, LocalDirectoryUpdate, StorageRoot } from "./files";
-import type { FtpEntry } from "./ftp";
+import type { CreateDirectoryResponse, FtpEntry } from "./ftp";
 import type { StorageType } from "./navigation";
 import type { ListViewMode, OperationAction } from "./ui";
 
@@ -71,7 +71,7 @@ export type CreateDirectoryDialogProps =
     | {
           dir: string;
           onClose: (cancelled: boolean) => void;
-          onCreated: (data: FtpEntry[]) => void;
+          onCreated: (data: CreateDirectoryResponse) => void;
           rootPath: string;
           storage: "ftp";
           visible: boolean;

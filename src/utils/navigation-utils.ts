@@ -30,6 +30,6 @@ export function handleNavigationPress(context: AppContextType, storage: StorageT
     setModifyFtpFile([]);
     setModifyLocalFile([]);
     if (storage === "local" && ftpDirectory.dir !== " ") {
-        setFtpDirectory((current) => ({ ...current, dir: " " }));
+        setFtpDirectory((current) => ({ ...current, dir: " ", version: "" }));
     }
 }

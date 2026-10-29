@@ -11,7 +11,6 @@ import LoadingWindow from "../../../components/loading-window";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import React from "react";
 import useBackButtonEvent from "../../../hooks/use-back-button-event";
-import ApiUtils from "../../../utils/api-utils";
 import { commonStyles } from "../../../styles/style";
 import { useTheme } from "../../../components/theme-provider";
 
@@ -27,7 +26,7 @@ export default function Files() {
     const { addFtpChangeListener, executeApiRequest } = useOperationContext();
     const { mode } = useTheme();
     const common = commonStyles[mode];
-    const { content: ftpDirContent, dir: lastFtpDir } = ftpDirectory;
+    const { content: ftpDirContent, dir: lastFtpDir, version: ftpVersion } = ftpDirectory;
     const navigation = useNavigation<NativeStackNavigationProp<FtpStackParamList>>();
     const isFocused = useIsFocused();
     const safeBottom = useSafeAreaInsets().bottom;
@@ -38,7 +37,9 @@ export default function Files() {
             const result = await executeApiRequest((apiUtils) => apiUtils.getDirectory(lastFtpDir), { isBackground });
             if (result.success) {
                 setFtpDirectory((current) =>
-                    current.dir === lastFtpDir ? { ...current, content: result.data } : current
+                    current.dir === lastFtpDir
+                        ? { ...current, content: result.data.entries, version: result.data.version }
+                        : current
                 );
             }
         },
@@ -60,11 +61,11 @@ export default function Files() {
     useEffect(
         () =>
             addFtpChangeListener(({ dir, version }) => {
-                if (dir === lastFtpDir && version !== ApiUtils.getFtpVersion(dir)) {
+                if (dir === lastFtpDir && version !== ftpVersion) {
                     void loadDirectory(true);
                 }
             }),
-        [addFtpChangeListener, lastFtpDir, loadDirectory]
+        [addFtpChangeListener, ftpVersion, lastFtpDir, loadDirectory]
     );
 
     return (
@@ -78,7 +79,8 @@ export default function Files() {
                         if (type === "DIR") {
                             setFtpDirectory((current) => ({
                                 ...current,
-                                dir: current.dir === " " ? name : `${current.dir}/${name}`
+                                dir: current.dir === " " ? name : `${current.dir}/${name}`,
+                                version: ""
                             }));
                         }
 

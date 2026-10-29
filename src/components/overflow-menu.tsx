@@ -82,7 +82,11 @@ export const RenameMenu = (props: RenameMenuProps) => {
             return !handleRenameError(result.error.details);
         }
 
-        setFtpDirectory((current) => (current.dir === dir ? { ...current, content: result.data } : current));
+        setFtpDirectory((current) =>
+            current.dir === dir
+                ? { ...current, content: result.data.entries, version: result.data.version }
+                : current
+        );
         return true;
     }
 
@@ -271,7 +275,10 @@ export default function OverflowMenu(props: OverflowMenuProps) {
 
                 return {
                     ...current,
-                    content: current.content.filter(({ name }) => !result.data.some(({ path }) => path === name))
+                    content: current.content.filter(
+                        ({ name }) => !result.data.changes.some(({ path }) => path === name)
+                    ),
+                    version: result.data.version
                 };
             });
         }
@@ -356,9 +363,9 @@ export default function OverflowMenu(props: OverflowMenuProps) {
 
                             setMakeDirDialogs((current) => current.filter((value) => value !== id));
                         }}
-                        onCreated={(content) => {
+                        onCreated={({ entries, version }) => {
                             setFtpDirectory((current) =>
-                                current.dir === ftpDirectory.dir ? { ...current, content } : current
+                                current.dir === ftpDirectory.dir ? { ...current, content: entries, version } : current
                             );
                         }}
                     />
