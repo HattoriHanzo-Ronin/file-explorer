@@ -61,6 +61,7 @@ export interface OperationContextType {
     executeApiRequest: ExecuteApiRequest;
     executeLocalRequest: ExecuteLocalRequest;
     loadingUtils: LoadingUtils;
+    setFtpSocketActive: (active: boolean) => void;
     sharing: Sharing;
     thumbnailGenerator: ThumbnailGenerator;
 }

@@ -23,7 +23,7 @@ export default function Files() {
         setFtpSelectionDir,
         modifyFtpFile
     } = useAppContext();
-    const { addFtpChangeListener, executeApiRequest } = useOperationContext();
+    const { addFtpChangeListener, executeApiRequest, setFtpSocketActive } = useOperationContext();
     const { mode } = useTheme();
     const common = commonStyles[mode];
     const { content: ftpDirContent, dir: lastFtpDir, version: ftpVersion } = ftpDirectory;
@@ -53,6 +53,11 @@ export default function Files() {
             navigation.replace("login");
         }
     }, [isAuthenticated, navigation]);
+
+    useEffect(() => {
+        setFtpSocketActive(isAuthenticated && isFocused);
+        return () => setFtpSocketActive(false);
+    }, [isAuthenticated, isFocused, setFtpSocketActive]);
 
     useEffect(() => {
         void loadDirectory();
