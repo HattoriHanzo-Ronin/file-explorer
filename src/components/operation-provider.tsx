@@ -56,6 +56,7 @@ export default function OperationProvider(props: PropsWithChildren) {
         viewMode
     } = useAppStateContext();
     const [isInitialized, setIsInitialized] = useState<boolean>(false);
+    const [isFtpSocketActive, setFtpSocketActive] = useState<boolean>(false);
     const viewModeRestored = useRef<boolean>(false);
     const [localFileOperation] = useState<NativeLocalFileOperation>(
         () => new NativeLocalFileOperation(STORAGE_ROOT_NAMES)
@@ -133,6 +134,7 @@ export default function OperationProvider(props: PropsWithChildren) {
         executeApiRequest,
         executeLocalRequest,
         loadingUtils,
+        setFtpSocketActive,
         sharing,
         thumbnailGenerator
     };
@@ -236,7 +238,7 @@ export default function OperationProvider(props: PropsWithChildren) {
             apiUtils.suspendSocketSession();
         };
         const startSocketSession = (): void => {
-            if (!isAuthenticated || refreshInterval) {
+            if (!isAuthenticated || !isFtpSocketActive || refreshInterval) {
                 return;
             }
 
@@ -254,7 +256,7 @@ export default function OperationProvider(props: PropsWithChildren) {
 
             stopSocketSession();
         });
-        if (AppState.currentState !== "background" && AppState.currentState !== "inactive") {
+        if (AppState.currentState === "active") {
             startSocketSession();
         }
 
@@ -262,14 +264,18 @@ export default function OperationProvider(props: PropsWithChildren) {
             subscription.remove();
             stopSocketSession();
         };
-    }, [apiUtils, executeApiRequest, isAuthenticated]);
+    }, [apiUtils, executeApiRequest, isAuthenticated, isFtpSocketActive]);
 
     useEffect(
         () =>
             apiUtils.addSocketReconnectListener(() => {
+                if (!isAuthenticated || !isFtpSocketActive || AppState.currentState !== "active") {
+                    return;
+                }
+
                 void executeApiRequest((client) => client.refreshSocketSession(), { isBackground: true });
             }),
-        [apiUtils, executeApiRequest]
+        [apiUtils, executeApiRequest, isAuthenticated, isFtpSocketActive]
     );
 
     if (!isInitialized) {
