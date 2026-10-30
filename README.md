@@ -32,7 +32,7 @@ The Android application is the client of that system. Deployment, exposure to th
 | Background operations | Native Android operations report progress and completion through notifications and in-app messages                                              |
 | File views            | List, compact-icon and large-icon modes, with the selected mode persisted between launches                                                      |
 | Thumbnails            | Background generation and bounded caching of local image and video thumbnails, plus remote thumbnail availability checks                        |
-| Synchronization       | Directory versions avoid replacing visible content when nothing has changed                                                                     |
+| Synchronization       | Directory versions avoid redundant reloads; remote changes arrive through a socket while the Network files screen is active                     |
 | Authentication        | JWT login, session restoration, refresh flow and secure token storage through the Android keychain                                              |
 | Interface             | System light/dark theme, selection mode, path navigation, contextual actions and Android back-button handling                                   |
 
@@ -123,7 +123,7 @@ flowchart TD
 
 After login or refresh, `AuthUtils` installs the access token in an Axios request interceptor. The interceptor holds the active token in memory and adds the `Authorization` header to API requests. The previous interceptor is replaced when the session changes and removed on logout.
 
-The access token and refresh token are also stored through the generic `Storage` interface backed by `KeychainStorage`. This secure persistence lets native operations and other application components obtain the current token without depending on Axios, and supports session restoration after restarting the app. Tokens are removed when the session is cleared. Non-secret interface preferences, such as the selected view mode, use the native SQLite-backed database.
+The access token and refresh token are also stored through the generic `Storage` interface backed by `KeychainStorage`. This secure persistence lets native operations and other application components obtain the current token without depending on Axios, and supports session restoration after restarting the app. Tokens are removed after a successful logout or when their refresh flow is no longer valid. Non-secret interface preferences, such as the selected view mode, use the native SQLite-backed database.
 
 ## Technical stack
 
