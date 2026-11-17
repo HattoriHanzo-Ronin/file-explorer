@@ -37,11 +37,13 @@ class FileOperationEngine(
     store: OperationStore,
     onChange: (FileOperationRecord) -> Unit,
     thumbnailCache: ThumbnailCache,
+    mediaIndex: MediaIndex,
     remoteTransferClient: RemoteTransferClient
 ) {
     private val store: OperationStore
     private val onChange: (FileOperationRecord) -> Unit
     private val thumbnailCache: ThumbnailCache
+    private val mediaIndex: MediaIndex
     private val remoteTransferClient: RemoteTransferClient
     private val calls = ConcurrentHashMap<String, MutableSet<Call>>()
     private val cancelled = ConcurrentHashMap.newKeySet<String>()
@@ -53,6 +55,7 @@ class FileOperationEngine(
         this.store = store
         this.onChange = onChange
         this.thumbnailCache = thumbnailCache
+        this.mediaIndex = mediaIndex
         this.remoteTransferClient = remoteTransferClient
     }
 
@@ -61,24 +64,29 @@ class FileOperationEngine(
             LocalPathLocks.acquire(record.id, localClaims(record)) { checkCancelled(record.id) }
             record.status = FileOperationRecord.STATUS_RUNNING
             persist(record)
-            when (record.operation) {
-                FileOperationRecord.OPERATION_UPLOAD -> upload(record, requireToken(accessToken))
-                FileOperationRecord.OPERATION_DOWNLOAD -> download(record, requireToken(accessToken))
-                FileOperationRecord.OPERATION_REMOTE_MKDIR, FileOperationRecord.OPERATION_REMOTE_RENAME -> remoteDirectoryChange(record, requireToken(accessToken))
-                FileOperationRecord.OPERATION_REMOTE_MOVE -> remoteMove(record, requireToken(accessToken))
-                FileOperationRecord.OPERATION_REMOTE_DELETE -> remoteDelete(record, requireToken(accessToken))
-                FileOperationRecord.OPERATION_LOCAL_MKDIR -> AtomicFiles.reserve(File(record.request.getString("destination")), record.request.getString("name"), true, record.id)
-                FileOperationRecord.OPERATION_LOCAL_RENAME -> {
-                    val source = File(record.request.getString("source"))
-                    val snapshot = thumbnailCache.snapshot(source)
-                    val target = AtomicFiles.rename(
-                        source,
-                        source.parentFile ?: throw IllegalArgumentException("Ruta no válida"),
-                        record.request.getString("name"),
-                        record.id
-                    )
-                    thumbnailCache.move(snapshot, source, target)
+            val mediaPaths = when (record.operation) {
+                FileOperationRecord.OPERATION_UPLOAD -> {
+                    upload(record, requireToken(accessToken))
+                    MediaIndexChange()
                 }
+                FileOperationRecord.OPERATION_DOWNLOAD -> download(record, requireToken(accessToken))
+                FileOperationRecord.OPERATION_REMOTE_MKDIR, FileOperationRecord.OPERATION_REMOTE_RENAME -> {
+                    remoteDirectoryChange(record, requireToken(accessToken))
+                    MediaIndexChange()
+                }
+                FileOperationRecord.OPERATION_REMOTE_MOVE -> {
+                    remoteMove(record, requireToken(accessToken))
+                    MediaIndexChange()
+                }
+                FileOperationRecord.OPERATION_REMOTE_DELETE -> {
+                    remoteDelete(record, requireToken(accessToken))
+                    MediaIndexChange()
+                }
+                FileOperationRecord.OPERATION_LOCAL_MKDIR -> {
+                    AtomicFiles.reserve(File(record.request.getString("destination")), record.request.getString("name"), true, record.id)
+                    MediaIndexChange()
+                }
+                FileOperationRecord.OPERATION_LOCAL_RENAME -> localRename(record)
                 FileOperationRecord.OPERATION_LOCAL_COPY -> localCopyMove(record, false)
                 FileOperationRecord.OPERATION_LOCAL_MOVE -> localCopyMove(record, true)
                 FileOperationRecord.OPERATION_LOCAL_DELETE -> localDelete(record)
@@ -95,6 +103,7 @@ class FileOperationEngine(
                 record.moveCommitStarted = moveCommitStarted
                 throw error
             }
+            mediaIndex.scan(mediaPaths)
         } catch (error: Throwable) {
             Log.e(LOG_TAG, "File operation ${record.id} (${record.operation}) failed", error)
             record.status = if (cancelled.contains(record.id)) FileOperationRecord.STATUS_CANCELLED else FileOperationRecord.STATUS_FAILED
@@ -127,7 +136,12 @@ class FileOperationEngine(
         val claims = localClaims(record) + paths.map { LocalPathLocks.claim(File(it), true) }
         LocalPathLocks.acquire(record.id, claims)
         try {
-            reconcileLocked(record)
+            val mediaPaths = record.mediaPaths + paths.flatMap { mediaIndex.paths(File(it)) }
+            try {
+                reconcileLocked(record)
+            } finally {
+                mediaIndex.scan(MediaIndexChange(removedPaths = mediaPaths))
+            }
         } finally {
             LocalPathLocks.release(record.id)
         }
@@ -266,7 +280,7 @@ class FileOperationEngine(
         } while (offset < size)
     }
 
-    private fun download(record: FileOperationRecord, token: String) {
+    private fun download(record: FileOperationRecord, token: String): MediaIndexChange {
         val request = record.request
         val session = executeJson(record, token, "POST", "${request.getString("apiUrl")}/ftp/downloads", JSONObject().apply {
             request.optString("remoteDir").takeIf { it.isNotEmpty() }?.let { put("dir", it) }
@@ -318,6 +332,7 @@ class FileOperationEngine(
         runCatching { cancelRemoteSession(record, token) }
             .onFailure { error -> Log.w(LOG_TAG, "Could not close completed download session", error) }
         record.apiSessionId = null
+        return MediaIndexChange(createdFiles = roots.values.toList())
     }
 
     private fun downloadFile(
@@ -554,7 +569,21 @@ class FileOperationEngine(
         return claims
     }
 
-    private fun localCopyMove(record: FileOperationRecord, move: Boolean) {
+    private fun localRename(record: FileOperationRecord): MediaIndexChange {
+        val source = File(record.request.getString("source"))
+        val sourceMediaPaths = mediaIndex.paths(source)
+        val snapshot = thumbnailCache.snapshot(source)
+        val target = AtomicFiles.rename(
+            source,
+            source.parentFile ?: throw IllegalArgumentException("Ruta no válida"),
+            record.request.getString("name"),
+            record.id
+        )
+        thumbnailCache.move(snapshot, source, target)
+        return MediaIndexChange(sourceMediaPaths, listOf(target))
+    }
+
+    private fun localCopyMove(record: FileOperationRecord, move: Boolean): MediaIndexChange {
         val request = record.request
         val sources = request.getJSONArray("sources")
         val destination = File(request.getString("destination"))
@@ -563,11 +592,16 @@ class FileOperationEngine(
         val trackEntries = totalSize == 0L
         val thumbnailsBySource = mutableMapOf<String, List<ThumbnailSnapshot>>()
         val targetsBySource = mutableMapOf<String, File>()
+        val sourceMediaPaths = mutableListOf<String>()
         record.totalBytes = if (trackEntries) sources.length().toLong() else totalSize
         persist(record)
         for (index in 0 until sources.length()) {
             checkCancelled(record.id)
             val source = File(sources.getString(index))
+            if (move) {
+                sourceMediaPaths.addAll(mediaIndex.paths(source))
+            }
+
             val thumbnailSnapshot = thumbnailCache.snapshot(source)
             thumbnailsBySource[source.absolutePath] = thumbnailSnapshot
             val target = reserveOwnedPath(record, destination, source.name, source.isDirectory)
@@ -584,6 +618,8 @@ class FileOperationEngine(
         }
 
         if (move) {
+            record.mediaPaths.addAll(sourceMediaPaths)
+            persist(record)
             synchronized(cancellationLock) {
                 checkCancelled(record.id)
                 record.moveCommitStarted = true
@@ -606,6 +642,8 @@ class FileOperationEngine(
                 )
             }
         }
+
+        return MediaIndexChange(if (move) sourceMediaPaths else emptyList(), targetsBySource.values.toList())
     }
 
     private fun deleteMoveSource(source: File): Boolean {
@@ -678,25 +716,38 @@ class FileOperationEngine(
         }
     }
 
-    private fun localDelete(record: FileOperationRecord) {
+    private fun localDelete(record: FileOperationRecord): MediaIndexChange {
         val sources = record.request.getJSONArray("sources")
+        val sourceMediaPaths = mutableListOf<String>()
         record.totalBytes = sources.length().toLong()
         persist(record)
-        for (index in 0 until sources.length()) {
-            val source = File(sources.getString(index))
-            val thumbnailSnapshot = thumbnailCache.snapshot(source)
-            deleteLocal(record, source)
-            thumbnailCache.delete(thumbnailSnapshot)
-            thumbnailCache.deletePath(source.absolutePath)
-            record.bytesTransferred = (index + 1).toLong()
-            persist(record)
+        try {
+            for (index in 0 until sources.length()) {
+                val source = File(sources.getString(index))
+                val paths = mediaIndex.paths(source)
+                sourceMediaPaths.addAll(paths)
+                record.mediaPaths.addAll(paths)
+                persist(record)
+                val thumbnailSnapshot = thumbnailCache.snapshot(source)
+                deleteLocal(record, source)
+                thumbnailCache.delete(thumbnailSnapshot)
+                thumbnailCache.deletePath(source.absolutePath)
+                record.bytesTransferred = (index + 1).toLong()
+                persist(record)
+            }
+        } catch (error: Throwable) {
+            mediaIndex.scan(MediaIndexChange(removedPaths = sourceMediaPaths))
+            throw error
         }
+
+        return MediaIndexChange(removedPaths = sourceMediaPaths)
     }
 
-    private fun localExtract(record: FileOperationRecord) {
+    private fun localExtract(record: FileOperationRecord): MediaIndexChange {
         val source = File(record.request.getString("source"))
         val destination = File(record.request.getString("destination"))
         val temporary = createOwnedStage(record, destination, true)
+        val extractedTargets = mutableListOf<File>()
         record.currentFileName = source.name
         persist(record)
 
@@ -714,6 +765,7 @@ class FileOperationEngine(
             } else {
                 extracted.inputStream().use { input -> target.outputStream().use { output -> input.copyTo(output) } }
             }
+            extractedTargets.add(target)
             if (!extracted.deleteRecursively()) {
                 throw IllegalStateException("No se pudo finalizar la extracción")
             }
@@ -722,6 +774,8 @@ class FileOperationEngine(
         if (!temporary.deleteRecursively()) {
             throw IllegalStateException("No se pudo limpiar la extracción temporal")
         }
+
+        return MediaIndexChange(createdFiles = extractedTargets)
     }
 
     private fun extractSevenZip(record: FileOperationRecord, source: File, destination: File) {

@@ -23,7 +23,8 @@ data class FileOperationRecord(
     val createdAt: Long = System.currentTimeMillis(),
     var updatedAt: Long = createdAt,
     val createdPaths: MutableList<String> = mutableListOf(),
-    val ownedIdentities: JSONObject = JSONObject()
+    val ownedIdentities: JSONObject = JSONObject(),
+    val mediaPaths: MutableList<String> = mutableListOf()
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("id", id)
@@ -46,6 +47,7 @@ data class FileOperationRecord(
         .put("updatedAt", updatedAt)
         .put("createdPaths", JSONArray(createdPaths))
         .put("ownedIdentities", ownedIdentities)
+        .put("mediaPaths", JSONArray(mediaPaths))
 
     companion object {
         const val OPERATION_UPLOAD = "UPLOAD"
@@ -73,6 +75,7 @@ data class FileOperationRecord(
 
         fun fromJson(source: JSONObject): FileOperationRecord {
             val paths = source.optJSONArray("createdPaths") ?: JSONArray()
+            val mediaPaths = source.optJSONArray("mediaPaths") ?: JSONArray()
             return FileOperationRecord(
                 id = source.getString("id"),
                 operation = source.optString("operation").takeIf { it.isNotEmpty() }
@@ -94,7 +97,8 @@ data class FileOperationRecord(
                 createdAt = source.optLong("createdAt", System.currentTimeMillis()),
                 updatedAt = source.optLong("updatedAt", System.currentTimeMillis()),
                 createdPaths = MutableList(paths.length()) { paths.getString(it) },
-                ownedIdentities = source.optJSONObject("ownedIdentities") ?: JSONObject()
+                ownedIdentities = source.optJSONObject("ownedIdentities") ?: JSONObject(),
+                mediaPaths = MutableList(mediaPaths.length()) { mediaPaths.getString(it) }
             )
         }
     }

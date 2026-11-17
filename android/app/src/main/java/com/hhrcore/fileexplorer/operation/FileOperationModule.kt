@@ -17,12 +17,14 @@ class FileOperationModule(context: ReactApplicationContext, dependencies: Native
     private val dependencies: NativeDependencies
     private val store: OperationStore
     private val thumbnailCache: ThumbnailCache
+    private val mediaIndex: MediaIndex
 
     init {
         this.context = context
         this.dependencies = dependencies
         store = dependencies.createOperationStore()
         thumbnailCache = dependencies.createThumbnailCache()
+        mediaIndex = dependencies.createMediaIndex()
     }
 
     override fun getName() = "FileOperation"
@@ -86,9 +88,11 @@ class FileOperationModule(context: ReactApplicationContext, dependencies: Native
                 return
             }
 
+            val sourceMediaPaths = mediaIndex.paths(source)
             val snapshot = thumbnailCache.snapshot(source)
             val target = AtomicFiles.rename(source, destination, name, owner)
             thumbnailCache.move(snapshot, source, target)
+            mediaIndex.scan(MediaIndexChange(sourceMediaPaths, listOf(target)))
             promise.resolve(true)
         } catch (error: Throwable) {
             promise.reject("LOCAL_RENAME_FAILED", error.message, error)

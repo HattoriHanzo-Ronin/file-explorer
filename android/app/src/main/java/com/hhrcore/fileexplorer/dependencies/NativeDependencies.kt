@@ -2,6 +2,7 @@ package com.hhrcore.fileexplorer.dependencies
 
 import android.content.Context
 import com.hhrcore.fileexplorer.operation.FileOperationEngine
+import com.hhrcore.fileexplorer.operation.MediaIndex
 import com.hhrcore.fileexplorer.operation.OperationStore
 import com.hhrcore.fileexplorer.operation.RemoteTransferClient
 import com.hhrcore.fileexplorer.operation.impl.OkHttpRemoteTransferClient
@@ -18,9 +19,11 @@ class NativeDependencies(context: Context) {
 
     fun createThumbnailCache(): ThumbnailCache = NativeThumbnailCache(context)
 
+    fun createMediaIndex(): MediaIndex = MediaIndex(context)
+
     fun createFileOperationEngine(
         store: OperationStore,
         onChange: (com.hhrcore.fileexplorer.operation.FileOperationRecord) -> Unit,
         thumbnailCache: ThumbnailCache
-    ): FileOperationEngine = FileOperationEngine(store, onChange, thumbnailCache, createRemoteTransferClient())
+    ): FileOperationEngine = FileOperationEngine(store, onChange, thumbnailCache, createMediaIndex(), createRemoteTransferClient())
 }
