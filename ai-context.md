@@ -14,6 +14,7 @@
 * Prioritize readability over complexity and simple solutions over premature optimization
 * Keep methods small whenever reasonable; extract repeated logic only when it provides real value
 * Avoid duplication, unnecessary layers, helpers, and abstractions
+* When a module has a single export, use `export default`; for a type alias, use a named `export type` on its declaration because TypeScript does not support `export default type`
 * Maintain the project's compact style; keep code inline when it fits on one line and remains readable
 * Do not write inline `if` statements; always use a block with braces
 * Allow simple `if/else` statements when they clearly express two paths; avoid `else if` chains, nested trees, and complex flow. Prefer early returns, independent conditions, or `continue`; use `switch` when it represents several discrete cases more clearly
@@ -37,6 +38,7 @@
 * Order class members as public properties, private properties, constructor, public methods, getters and setters, and private methods. Separate properties from the constructor with a blank line
 * Declare dependencies as explicit properties and assign them in the constructor; do not use parameter properties
 * Prefix intentionally unawaited asynchronous calls with `void`
+* Preserve intentional `value == null` and `value != null` comparisons when they deliberately match both `null` and `undefined`; do not replace them solely to satisfy `eqeqeq`
 * Preserve typed arrays and structures in mappings when other components need to filter them; convert them to text only in the final presentation layer
 * Keep static styles in `src/styles`; only leave dynamically computed values in components
 * Place every component with its own file in `src/components`, whether it is shared or route-specific; keep route files as minimal adapters only when the router requires them
@@ -46,6 +48,7 @@
 ## Typing, contracts, and generics
 
 * Type parameters whenever possible and use the most specific available type that respects the complete contract
+* Represent fixed sets of values with `Object.freeze({ ... } as const)` instead of TypeScript `enum`, following the existing configuration constants
 * Typing and JSDoc must reflect the complete contract received by a function or method, not only the properties used internally
 * When receiving an object with an existing contract, preserve and reference its complete type; do not replace it with a partial type, reduced inline object, or the type of a locally used property
 * Explicitly type the value of every `useState`, even when TypeScript can infer it, so every state exposes a clear contract
@@ -55,6 +58,11 @@
 * Services, facades, and methods in other layers whose contract may grow must receive a single object parameter
 * Prefer named interfaces or types for reusable, public, or complex contracts; use inline types only for simple local contracts
 * Use generics only when they express a reusable relationship between types; avoid generic types when a more precise alternative exists
+* When a method supports a fixed set of input and output types, prefer concrete overloads that preserve each input-to-output relationship over a generic
+* Reuse dependency types already defined in `types/`; implementations must reuse parameter and data-contract types declared by their public interfaces rather than recreating equivalent local types
+* Model actual control flow with precise types and narrowing whenever possible; when an error class is available, check it with `instanceof` before accessing its properties
+* Use assertions and non-null assertions only when a verified flow or contract guarantees the value and TypeScript cannot express it; never use them to replace validation or invent a guarantee
+* Public methods that implement an interface or abstract contract may omit an explicit return type when the contract already defines it; private methods and methods without a contract must declare it explicitly
 * Interfaces define public contracts: they do not contain `private` or `protected` members, and their properties must be `readonly` when consumers should only read them
 * Plain objects, interfaces, types, and configuration may expose properties directly; preserve the names and types of the public contract
 
