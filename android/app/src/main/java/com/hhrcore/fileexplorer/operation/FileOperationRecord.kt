@@ -3,6 +3,11 @@ package com.hhrcore.fileexplorer.operation
 import org.json.JSONArray
 import org.json.JSONObject
 
+/**
+ * Persisted file operation state
+ *
+ * @author HattoriHanzo-Ronin
+ */
 data class FileOperationRecord(
     val id: String,
     val operation: String,
@@ -26,6 +31,11 @@ data class FileOperationRecord(
     val ownedIdentities: JSONObject = JSONObject(),
     val mediaPaths: MutableList<String> = mutableListOf()
 ) {
+    /**
+     * Returns the serialized operation
+     *
+     * @return Serialized operation
+     */
     fun toJson(): JSONObject = JSONObject()
         .put("id", id)
         .put("operation", operation)
@@ -51,6 +61,7 @@ data class FileOperationRecord(
 
     companion object {
         const val OPERATION_UPLOAD = "UPLOAD"
+        const val OPERATION_SHARED = "SHARED"
         const val OPERATION_DOWNLOAD = "DOWNLOAD"
         const val OPERATION_REMOTE_MKDIR = "REMOTE_MKDIR"
         const val OPERATION_REMOTE_RENAME = "REMOTE_RENAME"
@@ -69,10 +80,22 @@ data class FileOperationRecord(
         const val STATUS_CANCELLED = "CANCELLED"
         const val STATUS_INTERRUPTED = "INTERRUPTED"
 
-        fun isCancellable(operation: String) = operation == OPERATION_UPLOAD ||
+        /**
+         * Returns whether an operation can be cancelled
+         *
+         * @param operation Operation type
+         * @return Whether cancellation is supported
+         */
+        fun isCancellable(operation: String): Boolean = operation == OPERATION_UPLOAD ||
             operation == OPERATION_DOWNLOAD || operation == OPERATION_LOCAL_COPY ||
             operation == OPERATION_LOCAL_MOVE || operation == OPERATION_LOCAL_EXTRACT
 
+        /**
+         * Returns an operation from its serialized form
+         *
+         * @param source Serialized operation
+         * @return File operation record
+         */
         fun fromJson(source: JSONObject): FileOperationRecord {
             val paths = source.optJSONArray("createdPaths") ?: JSONArray()
             val mediaPaths = source.optJSONArray("mediaPaths") ?: JSONArray()

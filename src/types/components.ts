@@ -91,7 +91,6 @@ export interface DestinationOperationModalProps {
     acceptText?: string;
     onClose: () => void;
     onCancel?: () => void;
-    onOperationFinished?: () => void;
     selectedCount?: number;
     visible: boolean;
 }

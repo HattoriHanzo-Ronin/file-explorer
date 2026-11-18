@@ -220,7 +220,8 @@ export default function OverflowMenu(props: OverflowMenuProps) {
         setFtpDirectory,
         setLocalDirectory,
         setModifyFtpFile,
-        setModifyLocalFile
+        setModifyLocalFile,
+        setPendingLocalUpload
     } = useAppContext();
     const { showCopy, showDownload, showMakeDir, showMove, showRemove, showRename, showShare, showUpload } =
         getMenuVisibility(
@@ -234,6 +235,7 @@ export default function OverflowMenu(props: OverflowMenuProps) {
         setVisible(false);
         if (!isAuthenticated && !(await authUtils.restoreSession())) {
             UiUtils.showMessage("Debe iniciar sesión para subir archivos");
+            setPendingLocalUpload(true);
             navigation.navigate("ftp", { screen: "login" });
             return;
         }

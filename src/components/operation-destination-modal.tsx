@@ -119,7 +119,6 @@ export default function OperationDestinationModal(props: DestinationOperationMod
         action,
         onCancel,
         onClose,
-        onOperationFinished,
         selectedCount,
         visible
     } = props;
@@ -315,17 +314,13 @@ export default function OperationDestinationModal(props: DestinationOperationMod
                 break;
         }
 
-        setModifyFtpFile([]);
-        setModifyLocalFile([]);
+        setModifyFtpFile((current) => (current === modifyFtpFile ? [] : current));
+        setModifyLocalFile((current) => (current === modifyLocalFile ? [] : current));
     }
 
     async function confirm() {
         onClose();
-        try {
-            await executeOperation();
-        } finally {
-            onOperationFinished?.();
-        }
+        await executeOperation();
     }
 
     function cancel() {

@@ -1,4 +1,4 @@
-import type { Dispatch, SetStateAction } from "react";
+import type { Dispatch, RefObject, SetStateAction } from "react";
 import type { ExecuteApiRequest } from "./api-response";
 import type { AuthUser } from "./auth";
 import type { LocalDirectoryState, LocalModifyElement, ModifyElement, StorageRoot } from "./files";
@@ -35,6 +35,8 @@ export interface AppStateContextType {
     setFtpDirectory: Dispatch<SetStateAction<FtpDirectoryState>>;
     localDirectory: LocalDirectoryState;
     setLocalDirectory: Dispatch<SetStateAction<LocalDirectoryState>>;
+    pendingLocalUpload: boolean;
+    setPendingLocalUpload: Dispatch<SetStateAction<boolean>>;
     modifyLocalFile: LocalModifyElement[];
     setModifyLocalFile: Dispatch<SetStateAction<LocalModifyElement[]>>;
     modifyFtpFile: ModifyElement<FtpEntryType>[];
@@ -50,6 +52,7 @@ export interface AppStateContextType {
     user: AuthUser | null;
     setUser: Dispatch<SetStateAction<AuthUser | null>>;
     permission: Permission;
+    sharedLoginRequested: RefObject<boolean>;
     sharedFiles: SharedFile[];
     setSharedFiles: Dispatch<SetStateAction<SharedFile[]>>;
 }

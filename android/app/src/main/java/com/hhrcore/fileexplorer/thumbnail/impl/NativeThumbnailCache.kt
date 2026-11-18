@@ -9,9 +9,13 @@ import com.hhrcore.fileexplorer.database.ExplorerDatabaseHelper
 import com.hhrcore.fileexplorer.thumbnail.ThumbnailCache
 import com.hhrcore.fileexplorer.thumbnail.ThumbnailSnapshot
 import java.io.File
-import java.io.FileOutputStream
 import java.security.MessageDigest
 
+/**
+ * Local thumbnail cache
+ *
+ * @author HattoriHanzo-Ronin
+ */
 class NativeThumbnailCache(context: Context) : ThumbnailCache {
     private val context: Context
     private val database: ThumbnailStore
@@ -54,12 +58,13 @@ class NativeThumbnailCache(context: Context) : ThumbnailCache {
             return
         }
 
+        val children = directory.listFiles() ?: throw IllegalStateException("No se pudo leer ${directory.path}")
+        val currentIds = children.filter { it.isFile && !isExcludedPath(it) && supportsThumbnail(it) }
+            .map(::thumbnailId).toSet()
+        val childDirectories = children.filter(File::isDirectory).map(File::getName).toSet()
+        database.paths(path).filter { it != path }.map { File(it).relativeTo(directory).path.substringBefore(File.separator) }
+            .distinct().filterNot(childDirectories::contains).forEach { deletePath(File(directory, it).absolutePath) }
         database.touchDirectory(path)
-        val currentIds = directory.listFiles()
-            ?.filter { it.isFile && !isExcludedPath(it) && supportsThumbnail(it) }
-            ?.map(::thumbnailId)
-            ?.toSet()
-            .orEmpty()
         database.ids(path).filterNot(currentIds::contains).forEach(::delete)
         database.touch(path, currentIds)
         removeOrphanFiles()
@@ -177,7 +182,7 @@ class NativeThumbnailCache(context: Context) : ThumbnailCache {
         }
     }
 
-    private fun delete(id: String) {
+    private fun delete(id: String): Unit {
         var rename: Pair<File, File>? = null
         try {
             database.delete(id) { ownerId, replacementId ->
@@ -205,7 +210,7 @@ class NativeThumbnailCache(context: Context) : ThumbnailCache {
         }
     }
 
-    private fun move(sourceId: String, destinationId: String, destinationDirectory: String) {
+    private fun move(sourceId: String, destinationId: String, destinationDirectory: String): Unit {
         var rename: Pair<File, File>? = null
         try {
             database.move(sourceId, destinationDirectory, destinationId) { ownerId ->
@@ -232,7 +237,7 @@ class NativeThumbnailCache(context: Context) : ThumbnailCache {
         }
     }
 
-    private fun trim() {
+    private fun trim(): Unit {
         database.oldestIds().forEach { id ->
             if (writableCacheDirectory() != null) {
                 return
@@ -242,7 +247,7 @@ class NativeThumbnailCache(context: Context) : ThumbnailCache {
         }
     }
 
-    private fun removeOrphanFiles() {
+    private fun removeOrphanFiles(): Unit {
         cacheDirectories().forEach { directory ->
             directory.listFiles()?.forEach { file ->
                 if (file.extension == "jpg" && !database.exists(file.nameWithoutExtension)) {
@@ -477,7 +482,7 @@ private class ThumbnailStore(helper: ExplorerDatabaseHelper) {
         }
     }
 
-    private fun touchDirectory(directory: String, now: Long) {
+    private fun touchDirectory(directory: String, now: Long): Unit {
         helper.writableDatabase.insertWithOnConflict(
             "thumbnail_directories", null, ContentValues().apply {
                 put("path", directory)

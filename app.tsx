@@ -22,6 +22,7 @@ import { useTheme } from "./src/components/theme-provider";
 import DrawerNavigationItem from "./src/components/drawer-navigation-item";
 import Breadcrumb from "./src/components/breadcrumb";
 import SharedFilesReceiver from "./src/components/shared-files-receiver";
+import OperationDestinationModal from "./src/components/operation-destination-modal";
 
 const Drawer = createDrawerNavigator();
 
@@ -69,7 +70,7 @@ const AppDrawerContent = (props: DrawerContentComponentProps) => {
 };
 const AppHeader = (props: DrawerHeaderProps) => {
     const { navigation, route } = props;
-    const { isAuthenticated } = useAppContext();
+    const { isAuthenticated, pendingLocalUpload, setPendingLocalUpload } = useAppContext();
     const { mode, theme } = useTheme();
     const app = appStyles[mode];
     const storage = route.name as StorageType;
@@ -91,6 +92,9 @@ const AppHeader = (props: DrawerHeaderProps) => {
                 </>
             )}
             <SharedFilesReceiver onRequireLogin={requireLogin} />
+            {pendingLocalUpload && isAuthenticated && (
+                <OperationDestinationModal action="upload" visible onClose={() => setPendingLocalUpload(false)} />
+            )}
         </View>
     );
 };

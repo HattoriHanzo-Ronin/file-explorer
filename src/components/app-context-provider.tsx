@@ -1,4 +1,4 @@
-import { createContext, PropsWithChildren, useContext, useState } from "react";
+import { createContext, PropsWithChildren, useContext, useRef, useState } from "react";
 import type { AuthUser } from "../types/auth";
 import type { AppContextType, AppStateContextType } from "../types/context";
 import type { LocalDirectoryState, LocalModifyElement, ModifyElement, StorageRoot } from "../types/files";
@@ -25,6 +25,7 @@ export default function AppContextProvider(props: PropsWithChildren) {
     const [lastLocalDir, setLastLocalDir] = useState<string>(" ");
     const [ftpDirectory, setFtpDirectory] = useState<FtpDirectoryState>({ dir: " ", content: [], version: "" });
     const [localDirectory, setLocalDirectory] = useState<LocalDirectoryState>({ rootPath: "", dir: " ", content: [] });
+    const [pendingLocalUpload, setPendingLocalUpload] = useState<boolean>(false);
     const [modifyLocalFile, setModifyLocalFile] = useState<LocalModifyElement[]>([]);
     const [modifyFtpFile, setModifyFtpFile] = useState<ModifyElement<FtpEntryType>[]>([]);
     const [ftpSelectionDir, setFtpSelectionDir] = useState<string>(" ");
@@ -32,6 +33,7 @@ export default function AppContextProvider(props: PropsWithChildren) {
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
     const [user, setUser] = useState<AuthUser | null>(null);
+    const sharedLoginRequested = useRef<boolean>(false);
     const [sharedFiles, setSharedFiles] = useState<SharedFile[]>([]);
     const [permission] = useState<ReactNativePermission>(() => new ReactNativePermission());
 
@@ -50,6 +52,8 @@ export default function AppContextProvider(props: PropsWithChildren) {
         setFtpDirectory,
         localDirectory,
         setLocalDirectory,
+        pendingLocalUpload,
+        setPendingLocalUpload,
         modifyLocalFile,
         setModifyLocalFile,
         modifyFtpFile,
@@ -64,6 +68,7 @@ export default function AppContextProvider(props: PropsWithChildren) {
         setIsAuthenticated,
         user,
         setUser,
+        sharedLoginRequested,
         sharedFiles,
         setSharedFiles,
         permission

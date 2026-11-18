@@ -4,6 +4,7 @@ import android.util.Log
 import android.webkit.MimeTypeMap
 import com.hhrcore.fileexplorer.thumbnail.ThumbnailCache
 import com.hhrcore.fileexplorer.thumbnail.ThumbnailSnapshot
+import com.hhrcore.fileexplorer.sharing.SharedFileCleanup
 import android.system.ErrnoException
 import android.system.Os
 import android.system.OsConstants
@@ -33,17 +34,24 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import java.util.UUID
 
+/**
+ * File operation engine
+ *
+ * @author HattoriHanzo-Ronin
+ */
 class FileOperationEngine(
     store: OperationStore,
     onChange: (FileOperationRecord) -> Unit,
     thumbnailCache: ThumbnailCache,
     mediaIndex: MediaIndex,
+    sharedFileCleanup: SharedFileCleanup,
     remoteTransferClient: RemoteTransferClient
 ) {
     private val store: OperationStore
     private val onChange: (FileOperationRecord) -> Unit
     private val thumbnailCache: ThumbnailCache
     private val mediaIndex: MediaIndex
+    private val sharedFileCleanup: SharedFileCleanup
     private val remoteTransferClient: RemoteTransferClient
     private val calls = ConcurrentHashMap<String, MutableSet<Call>>()
     private val cancelled = ConcurrentHashMap.newKeySet<String>()
@@ -56,9 +64,16 @@ class FileOperationEngine(
         this.onChange = onChange
         this.thumbnailCache = thumbnailCache
         this.mediaIndex = mediaIndex
+        this.sharedFileCleanup = sharedFileCleanup
         this.remoteTransferClient = remoteTransferClient
     }
 
+    /**
+     * Executes a file operation
+     *
+     * @param record File operation record
+     * @param accessToken Access token for remote operations
+     */
     fun execute(record: FileOperationRecord, accessToken: String?) {
         try {
             LocalPathLocks.acquire(record.id, localClaims(record)) { checkCancelled(record.id) }
@@ -108,9 +123,26 @@ class FileOperationEngine(
             Log.e(LOG_TAG, "File operation ${record.id} (${record.operation}) failed", error)
             record.status = if (cancelled.contains(record.id)) FileOperationRecord.STATUS_CANCELLED else FileOperationRecord.STATUS_FAILED
             record.error = (error as? ApiException)?.apiError
-            rollback(record, accessToken)
-            persist(record)
+            val paths = record.mediaPaths + mediaPathsForRecovery(record.createdPaths)
+            try {
+                rollback(record, accessToken)
+                persist(record)
+            } finally {
+                mediaIndex.scan(MediaIndexChange(removedPaths = paths))
+            }
         } finally {
+            if (record.operation == FileOperationRecord.OPERATION_UPLOAD) {
+                runCatching {
+                    val entries = record.request.getJSONArray("entries")
+                    val paths = (0 until entries.length()).map { entries.getJSONObject(it).getString("path") }
+                    runCatching { sharedFileCleanup.touch(paths) }
+                        .onFailure { Log.w(LOG_TAG, "Could not record shared upload activity", it) }
+                    if (record.error?.optString("code") != "INVALID_TOKEN") {
+                        sharedFileCleanup.cleanup(paths)
+                    }
+                }.onFailure { Log.w(LOG_TAG, "Could not clean up shared upload files", it) }
+            }
+
             calls.remove(record.id)
             cancelled.remove(record.id)
             committing.remove(record.id)
@@ -119,6 +151,11 @@ class FileOperationEngine(
         }
     }
 
+    /**
+     * Cancels an active operation
+     *
+     * @param id Operation identifier
+     */
     fun cancel(id: String) {
         val record = store.get(id) ?: return
         synchronized(cancellationLock) {
@@ -131,12 +168,17 @@ class FileOperationEngine(
         }
     }
 
+    /**
+     * Reconciles an interrupted operation
+     *
+     * @param record File operation record
+     */
     fun reconcile(record: FileOperationRecord) {
         val paths = record.createdPaths + record.ownedIdentities.keys().asSequence().toList() + listOfNotNull(record.pendingStagePath)
         val claims = localClaims(record) + paths.map { LocalPathLocks.claim(File(it), true) }
         LocalPathLocks.acquire(record.id, claims)
         try {
-            val mediaPaths = record.mediaPaths + paths.flatMap { mediaIndex.paths(File(it)) }
+            val mediaPaths = record.mediaPaths + mediaPathsForRecovery(paths)
             try {
                 reconcileLocked(record)
             } finally {
@@ -147,7 +189,15 @@ class FileOperationEngine(
         }
     }
 
-    private fun reconcileLocked(record: FileOperationRecord) {
+    private fun mediaPathsForRecovery(paths: List<String>): List<String> {
+        return paths.flatMap { path ->
+            runCatching { mediaIndex.paths(File(path)) }
+                .onFailure { Log.w(LOG_TAG, "Could not inspect media paths for $path", it) }
+                .getOrElse { listOf(path) }
+        }
+    }
+
+    private fun reconcileLocked(record: FileOperationRecord): Unit {
         if (record.status in setOf(FileOperationRecord.STATUS_PENDING, FileOperationRecord.STATUS_RUNNING)) {
             record.status = FileOperationRecord.STATUS_INTERRUPTED
         }
@@ -161,6 +211,10 @@ class FileOperationEngine(
 
         if (record.operation == FileOperationRecord.OPERATION_LOCAL_MOVE && record.moveCommitStarted) {
             rollbackMove(record)
+            if (record.moveCommitStarted) {
+                persist(record)
+                return
+            }
         }
 
         if (record.operation == FileOperationRecord.OPERATION_DOWNLOAD ||
@@ -179,7 +233,7 @@ class FileOperationEngine(
         persist(record)
     }
 
-    private fun upload(record: FileOperationRecord, token: String) {
+    private fun upload(record: FileOperationRecord, token: String): Unit {
         val request = record.request
         val entries = uploadEntries(request.getJSONArray("entries"))
         record.totalBytes = (0 until entries.length()).sumOf { entries.getJSONObject(it).optLong("size") }
@@ -192,7 +246,9 @@ class FileOperationEngine(
                     put(JSONObject().apply {
                         put("path", entry.getString("path"))
                         put("type", entry.getString("type"))
-                        if (entry.has("size")) put("size", entry.getLong("size"))
+                        if (entry.has("size")) {
+                            put("size", entry.getLong("size"))
+                        }
                     })
                 }
             })
@@ -227,7 +283,7 @@ class FileOperationEngine(
         }
     }
 
-    private fun appendUploadEntries(entries: JSONArray, source: File, remotePath: String, type: String) {
+    private fun appendUploadEntries(entries: JSONArray, source: File, remotePath: String, type: String): Unit {
         if (type.equals("file", true)) {
             entries.put(JSONObject().apply {
                 put("path", remotePath)
@@ -240,12 +296,13 @@ class FileOperationEngine(
         }
 
         entries.put(JSONObject().put("path", remotePath).put("type", "DIR"))
-        source.listFiles()?.sortedBy(File::getName)?.forEach { entry ->
+        val children = source.listFiles() ?: throw IllegalStateException("No se pudo leer ${source.path}")
+        children.sortedBy(File::getName).forEach { entry ->
             appendUploadEntries(entries, entry, "$remotePath/${entry.name}", if (entry.isDirectory) "dir" else "file")
         }
     }
 
-    private fun uploadFile(record: FileOperationRecord, token: String, entry: JSONObject, remotePath: String) {
+    private fun uploadFile(record: FileOperationRecord, token: String, entry: JSONObject, remotePath: String): Unit {
         val file = File(entry.getString("localPath"))
         val size = entry.getLong("size")
         synchronized(record) {
@@ -341,7 +398,7 @@ class FileOperationEngine(
         remotePath: String,
         destination: File,
         expectedSize: Long
-    ) {
+    ): Unit {
         synchronized(record) {
             record.currentFileName = destination.name
             persist(record)
@@ -392,7 +449,7 @@ class FileOperationEngine(
         }
     }
 
-    private fun remoteDirectoryChange(record: FileOperationRecord, token: String) {
+    private fun remoteDirectoryChange(record: FileOperationRecord, token: String): Unit {
         val request = record.request
         val rename = record.operation == FileOperationRecord.OPERATION_REMOTE_RENAME
         val body = JSONObject().apply {
@@ -427,7 +484,7 @@ class FileOperationEngine(
         }
     }
 
-    private fun remoteDelete(record: FileOperationRecord, token: String) {
+    private fun remoteDelete(record: FileOperationRecord, token: String): Unit {
         val request = record.request
         val body = JSONObject().apply {
             request.optString("remoteDir").takeIf { it.isNotEmpty() }?.let { put("dir", it) }
@@ -440,7 +497,7 @@ class FileOperationEngine(
         executeRemoteChanges(record, token, remoteRequest)
     }
 
-    private fun remoteMove(record: FileOperationRecord, token: String) {
+    private fun remoteMove(record: FileOperationRecord, token: String): Unit {
         val request = record.request
         val body = JSONObject().apply {
             request.optString("remoteDir").takeIf { it.isNotEmpty() }?.let { put("dir", it) }
@@ -454,7 +511,7 @@ class FileOperationEngine(
         executeRemoteChanges(record, token, remoteRequest)
     }
 
-    private fun executeRemoteChanges(record: FileOperationRecord, token: String, request: Request) {
+    private fun executeRemoteChanges(record: FileOperationRecord, token: String, request: Request): Unit {
         val expectedTotal = record.request.getJSONArray("entries").length()
         val changes = JSONArray()
         record.totalBytes = expectedTotal.toLong()
@@ -572,14 +629,17 @@ class FileOperationEngine(
     private fun localRename(record: FileOperationRecord): MediaIndexChange {
         val source = File(record.request.getString("source"))
         val sourceMediaPaths = mediaIndex.paths(source)
-        val snapshot = thumbnailCache.snapshot(source)
+        val snapshot = runCatching { thumbnailCache.snapshot(source) }
+            .onFailure { Log.w(LOG_TAG, "Could not snapshot thumbnails before rename", it) }
+            .getOrDefault(emptyList())
         val target = AtomicFiles.rename(
             source,
             source.parentFile ?: throw IllegalArgumentException("Ruta no válida"),
             record.request.getString("name"),
             record.id
         )
-        thumbnailCache.move(snapshot, source, target)
+        runCatching { thumbnailCache.move(snapshot, source, target) }
+            .onFailure { Log.w(LOG_TAG, "Could not update thumbnails after rename", it) }
         return MediaIndexChange(sourceMediaPaths, listOf(target))
     }
 
@@ -660,7 +720,7 @@ class FileOperationEngine(
         return false
     }
 
-    private fun validateLocalDestination(sources: JSONArray, destination: File) {
+    private fun validateLocalDestination(sources: JSONArray, destination: File): Unit {
         val destinationPath = destination.canonicalFile.path
         for (index in 0 until sources.length()) {
             val source = File(sources.getString(index))
@@ -675,7 +735,7 @@ class FileOperationEngine(
         }
     }
 
-    private fun copyLocal(record: FileOperationRecord, source: File, destination: File, reserved: Boolean = true) {
+    private fun copyLocal(record: FileOperationRecord, source: File, destination: File, reserved: Boolean = true): Unit {
         checkCancelled(record.id)
         record.currentFileName = source.name
         if (source.isDirectory) {
@@ -721,23 +781,18 @@ class FileOperationEngine(
         val sourceMediaPaths = mutableListOf<String>()
         record.totalBytes = sources.length().toLong()
         persist(record)
-        try {
-            for (index in 0 until sources.length()) {
-                val source = File(sources.getString(index))
-                val paths = mediaIndex.paths(source)
-                sourceMediaPaths.addAll(paths)
-                record.mediaPaths.addAll(paths)
-                persist(record)
-                val thumbnailSnapshot = thumbnailCache.snapshot(source)
-                deleteLocal(record, source)
-                thumbnailCache.delete(thumbnailSnapshot)
-                thumbnailCache.deletePath(source.absolutePath)
-                record.bytesTransferred = (index + 1).toLong()
-                persist(record)
-            }
-        } catch (error: Throwable) {
-            mediaIndex.scan(MediaIndexChange(removedPaths = sourceMediaPaths))
-            throw error
+        for (index in 0 until sources.length()) {
+            val source = File(sources.getString(index))
+            val paths = mediaIndex.paths(source)
+            sourceMediaPaths.addAll(paths)
+            record.mediaPaths.addAll(paths)
+            persist(record)
+            val thumbnailSnapshot = thumbnailCache.snapshot(source)
+            deleteLocal(record, source)
+            thumbnailCache.delete(thumbnailSnapshot)
+            thumbnailCache.deletePath(source.absolutePath)
+            record.bytesTransferred = (index + 1).toLong()
+            persist(record)
         }
 
         return MediaIndexChange(removedPaths = sourceMediaPaths)
@@ -757,7 +812,8 @@ class FileOperationEngine(
             extractStream(record, source, temporary)
         }
 
-        temporary.listFiles()?.forEach { extracted ->
+        val extractedFiles = temporary.listFiles() ?: throw IllegalStateException("No se pudo leer ${temporary.path}")
+        extractedFiles.forEach { extracted ->
             checkCancelled(record.id)
             val target = reserveOwnedPath(record, destination, extracted.name, extracted.isDirectory)
             if (extracted.isDirectory) {
@@ -778,7 +834,7 @@ class FileOperationEngine(
         return MediaIndexChange(createdFiles = extractedTargets)
     }
 
-    private fun extractSevenZip(record: FileOperationRecord, source: File, destination: File) {
+    private fun extractSevenZip(record: FileOperationRecord, source: File, destination: File): Unit {
         SevenZFile.builder().setFile(source).get().use { archive ->
             while (true) {
                 checkCancelled(record.id)
@@ -810,7 +866,7 @@ class FileOperationEngine(
         }
     }
 
-    private fun extractStream(record: FileOperationRecord, source: File, destination: File) {
+    private fun extractStream(record: FileOperationRecord, source: File, destination: File): Unit {
         val extension = source.name.lowercase()
         BufferedInputStream(source.inputStream()).use { buffered ->
             if (isCompressedStream(extension)) {
@@ -832,7 +888,7 @@ class FileOperationEngine(
         }
     }
 
-    private fun extractArchiveStream(record: FileOperationRecord, archive: ArchiveInputStream<*>, destination: File) {
+    private fun extractArchiveStream(record: FileOperationRecord, archive: ArchiveInputStream<*>, destination: File): Unit {
         archive.use {
             while (true) {
                 checkCancelled(record.id)
@@ -855,7 +911,7 @@ class FileOperationEngine(
         }
     }
 
-    private fun copyExtractedStream(record: FileOperationRecord, input: InputStream, output: File) {
+    private fun copyExtractedStream(record: FileOperationRecord, input: InputStream, output: File): Unit {
         output.parentFile?.mkdirs()
         output.outputStream().buffered().use { stream ->
             val buffer = ByteArray(BUFFER_SIZE)
@@ -898,7 +954,7 @@ class FileOperationEngine(
         else -> throw IllegalArgumentException("Formato de compresión no compatible")
     }
 
-    private fun deleteLocal(record: FileOperationRecord, file: File) {
+    private fun deleteLocal(record: FileOperationRecord, file: File): Unit {
         if (file.isDirectory) {
             file.listFiles()?.forEach { deleteLocal(record, it) }
         }
@@ -951,9 +1007,12 @@ class FileOperationEngine(
         return declaredTotal
     }
 
-    private fun rollback(record: FileOperationRecord, token: String?) {
+    private fun rollback(record: FileOperationRecord, token: String?): Unit {
         if (record.operation == FileOperationRecord.OPERATION_LOCAL_MOVE && record.moveCommitStarted) {
             rollbackMove(record)
+            if (record.moveCommitStarted) {
+                return
+            }
         }
 
         if (record.operation == FileOperationRecord.OPERATION_DOWNLOAD ||
@@ -970,7 +1029,7 @@ class FileOperationEngine(
         }
     }
 
-    private fun rollbackMove(record: FileOperationRecord) {
+    private fun rollbackMove(record: FileOperationRecord): Unit {
         runCatching {
             if (!record.moveRollbackRestored) {
                 val sources = record.request.getJSONArray("sources")
@@ -1002,7 +1061,7 @@ class FileOperationEngine(
         }
     }
 
-    private fun restoreMoveSource(record: FileOperationRecord, copy: File, source: File) {
+    private fun restoreMoveSource(record: FileOperationRecord, copy: File, source: File): Unit {
         check(copy.exists()) { "No se encuentra la copia ${copy.path}" }
         if (copy.isDirectory) {
             check(source.isDirectory || (!source.exists() && source.mkdirs())) { "No se pudo restaurar ${source.path}" }
@@ -1027,7 +1086,7 @@ class FileOperationEngine(
         }
     }
 
-    private fun cleanupLocal(record: FileOperationRecord) {
+    private fun cleanupLocal(record: FileOperationRecord): Unit {
         var cleaned = cleanupPendingStage(record)
         record.ownedIdentities.keys().asSequence().toList().asReversed().forEach { path ->
             val expected = record.ownedIdentities.optString(path)
@@ -1035,7 +1094,9 @@ class FileOperationEngine(
             val stat = try {
                 Os.lstat(path)
             } catch (error: ErrnoException) {
-                if (error.errno != OsConstants.ENOENT) cleaned = false
+                if (error.errno != OsConstants.ENOENT) {
+                    cleaned = false
+                }
                 return@forEach
             }
             val actual = if (stat.st_ino > 0) "${stat.st_dev}:${stat.st_ino}" else ""
@@ -1049,11 +1110,14 @@ class FileOperationEngine(
             }
         }
 
-        if (record.createdPaths.any { !record.ownedIdentities.has(it) && File(it).exists() }) cleaned = false
+        if (record.createdPaths.any { !record.ownedIdentities.has(it) && File(it).exists() }) {
+            cleaned = false
+        }
+
         record.cleanupPending = !cleaned
     }
 
-    private fun reconcileThumbnailDestination(record: FileOperationRecord) {
+    private fun reconcileThumbnailDestination(record: FileOperationRecord): Unit {
         val destination = record.request.optString("destination")
         if (destination.isNotEmpty()) {
             thumbnailCache.reconcileDirectory(File(destination))
@@ -1091,7 +1155,7 @@ class FileOperationEngine(
         return true
     }
 
-    private fun cancelRemoteSession(record: FileOperationRecord, token: String) {
+    private fun cancelRemoteSession(record: FileOperationRecord, token: String): Unit {
         val sessionId = record.apiSessionId ?: return
         val resource = if (record.operation == FileOperationRecord.OPERATION_UPLOAD) "uploads" else "downloads"
         executeCleanup(
@@ -1105,7 +1169,10 @@ class FileOperationEngine(
 
     private fun executeJson(record: FileOperationRecord, token: String, method: String, url: String, body: JSONObject?): JSONObject {
         val builder = Request.Builder().url(url)
-        if (method == "POST") builder.post(body?.toString()?.toRequestBody(JSON_MEDIA_TYPE) ?: EMPTY_BODY)
+        if (method == "POST") {
+            builder.post(body?.toString()?.toRequestBody(JSON_MEDIA_TYPE) ?: EMPTY_BODY)
+        }
+
         val response = execute(record, token, builder.build())
         return if (response.isBlank()) JSONObject() else JSONObject(response)
     }
@@ -1157,7 +1224,7 @@ class FileOperationEngine(
         }
     }
 
-    private fun executeCleanup(token: String, request: Request) {
+    private fun executeCleanup(token: String, request: Request): Unit {
         val authorized = request.newBuilder().header("Authorization", "Bearer $token").build()
         remoteTransferClient.newCall(authorized).execute().use { response ->
             if (!response.isSuccessful) {
@@ -1229,7 +1296,10 @@ class FileOperationEngine(
                 }
             }
         } catch (error: Throwable) {
-            if (expected.isNotEmpty() && identity(file) == expected) file.deleteRecursively()
+            if (expected.isNotEmpty() && identity(file) == expected) {
+                file.deleteRecursively()
+            }
+
             throw error
         }
     }
@@ -1254,7 +1324,7 @@ class FileOperationEngine(
         entries: List<T>,
         concurrency: Int,
         transfer: (T) -> Unit
-    ) {
+    ): Unit {
         if (entries.isEmpty()) {
             return
         }
@@ -1296,22 +1366,22 @@ class FileOperationEngine(
         checkCancelled(record.id)
     }
 
-    private fun registerCall(operationId: String, call: Call) {
+    private fun registerCall(operationId: String, call: Call): Unit {
         calls.computeIfAbsent(operationId) { ConcurrentHashMap.newKeySet() }.add(call)
         if (cancelled.contains(operationId)) {
             call.cancel()
         }
     }
 
-    private fun unregisterCall(operationId: String, call: Call) {
+    private fun unregisterCall(operationId: String, call: Call): Unit {
         calls[operationId]?.remove(call)
     }
 
-    private fun cancelCalls(operationId: String) {
+    private fun cancelCalls(operationId: String): Unit {
         calls[operationId]?.forEach(Call::cancel)
     }
 
-    private fun addTransferredBytes(record: FileOperationRecord, bytes: Long) {
+    private fun addTransferredBytes(record: FileOperationRecord, bytes: Long): Unit {
         if (bytes <= 0) {
             return
         }
@@ -1322,7 +1392,7 @@ class FileOperationEngine(
         }
     }
 
-    private fun notifyProgress(record: FileOperationRecord) {
+    private fun notifyProgress(record: FileOperationRecord): Unit {
         val now = System.currentTimeMillis()
         val previous = lastProgressAt[record.id] ?: 0L
         if (now - previous >= PROGRESS_INTERVAL) {
@@ -1331,12 +1401,12 @@ class FileOperationEngine(
         }
     }
 
-    private fun persist(record: FileOperationRecord) {
+    private fun persist(record: FileOperationRecord): Unit {
         store.save(record)
         onChange(record)
     }
 
-    private fun checkCancelled(id: String) {
+    private fun checkCancelled(id: String): Unit {
         if (cancelled.contains(id)) {
             throw InterruptedException("Transferencia cancelada")
         }
