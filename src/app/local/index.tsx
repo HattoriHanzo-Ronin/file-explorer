@@ -12,10 +12,10 @@ import UiUtils from "../../utils/ui-utils";
 import useBackButtonEvent from "../../hooks/use-back-button-event";
 import FileUtils from "../../utils/file-utils";
 import LocalFileManager from "../../utils/operations/local-file-manager";
-import { commonStyles } from "../../styles/style";
+import { COMMON_STYLES } from "../../styles/style";
 import { useTheme } from "../../components/theme-provider";
 import AppDialog from "../../components/dialog";
-import { appDialog } from "../../styles/components/style";
+import { APP_DIALOG } from "../../styles/components/style";
 
 export default function Local() {
     const {
@@ -29,7 +29,7 @@ export default function Local() {
     } = useAppContext();
     const { executeLocalRequest } = useOperationContext();
     const { mode, theme } = useTheme();
-    const common = commonStyles[mode];
+    const common = COMMON_STYLES[mode];
     const { content: dirContent, dir: lastLocalDir } = localDirectory;
     const [archiveName, setArchiveName] = React.useState<string | null>(null);
     const isFocused = useIsFocused();
@@ -38,7 +38,7 @@ export default function Local() {
     const loadDirectory = useCallback(
         async (dir: string, isBackground = false) => {
             const result = await executeLocalRequest(
-                (localFileManager) => localFileManager.dir(activeStorageRoot.path, dir),
+                (localFileManager) => localFileManager.dir({ rootPath: activeStorageRoot.path, path: dir }),
                 { isBackground }
             );
             if (result.success) {
@@ -52,11 +52,11 @@ export default function Local() {
 
     async function extractArchive(name: string) {
         const result = await executeLocalRequest(
-            (localFileManager) => localFileManager.extract(activeStorageRoot.path, lastLocalDir, name),
+            (localFileManager) => localFileManager.extract({ rootPath: activeStorageRoot.path, dir: lastLocalDir, name }),
             { isBackground: true, showError: true }
         );
         if (result.success) {
-            UiUtils.applyLocalDirectoryUpdates(setLocalDirectory, result.data);
+            UiUtils.applyLocalDirectoryUpdates({ setLocalDirectory, updates: result.data });
         }
     }
 
@@ -67,7 +67,7 @@ export default function Local() {
         }
 
         await executeLocalRequest(
-            (localFileManager) => localFileManager.openFile(activeStorageRoot.path, lastLocalDir, name),
+            (localFileManager) => localFileManager.openFile({ rootPath: activeStorageRoot.path, dir: lastLocalDir, name }),
             { isBackground: true, showError: true }
         );
     }
@@ -89,7 +89,10 @@ export default function Local() {
             void (async () => {
                 if (!isLoading) {
                     const result = await executeLocalRequest(
-                        (localFileManager) => localFileManager.getVersion(activeStorageRoot.path, lastLocalDir),
+                        (localFileManager) => {
+                            const rootPath = activeStorageRoot.path;
+                            return localFileManager.getVersion({ rootPath, path: lastLocalDir });
+                        },
                         { isBackground: true }
                     );
                     if (result.success && result.data.version !== LocalFileManager.localVersion) {
@@ -184,7 +187,7 @@ export default function Local() {
                     setArchiveName(null);
                 }}
             >
-                <Text style={[appDialog.message, { color: theme.text }]}>Se va a descomprimir el archivo</Text>
+                <Text style={[APP_DIALOG.message, { color: theme.text }]}>Se va a descomprimir el archivo</Text>
             </AppDialog>
         </View>
     );

@@ -38,7 +38,7 @@ describe("LocalFileManager", () => {
         localFileOperation.readDir.mockResolvedValue([
             { name: "a.txt", path: "/storage/a.txt", size: 1, isDirectory: () => false }
         ]);
-        const result = await manager.dir("/storage", " ");
+        const result = await manager.dir({ rootPath: "/storage", path: " " });
         expect(result.success).toBe(true);
         if (result.success) {
             expect(result.data.entries).toHaveLength(1);
@@ -54,7 +54,7 @@ describe("LocalFileManager", () => {
             { name: "obb", path: "/storage/Android/obb", size: 0, isDirectory: () => true },
             { name: "media", path: "/storage/Android/media", size: 0, isDirectory: () => true }
         ]);
-        await expect(manager.dir("/storage", "Android")).resolves.toMatchObject({
+        await expect(manager.dir({ rootPath: "/storage", path: "Android" })).resolves.toMatchObject({
             success: true,
             data: { entries: [{ name: "media" }] }
         });
@@ -64,11 +64,11 @@ describe("LocalFileManager", () => {
         const { localFileOperation, manager } = createManager();
         localFileOperation.tryCreateDirectory.mockResolvedValue(true);
         localFileOperation.readDir.mockResolvedValue([]);
-        await expect(manager.createDirectory("/storage", "docs", "Report")).resolves.toEqual({
+        await expect(manager.createDirectory({ rootPath: "/storage", dir: "docs", name: "Report" })).resolves.toEqual({
             success: true,
             data: [{ path: "/storage/docs", entries: [] }]
         });
-        expect(localFileOperation.tryCreateDirectory).toHaveBeenCalledWith("/storage/docs", "Report");
+        expect(localFileOperation.tryCreateDirectory).toHaveBeenCalledWith({ destination: "/storage/docs", name: "Report" });
         expect(localFileOperation.createDirectory).not.toHaveBeenCalled();
     });
 
@@ -92,7 +92,7 @@ describe("LocalFileManager", () => {
             );
             return "mkdir-1";
         });
-        await expect(manager.createDirectory("/storage", "docs", "Report")).resolves.toEqual({
+        await expect(manager.createDirectory({ rootPath: "/storage", dir: "docs", name: "Report" })).resolves.toEqual({
             success: true,
             data: [{ path: "/storage/docs", entries: [] }]
         });
@@ -101,8 +101,8 @@ describe("LocalFileManager", () => {
 
     it("rejects invalid names and unchanged renames before starting an operation", async () => {
         const { localFileOperation, manager } = createManager();
-        const invalid = await manager.createDirectory("/storage", " ", "bad/name");
-        const unchanged = await manager.rename({ path: "/storage/report.txt", type: "file" }, " report.txt ");
+        const invalid = await manager.createDirectory({ rootPath: "/storage", dir: " ", name: "bad/name" });
+        const unchanged = await manager.rename({ entry: { path: "/storage/report.txt", type: "file" }, name: " report.txt " });
         expect(invalid.success).toBe(false);
         expect(unchanged.success).toBe(false);
         if (!invalid.success && !unchanged.success) {
@@ -115,7 +115,7 @@ describe("LocalFileManager", () => {
 
     it("rejects unsupported archive formats before starting a native operation", async () => {
         const { localFileOperation, manager } = createManager();
-        await expect(manager.extract("/storage", " ", "archive.rar")).resolves.toEqual({
+        await expect(manager.extract({ rootPath: "/storage", dir: " ", name: "archive.rar" })).resolves.toEqual({
             success: false,
             error: { code: "ARCHIVE_FORMAT_NOT_SUPPORTED", message: "Formato de archivo no compatible" }
         });
@@ -158,7 +158,7 @@ describe("LocalFileManager", () => {
         });
         expect(localFileOperation.readDir).toHaveBeenCalledWith("/storage/docs");
         localFileOperation.readDir.mockClear();
-        await manager.getVersion("/storage", "docs");
+        await manager.getVersion({ rootPath: "/storage", path: "docs" });
         expect(localFileOperation.readDir).not.toHaveBeenCalled();
     });
 });

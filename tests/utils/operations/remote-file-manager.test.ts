@@ -130,7 +130,7 @@ describe("RemoteFileManager", () => {
             );
             return "upload-1";
         });
-        await expect(manager.upload(entries, " ")).resolves.toEqual({
+        await expect(manager.upload({ items: entries, remoteDir: " " })).resolves.toEqual({
             success: true,
             data: { entries: [], version: "10" }
         });
@@ -233,8 +233,18 @@ describe("RemoteFileManager", () => {
     it("completes each download independently when they share a destination", async () => {
         const { listener, manager, remoteFileOperation } = createManager();
         remoteFileOperation.startDownload.mockResolvedValueOnce("download-1").mockResolvedValueOnce("download-2");
-        const first = manager.download([{ path: "one.txt", type: "FILE" }], " ", "/storage", " ");
-        const second = manager.download([{ path: "two.txt", type: "FILE" }], " ", "/storage", " ");
+        const first = manager.download({
+            items: [{ path: "one.txt", type: "FILE" }],
+            remoteDir: " ",
+            localRoot: "/storage",
+            localDir: " "
+        });
+        const second = manager.download({
+            items: [{ path: "two.txt", type: "FILE" }],
+            remoteDir: " ",
+            localRoot: "/storage",
+            localDir: " "
+        });
         await new Promise<void>((resolve) => setImmediate(resolve));
 
         const running: FileOperationSnapshot = {
@@ -279,7 +289,12 @@ describe("RemoteFileManager", () => {
             localDir: "/storage"
         };
         remoteFileOperation.listOperations.mockResolvedValue([completed]);
-        const download = manager.download([{ path: "one.txt", type: "FILE" }], " ", "/storage", " ");
+        const download = manager.download({
+            items: [{ path: "one.txt", type: "FILE" }],
+            remoteDir: " ",
+            localRoot: "/storage",
+            localDir: " "
+        });
         await new Promise<void>((resolve) => setImmediate(resolve));
         await manager.restore();
         listener()(completed);

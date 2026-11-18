@@ -1,6 +1,13 @@
 import { FILE_OPERATION_NOTIFICATION_TEXTS } from "../../constants/file-operations";
 import { EXTRACTABLE_ARCHIVE_EXTENSIONS } from "../../constants/archives";
-import type { LocalDirectoryUpdate, LocalModifyElement } from "../../types/files";
+import type {
+    LocalCopyMoveRequest,
+    LocalDirectoryRequest,
+    LocalDirectoryUpdate,
+    LocalModifyElement,
+    LocalNamedEntryRequest,
+    LocalRenameRequest
+} from "../../types/files";
 import type { FileOperationSnapshot } from "../../types/file-operations";
 import type { LocalResponse } from "../../types/local-response";
 import type { FileSystemEntry } from "../../types/files";
@@ -37,11 +44,12 @@ export default class LocalFileManager {
     /**
      * Returns directory entries and their version
      *
-     * @param rootPath Storage root path
-     * @param path Directory path
+     * @param params.rootPath Storage root path
+     * @param params.path Directory path
      * @returns Directory entries and version
      */
-    async dir(rootPath: string, path: string): Promise<LocalResponse<{ entries: FileSystemEntry[]; version: string }>> {
+    async dir(params: LocalDirectoryRequest): Promise<LocalResponse<{ entries: FileSystemEntry[]; version: string }>> {
+        const { rootPath, path } = params;
         try {
             const entries = await this.readDirectory(this.absolutePath(rootPath, path));
             const version = FileUtils.hashDirectory(entries);
@@ -55,11 +63,12 @@ export default class LocalFileManager {
     /**
      * Returns a directory version
      *
-     * @param rootPath Storage root path
-     * @param path Directory path
+     * @param params.rootPath Storage root path
+     * @param params.path Directory path
      * @returns Directory version
      */
-    async getVersion(rootPath: string, path: string): Promise<LocalResponse<{ version: string }>> {
+    async getVersion(params: LocalDirectoryRequest): Promise<LocalResponse<{ version: string }>> {
+        const { rootPath, path } = params;
         if (this.isDirectoryBusy(rootPath, path)) {
             return { success: true, data: { version: LocalFileManager.LOCAL_VERSION } };
         }
@@ -75,21 +84,22 @@ export default class LocalFileManager {
     /**
      * Creates a local directory
      *
-     * @param rootPath Storage root path
-     * @param dir Directory path
-     * @param name Directory name
+     * @param params.rootPath Storage root path
+     * @param params.dir Directory path
+     * @param params.name Directory name
      * @returns Local operation response
      */
-    async createDirectory(rootPath: string, dir: string, name: string): Promise<LocalResponse<LocalDirectoryUpdate[]>> {
-        const error = FileUtils.validateOperationName(name, "name");
+    async createDirectory(params: LocalNamedEntryRequest): Promise<LocalResponse<LocalDirectoryUpdate[]>> {
+        const { rootPath, dir, name } = params;
+        const error = FileUtils.validateOperationName({ name, field: "name" });
         if (error) {
             return { success: false, error };
         }
 
-        name = name.trim();
+        const normalizedName = name.trim();
         try {
             const destination = this.absolutePath(rootPath, dir);
-            if (await this.localFileOperation.tryCreateDirectory(destination, name)) {
+            if (await this.localFileOperation.tryCreateDirectory({ destination, name: normalizedName })) {
                 return this.getDirectoryUpdates([destination]);
             }
 
@@ -99,7 +109,7 @@ export default class LocalFileManager {
             }
             const id = await this.localFileOperation.createDirectory({
                 destination,
-                name,
+                name: normalizedName,
                 notificationTexts: FILE_OPERATION_NOTIFICATION_TEXTS
             });
             const result = await this.waitForCompletion(id);
@@ -112,21 +122,26 @@ export default class LocalFileManager {
     /**
      * Renames a local entry
      *
-     * @param entry Entry to rename
-     * @param name New entry name
+     * @param params.entry Entry to rename
+     * @param params.name New entry name
      * @returns Local operation response
      */
-    async rename(entry: LocalModifyElement, name: string): Promise<LocalResponse<LocalDirectoryUpdate[]>> {
-        const error = FileUtils.validateOperationName(name, "newName", entry.path.split("/").pop());
+    async rename(params: LocalRenameRequest): Promise<LocalResponse<LocalDirectoryUpdate[]>> {
+        const { entry, name } = params;
+        const error = FileUtils.validateOperationName({
+            name,
+            field: "newName",
+            currentName: entry.path.split("/").pop()
+        });
         if (error) {
             return { success: false, error };
         }
 
-        name = name.trim();
+        const normalizedName = name.trim();
         try {
             const source = entry.path;
             const destination = source.substring(0, source.lastIndexOf("/"));
-            if (await this.localFileOperation.tryRename(source, name)) {
+            if (await this.localFileOperation.tryRename({ source, name: normalizedName })) {
                 return this.getDirectoryUpdates([destination]);
             }
 
@@ -136,7 +151,7 @@ export default class LocalFileManager {
             }
             const id = await this.localFileOperation.rename({
                 source,
-                name,
+                name: normalizedName,
                 notificationTexts: FILE_OPERATION_NOTIFICATION_TEXTS
             });
             const result = await this.waitForCompletion(id);
@@ -149,12 +164,13 @@ export default class LocalFileManager {
     /**
      * Opens a local file
      *
-     * @param rootPath Storage root path
-     * @param dir Directory path
-     * @param name File name
+     * @param params.rootPath Storage root path
+     * @param params.dir Directory path
+     * @param params.name File name
      * @returns Local operation response
      */
-    async openFile(rootPath: string, dir: string, name: string): Promise<LocalResponse<void>> {
+    async openFile(params: LocalNamedEntryRequest): Promise<LocalResponse<void>> {
+        const { rootPath, dir, name } = params;
         try {
             await this.localFileOperation.openFile(`${this.absolutePath(rootPath, dir)}/${name}`);
             return { success: true, data: undefined };
@@ -166,23 +182,23 @@ export default class LocalFileManager {
     /**
      * Copies local entries
      *
-     * @param items Entries to copy
-     * @param destination Destination path
+     * @param params.items Entries to copy
+     * @param params.destination Destination path
      * @returns Local operation response
      */
-    async copy(items: LocalModifyElement[], destination: string): Promise<LocalResponse<LocalDirectoryUpdate[]>> {
-        return this.startCopyMove(items, destination, false);
+    async copy(params: LocalCopyMoveRequest): Promise<LocalResponse<LocalDirectoryUpdate[]>> {
+        return this.startCopyMove(params.items, params.destination, false);
     }
 
     /**
      * Moves local entries
      *
-     * @param items Entries to move
-     * @param destination Destination path
+     * @param params.items Entries to move
+     * @param params.destination Destination path
      * @returns Local operation response
      */
-    async move(items: LocalModifyElement[], destination: string): Promise<LocalResponse<LocalDirectoryUpdate[]>> {
-        return this.startCopyMove(items, destination, true);
+    async move(params: LocalCopyMoveRequest): Promise<LocalResponse<LocalDirectoryUpdate[]>> {
+        return this.startCopyMove(params.items, params.destination, true);
     }
 
     /**
@@ -216,12 +232,13 @@ export default class LocalFileManager {
     /**
      * Extracts a local archive
      *
-     * @param rootPath Storage root path
-     * @param dir Directory path
-     * @param name Archive name
+     * @param params.rootPath Storage root path
+     * @param params.dir Directory path
+     * @param params.name Archive name
      * @returns Local operation response
      */
-    async extract(rootPath: string, dir: string, name: string): Promise<LocalResponse<LocalDirectoryUpdate[]>> {
+    async extract(params: LocalNamedEntryRequest): Promise<LocalResponse<LocalDirectoryUpdate[]>> {
+        const { rootPath, dir, name } = params;
         const extension = name.split(".").pop()?.toLowerCase() ?? "";
         if (!EXTRACTABLE_ARCHIVE_EXTENSIONS.includes(extension)) {
             return {

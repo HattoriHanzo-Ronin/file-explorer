@@ -12,7 +12,7 @@ import type {
 import type { FileSystemEntry, LocalDirectoryUpdate, StorageRoot } from "../types/files";
 import type { CreateDirectoryResponse, FtpEntry } from "../types/ftp";
 import type { RemoteCopyOperationResult, RemoteMoveOperationResult } from "../types/file-operations";
-import { operationDestination } from "../styles/components/style";
+import { OPERATION_DESTINATION } from "../styles/components/style";
 import UiUtils from "../utils/ui-utils";
 import Breadcrumb from "./breadcrumb";
 import CreateDirectoryDialog from "./create-directory-dialog";
@@ -30,10 +30,10 @@ function DestinationStoragePicker(props: DestinationStoragePickerProps) {
 
     return (
         <>
-            <Text style={[operationDestination.label, { color: theme.textMuted }]}>Almacenamiento</Text>
+            <Text style={[OPERATION_DESTINATION.label, { color: theme.textMuted }]}>Almacenamiento</Text>
             <Pressable
                 disabled={remoteDestination}
-                style={[operationDestination.storage, { backgroundColor: theme.surfaceMuted }]}
+                style={[OPERATION_DESTINATION.storage, { backgroundColor: theme.surfaceMuted }]}
                 onPress={onToggleRoots}
             >
                 <Ionicons
@@ -41,18 +41,18 @@ function DestinationStoragePicker(props: DestinationStoragePickerProps) {
                     color={theme.text}
                     size={18}
                 />
-                <Text style={[operationDestination.storageText, { color: theme.text }]}>
+                <Text style={[OPERATION_DESTINATION.storageText, { color: theme.text }]}>
                     {remoteDestination ? "Red" : root.name}
                 </Text>
                 {!remoteDestination && <Ionicons name="chevron-down" color={theme.text} size={18} />}
             </Pressable>
             {showRoots && (
                 <View
-                    style={[operationDestination.roots, { backgroundColor: theme.surface, borderColor: theme.border }]}
+                    style={[OPERATION_DESTINATION.roots, { backgroundColor: theme.surface, borderColor: theme.border }]}
                 >
                     {roots.map((item) => (
-                        <Pressable key={item.id} style={operationDestination.root} onPress={() => onSelectRoot(item)}>
-                            <Text style={[operationDestination.rootText, { color: theme.text }]}>{item.name}</Text>
+                        <Pressable key={item.id} style={OPERATION_DESTINATION.root} onPress={() => onSelectRoot(item)}>
+                            <Text style={[OPERATION_DESTINATION.rootText, { color: theme.text }]}>{item.name}</Text>
                         </Pressable>
                     ))}
                 </View>
@@ -66,16 +66,16 @@ function DestinationDirectoryList(props: DestinationDirectoryListProps) {
     const { theme } = useTheme();
 
     return (
-        <View style={[operationDestination.directoryList, { borderColor: theme.border }]}>
+        <View style={[OPERATION_DESTINATION.directoryList, { borderColor: theme.border }]}>
             {isLoading ? (
-                <ActivityIndicator color={theme.accent} size="large" style={operationDestination.loading} />
+                <ActivityIndicator color={theme.accent} size="large" style={OPERATION_DESTINATION.loading} />
             ) : (
                 <ScrollView>
-                    <Pressable style={operationDestination.directory} onPress={onNavigateToParent}>
+                    <Pressable style={OPERATION_DESTINATION.directory} onPress={onNavigateToParent}>
                         <Ionicons name="arrow-up-outline" color={theme.textMuted} size={18} />
-                        <Text style={[operationDestination.directoryText, { color: theme.text }]}>
+                        <Text style={[OPERATION_DESTINATION.directoryText, { color: theme.text }]}>
                             ..{" "}
-                            <Text style={[operationDestination.parentDirectoryText, { color: theme.textMuted }]}>
+                            <Text style={[OPERATION_DESTINATION.parentDirectoryText, { color: theme.textMuted }]}>
                                 (Carpeta anterior)
                             </Text>
                         </Text>
@@ -83,11 +83,11 @@ function DestinationDirectoryList(props: DestinationDirectoryListProps) {
                     {directories.map((name) => (
                         <Pressable
                             key={name}
-                            style={operationDestination.directory}
+                            style={OPERATION_DESTINATION.directory}
                             onPress={() => onOpenDirectory(name)}
                         >
                             <Ionicons name="folder-outline" color={theme.textMuted} size={18} />
-                            <Text style={[operationDestination.directoryText, { color: theme.text }]}>{name}</Text>
+                            <Text style={[OPERATION_DESTINATION.directoryText, { color: theme.text }]}>{name}</Text>
                             <Ionicons name="chevron-forward" color={theme.textMuted} size={18} />
                         </Pressable>
                     ))}
@@ -106,11 +106,13 @@ function isRemoteDestination(action: DestinationOperationModalProps["action"], f
 }
 
 function getDirectories(entries: FtpEntry[] | FileSystemEntry[], remote: boolean): string[] {
-    if (remote) {
-        return (entries as FtpEntry[]).filter(({ type }) => type === "DIR").map(({ name }) => name);
-    }
+    return entries.filter((entry) => {
+        if (remote) {
+            return "type" in entry && entry.type === "DIR";
+        }
 
-    return (entries as FileSystemEntry[]).filter(({ isDirectory }) => isDirectory()).map(({ name }) => name);
+        return "isDirectory" in entry && entry.isDirectory();
+    }).map(({ name }) => name);
 }
 
 export default function OperationDestinationModal(props: DestinationOperationModalProps) {
@@ -159,9 +161,10 @@ export default function OperationDestinationModal(props: DestinationOperationMod
                 return;
             }
 
-            const result = await executeLocalRequest((localFileManager) => localFileManager.dir(root.path, dir), {
-                isBackground: true
-            });
+            const result = await executeLocalRequest(
+                (localFileManager) => localFileManager.dir({ rootPath: root.path, path: dir }),
+                { isBackground: true }
+            );
             if (result.success) {
                 setEntries(result.data.entries);
             }
@@ -219,10 +222,10 @@ export default function OperationDestinationModal(props: DestinationOperationMod
     }
 
     async function upload() {
-        const result = await executeApiRequest((apiUtils) => apiUtils.upload([...modifyLocalFile], dir), {
-            isBackground: true,
-            showError: true
-        });
+        const result = await executeApiRequest(
+            (apiUtils) => apiUtils.upload({ items: [...modifyLocalFile], remoteDir: dir }),
+            { isBackground: true, showError: true }
+        );
         if (result.success) {
             setFtpDirectory((current) =>
                 current.dir === dir
@@ -234,7 +237,12 @@ export default function OperationDestinationModal(props: DestinationOperationMod
 
     async function download(destination: string) {
         const result = await executeApiRequest(
-            (apiUtils) => apiUtils.download([...modifyFtpFile], ftpSelectionDir, root.path, dir),
+            (apiUtils) => apiUtils.download({
+                items: [...modifyFtpFile],
+                remoteDir: ftpSelectionDir,
+                localRoot: root.path,
+                localDir: dir
+            }),
             { isBackground: true, showError: true }
         );
         if (result.success) {
@@ -242,7 +250,7 @@ export default function OperationDestinationModal(props: DestinationOperationMod
                 isBackground: true
             });
             if (updates.success) {
-                UiUtils.applyLocalDirectoryUpdates(setLocalDirectory, updates.data);
+                UiUtils.applyLocalDirectoryUpdates({ setLocalDirectory, updates: updates.data });
             }
         }
     }
@@ -287,12 +295,17 @@ export default function OperationDestinationModal(props: DestinationOperationMod
 
     async function copyMoveLocal(destination: string, move: boolean) {
         const result = await executeLocalRequest(
-            (manager) =>
-                move ? manager.move(modifyLocalFile, destination) : manager.copy(modifyLocalFile, destination),
+            (manager) => {
+                if (move) {
+                    return manager.move({ items: modifyLocalFile, destination });
+                }
+
+                return manager.copy({ items: modifyLocalFile, destination });
+            },
             { isBackground: true, showError: true }
         );
         if (result.success) {
-            UiUtils.applyLocalDirectoryUpdates(setLocalDirectory, result.data);
+            UiUtils.applyLocalDirectoryUpdates({ setLocalDirectory, updates: result.data });
         }
     }
 
@@ -338,8 +351,8 @@ export default function OperationDestinationModal(props: DestinationOperationMod
     }
 
     function updateCreatedDirectory(content: CreateDirectoryResponse | LocalDirectoryUpdate[]) {
-        if (remoteDestination) {
-            const { entries: createdEntries, version } = content as CreateDirectoryResponse;
+        if (!Array.isArray(content)) {
+            const { entries: createdEntries, version } = content;
             setEntries(createdEntries);
             setFtpDirectory((current) =>
                 current.dir === dir ? { ...current, content: createdEntries, version } : current
@@ -348,7 +361,7 @@ export default function OperationDestinationModal(props: DestinationOperationMod
         }
 
         const path = dir === " " ? root.path : `${root.path}/${dir}`;
-        const update = (content as LocalDirectoryUpdate[]).find(({ path: updatePath }) => updatePath === path);
+        const update = content.find(({ path: updatePath }) => updatePath === path);
         if (update) {
             setEntries(update.entries);
         }
@@ -361,15 +374,15 @@ export default function OperationDestinationModal(props: DestinationOperationMod
 
     return (
         <Modal animationType="fade" transparent visible={visible} onRequestClose={cancel}>
-            <View style={operationDestination.backdrop}>
+            <View style={OPERATION_DESTINATION.backdrop}>
                 <View
                     style={[
-                        operationDestination.container,
+                        OPERATION_DESTINATION.container,
                         { backgroundColor: theme.surface, borderColor: theme.border }
                     ]}
                 >
-                    <View style={operationDestination.titleRow}>
-                        <Text style={[operationDestination.title, { color: theme.text }]}>
+                    <View style={OPERATION_DESTINATION.titleRow}>
+                        <Text style={[OPERATION_DESTINATION.title, { color: theme.text }]}>
                             {actionLabel} {operationSelectedCount}{" "}
                             {operationSelectedCount === 1 ? "archivo" : "archivos"}
                         </Text>
@@ -382,7 +395,7 @@ export default function OperationDestinationModal(props: DestinationOperationMod
                         onSelectRoot={selectRoot}
                         onToggleRoots={() => setShowRoots((current) => !current)}
                     />
-                    <View style={operationDestination.pathRow}>
+                    <View style={OPERATION_DESTINATION.pathRow}>
                         <Breadcrumb dir={dir} onNavigate={navigateTo} />
                     </View>
                     <DestinationDirectoryList
@@ -391,21 +404,21 @@ export default function OperationDestinationModal(props: DestinationOperationMod
                         onNavigateToParent={navigateToParent}
                         onOpenDirectory={openDirectory}
                     />
-                    <View style={operationDestination.footer}>
-                        <Pressable style={operationDestination.create} onPress={() => setShowCreateDirectory(true)}>
+                    <View style={OPERATION_DESTINATION.footer}>
+                        <Pressable style={OPERATION_DESTINATION.create} onPress={() => setShowCreateDirectory(true)}>
                             <Ionicons name="folder-open-outline" color={theme.text} size={18} />
-                            <Text style={[operationDestination.createText, { color: theme.text }]}>Nueva carpeta</Text>
+                            <Text style={[OPERATION_DESTINATION.createText, { color: theme.text }]}>Nueva carpeta</Text>
                         </Pressable>
-                        <View style={operationDestination.actions}>
-                            <Pressable style={operationDestination.cancel} onPress={cancel}>
-                                <Text style={[operationDestination.cancelText, { color: theme.danger }]}>Cancelar</Text>
+                        <View style={OPERATION_DESTINATION.actions}>
+                            <Pressable style={OPERATION_DESTINATION.cancel} onPress={cancel}>
+                                <Text style={[OPERATION_DESTINATION.cancelText, { color: theme.danger }]}>Cancelar</Text>
                             </Pressable>
                             <Pressable
                                 disabled={acceptDisabled}
-                                style={[operationDestination.accept, { backgroundColor: theme.accent }]}
+                                style={[OPERATION_DESTINATION.accept, { backgroundColor: theme.accent }]}
                                 onPress={() => void confirm()}
                             >
-                                <Text style={operationDestination.acceptText}>
+                                <Text style={OPERATION_DESTINATION.acceptText}>
                                     {acceptText ?? `${actionLabel} aquí`}
                                 </Text>
                             </Pressable>

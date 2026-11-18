@@ -4,6 +4,7 @@ import { useOperationContext } from "./operation-provider";
 import OperationDestinationModal from "./operation-destination-modal";
 import UiUtils from "../utils/ui-utils";
 import type { SharedFile } from "../types/sharing";
+import type { LocalModifyElement } from "../types/files";
 import type { SharedFilesReceiverProps } from "../types/components";
 
 export default function SharedFilesReceiver(props: SharedFilesReceiverProps) {
@@ -47,7 +48,7 @@ export default function SharedFilesReceiver(props: SharedFilesReceiverProps) {
         const removeListener = sharing.addReceivedFilesListener(receiveFiles);
         void sharing
             .getReceivedFiles()
-            .then(receiveFiles, () => UiUtils.showMessage("No se pudieron recibir los archivos"));
+            .then(receiveFiles, () => UiUtils.showMessage({ message: "No se pudieron recibir los archivos" }));
         return removeListener;
     }, [receiveFiles, sharing]);
 
@@ -65,9 +66,13 @@ export default function SharedFilesReceiver(props: SharedFilesReceiverProps) {
         if (isAuthenticated) {
             sharedLoginRequested.current = false;
             setModifyLocalFile(
-                sharedFiles
-                    .filter(({ path, status }) => status === "READY" && path !== null)
-                    .map(({ path }) => ({ path: path as string, type: "file" }))
+                sharedFiles.flatMap<LocalModifyElement>(({ path, status }) => {
+                    if (status !== "READY" || path === null) {
+                        return [];
+                    }
+
+                    return [{ path, type: "file" }];
+                })
             );
             setVisible(true);
             return;
@@ -80,7 +85,7 @@ export default function SharedFilesReceiver(props: SharedFilesReceiverProps) {
         sharedLoginRequested.current = true;
         void authUtils.restoreSession().then((restored) => {
             if (!restored) {
-                UiUtils.showMessage("Debe iniciar sesión para subir archivos");
+                UiUtils.showMessage({ message: "Debe iniciar sesión para subir archivos" });
                 onRequireLogin();
             }
         });
@@ -92,9 +97,13 @@ export default function SharedFilesReceiver(props: SharedFilesReceiverProps) {
         }
 
         setModifyLocalFile(
-            sharedFiles
-                .filter(({ path, status }) => status === "READY" && path !== null)
-                .map(({ path }) => ({ path: path as string, type: "file" }))
+            sharedFiles.flatMap<LocalModifyElement>(({ path, status }) => {
+                if (status !== "READY" || path === null) {
+                    return [];
+                }
+
+                return [{ path, type: "file" }];
+            })
         );
     }, [isAuthenticated, setModifyLocalFile, sharedFiles, visible]);
 

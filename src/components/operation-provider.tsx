@@ -1,7 +1,7 @@
 import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useRef, useState } from "react";
-import Config from "react-native-config";
 import { AppState } from "react-native";
 import { DATABASE_KEYS } from "../constants/database";
+import { API_URL } from "../constants/api";
 import { STORAGE_ROOT_NAMES } from "../constants/storage-roots";
 import { THUMBNAIL_CACHE } from "../constants/thumbnails";
 import type { ApiRequestOptions, ApiResponse } from "../types/api-response";
@@ -26,7 +26,6 @@ import UiUtils from "../utils/ui-utils";
 import { useAppStateContext } from "./app-context-provider";
 
 const OperationContext = createContext<OperationContextType>({} as OperationContextType);
-const API_URL = Config.API_URL.replace(/\/+$/, "");
 const SOCKET_SESSION_REFRESH_INTERVAL = 600000;
 
 export const useOperationContext = () => useContext(OperationContext);
@@ -97,7 +96,7 @@ export default function OperationProvider(props: PropsWithChildren) {
                         }
 
                         if (showError && message) {
-                            UiUtils.showMessage(message);
+                            UiUtils.showMessage({ message });
                         }
                     }
 
@@ -118,7 +117,7 @@ export default function OperationProvider(props: PropsWithChildren) {
             const executeRequest = async (): Promise<LocalResponse<T>> => {
                 const result = await request(localFileManager);
                 if (!result.success && showError && result.error.message) {
-                    UiUtils.showMessage(result.error.message);
+                    UiUtils.showMessage({ message: result.error.message });
                 }
 
                 return result;
@@ -169,7 +168,7 @@ export default function OperationProvider(props: PropsWithChildren) {
 
     useEffect(() => {
         if (viewModeRestored.current) {
-            void preferenceStorage.set(DATABASE_KEYS.viewMode, viewMode);
+            void preferenceStorage.set({ key: DATABASE_KEYS.viewMode, payload: viewMode });
         }
     }, [preferenceStorage, viewMode]);
 

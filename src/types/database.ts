@@ -4,6 +4,7 @@ export type DatabaseValue = boolean | number | string | null;
 /** Database row supported by the native bridge */
 export type DatabaseRow = Record<string, DatabaseValue>;
 
+/** Options for querying the local database */
 export interface DatabaseQuery {
     columns?: string[];
     where?: DatabaseRow;
@@ -31,3 +32,18 @@ export interface DatabaseDelete {
 }
 
 export type DatabaseMutation = DatabaseDelete | DatabaseInsert | DatabaseUpdate;
+
+export type DatabaseInsertParams = Omit<DatabaseInsert, "type">;
+export type DatabaseUpdateParams = Omit<DatabaseUpdate, "type">;
+export type DatabaseDeleteParams = Omit<DatabaseDelete, "type">;
+
+export interface DatabaseQueryParams {
+    table: string;
+    options?: DatabaseQuery;
+}
+
+export interface DatabaseGetByIdParams {
+    table: string;
+    id: DatabaseValue;
+    column?: string;
+}

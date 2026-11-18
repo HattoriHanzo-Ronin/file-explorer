@@ -32,7 +32,7 @@ test("allows independent renames while another is pending", async () => {
     const view = await render(<RenameMenu key="first" storage="local" setVisible={setVisible} onFinish={onFinish} />);
     await fireEvent.changeText(screen.getByDisplayValue("first.txt"), "first-new.txt");
     await fireEvent.press(screen.getByText("Aceptar"));
-    expect(rename).toHaveBeenCalledWith({ path: "/storage/first.txt", type: "file" }, "first-new.txt");
+    expect(rename).toHaveBeenCalledWith({ entry: { path: "/storage/first.txt", type: "file" }, name: "first-new.txt" });
 
     context.modifyLocalFile = [{ path: "/storage/second.txt", type: "file" }];
     await view.rerender(
@@ -43,6 +43,6 @@ test("allows independent renames while another is pending", async () => {
     );
     await fireEvent.changeText(screen.getByDisplayValue("second.txt"), "second-new.txt");
     await fireEvent.press(screen.getByText("Aceptar"));
-    expect(rename).toHaveBeenCalledWith({ path: "/storage/second.txt", type: "file" }, "second-new.txt");
+    expect(rename).toHaveBeenCalledWith({ entry: { path: "/storage/second.txt", type: "file" }, name: "second-new.txt" });
     expect(rename).toHaveBeenCalledTimes(2);
 });

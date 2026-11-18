@@ -11,7 +11,7 @@ import LoadingWindow from "../../../components/loading-window";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import React from "react";
 import useBackButtonEvent from "../../../hooks/use-back-button-event";
-import { commonStyles } from "../../../styles/style";
+import { COMMON_STYLES } from "../../../styles/style";
 import { useTheme } from "../../../components/theme-provider";
 
 export default function Files() {
@@ -25,7 +25,7 @@ export default function Files() {
     } = useAppContext();
     const { addFtpChangeListener, executeApiRequest, setFtpSocketActive } = useOperationContext();
     const { mode } = useTheme();
-    const common = commonStyles[mode];
+    const common = COMMON_STYLES[mode];
     const { content: ftpDirContent, dir: lastFtpDir, version: ftpVersion } = ftpDirectory;
     const navigation = useNavigation<NativeStackNavigationProp<FtpStackParamList>>();
     const isFocused = useIsFocused();

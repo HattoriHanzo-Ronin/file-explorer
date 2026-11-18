@@ -1,5 +1,7 @@
 import { StyleSheet } from "react-native";
-import { darkTheme, lightTheme, type ThemeColors } from "../../style";
+import { DARK_THEME, LIGHT_THEME, type ThemeColors } from "../../style";
+
+export const LOGIN_STYLES = { dark: createLoginStyles(DARK_THEME), light: createLoginStyles(LIGHT_THEME) };
 
 function createLoginStyles(theme: ThemeColors) {
     return StyleSheet.create({
@@ -39,5 +41,3 @@ function createLoginStyles(theme: ThemeColors) {
         error: { color: theme.danger }
     });
 }
-
-export const loginStyles = { dark: createLoginStyles(darkTheme), light: createLoginStyles(lightTheme) };

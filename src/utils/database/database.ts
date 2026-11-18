@@ -1,53 +1,61 @@
-import type { DatabaseMutation, DatabaseQuery, DatabaseRow, DatabaseValue } from "../../types/database";
+import type {
+    DatabaseDeleteParams,
+    DatabaseGetByIdParams,
+    DatabaseInsertParams,
+    DatabaseMutation,
+    DatabaseQueryParams,
+    DatabaseRow,
+    DatabaseUpdateParams
+} from "../../types/database";
 
 /** Persistent local database contract */
 export interface Database {
     /**
      * Inserts a row
      *
-     * @param table Table name
-     * @param values Row values
+     * @param params.table Table name
+     * @param params.values Row values
      * @returns Inserted row identifier
      */
-    insert(table: string, values: DatabaseRow): Promise<number>;
+    insert(params: DatabaseInsertParams): Promise<number>;
 
     /**
      * Updates rows
      *
-     * @param table Table name
-     * @param values Values to update
-     * @param where Row condition
+     * @param params.table Table name
+     * @param params.values Values to update
+     * @param params.where Row condition
      * @returns Updated row count
      */
-    update(table: string, values: DatabaseRow, where: DatabaseRow): Promise<number>;
+    update(params: DatabaseUpdateParams): Promise<number>;
 
     /**
      * Deletes rows
      *
-     * @param table Table name
-     * @param where Row condition
+     * @param params.table Table name
+     * @param params.where Row condition
      * @returns Deleted row count
      */
-    delete(table: string, where: DatabaseRow): Promise<number>;
+    delete(params: DatabaseDeleteParams): Promise<number>;
 
     /**
      * Returns matching rows
      *
-     * @param table Table name
-     * @param options Query options
+     * @param params.table Table name
+     * @param params.options Query options
      * @returns Matching rows
      */
-    query<T extends DatabaseRow>(table: string, options?: DatabaseQuery): Promise<T[]>;
+    query<T extends DatabaseRow>(params: DatabaseQueryParams): Promise<T[]>;
 
     /**
      * Returns a row by identifier
      *
-     * @param table Table name
-     * @param id Row identifier
-     * @param column Identifier column
+     * @param params.table Table name
+     * @param params.id Row identifier
+     * @param params.column Identifier column
      * @returns Matching row
      */
-    getById<T extends DatabaseRow>(table: string, id: DatabaseValue, column?: string): Promise<T | null>;
+    getById<T extends DatabaseRow>(params: DatabaseGetByIdParams): Promise<T | null>;
 
     /**
      * Executes mutations atomically

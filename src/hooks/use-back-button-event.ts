@@ -68,7 +68,7 @@ export default function useBackButtonEvent(storage: StorageType): void {
                 }
 
                 lastBackPress.current = now;
-                UiUtils.showMessage(BACK_EXIT_MESSAGE, "SHORT");
+                UiUtils.showMessage({ message: BACK_EXIT_MESSAGE, duration: "SHORT" });
                 return true;
             };
 

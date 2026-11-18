@@ -2,13 +2,13 @@ import { Ionicons } from "@react-native-vector-icons/ionicons";
 import { useRef, type ComponentRef } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { useTheme } from "./theme-provider";
-import { appStyles } from "../styles/app/style";
+import { APP_STYLES } from "../styles/app/style";
 import type { BreadcrumbProps } from "../types/components";
 
 export default function Breadcrumb(props: BreadcrumbProps) {
     const { dir, onNavigate } = props;
     const { mode, theme } = useTheme();
-    const app = appStyles[mode];
+    const app = APP_STYLES[mode];
     const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
     const paths = dir === " " ? [] : dir.split("/");
 

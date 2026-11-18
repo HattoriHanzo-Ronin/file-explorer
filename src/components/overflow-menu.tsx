@@ -13,7 +13,7 @@ import type { OperationAction, ValidationErrors } from "../types/ui";
 import type { RenameEntryRequest } from "../types/ftp";
 import type { DrawerNavigation } from "../types/navigation";
 import type { ValidationErrorDetail } from "../types/response";
-import { overflowMenu } from "../styles/components/style";
+import { OVERFLOW_MENU } from "../styles/components/style";
 import { useTheme } from "./theme-provider";
 import { FILE_OPERATION_COMPLETED_MESSAGES } from "../constants/file-operations";
 
@@ -21,8 +21,8 @@ function MenuItem(props: MenuItemProps) {
     const { onPress, title } = props;
     const { theme } = useTheme();
     return (
-        <Pressable style={overflowMenu.item} onPress={onPress}>
-            <Text style={[overflowMenu.itemText, { color: theme.text }]}>{title}</Text>
+        <Pressable style={OVERFLOW_MENU.item} onPress={onPress}>
+            <Text style={[OVERFLOW_MENU.itemText, { color: theme.text }]}>{title}</Text>
         </Pressable>
     );
 }
@@ -96,15 +96,15 @@ export const RenameMenu = (props: RenameMenuProps) => {
             return false;
         }
 
-        const result = await executeLocalRequest((localFileManager) => localFileManager.rename(entry, name), {
+        const result = await executeLocalRequest((localFileManager) => localFileManager.rename({ entry, name }), {
             isBackground: true
         });
         if (!result.success) {
             return !handleRenameError(result.error.details);
         }
 
-        UiUtils.applyLocalDirectoryUpdates(setLocalDirectory, result.data);
-        UiUtils.showMessage(FILE_OPERATION_COMPLETED_MESSAGES.LOCAL_RENAME);
+        UiUtils.applyLocalDirectoryUpdates({ setLocalDirectory, updates: result.data });
+        UiUtils.showMessage({ message: FILE_OPERATION_COMPLETED_MESSAGES.LOCAL_RENAME });
         return true;
     }
 
@@ -161,7 +161,7 @@ export const RenameMenu = (props: RenameMenuProps) => {
                     autoFocus
                     editable={!isSubmitting}
                     returnKeyType="done"
-                    style={[overflowMenu.input, { borderBottomColor: theme.border, color: theme.text }]}
+                    style={[OVERFLOW_MENU.input, { borderBottomColor: theme.border, color: theme.text }]}
                     value={name}
                     onSubmitEditing={() => void rename()}
                     onChangeText={(value) => {
@@ -170,7 +170,7 @@ export const RenameMenu = (props: RenameMenuProps) => {
                     }}
                 />
                 {validationErrors.newName?.map((message) => (
-                    <Text key={message} style={[overflowMenu.validationError, { color: theme.danger }]}>
+                    <Text key={message} style={[OVERFLOW_MENU.validationError, { color: theme.danger }]}>
                         {message}
                     </Text>
                 ))}
@@ -234,7 +234,7 @@ export default function OverflowMenu(props: OverflowMenuProps) {
     async function openUploadDestination() {
         setVisible(false);
         if (!isAuthenticated && !(await authUtils.restoreSession())) {
-            UiUtils.showMessage("Debe iniciar sesión para subir archivos");
+            UiUtils.showMessage({ message: "Debe iniciar sesión para subir archivos" });
             setPendingLocalUpload(true);
             navigation.navigate("ftp", { screen: "login" });
             return;
@@ -248,7 +248,7 @@ export default function OverflowMenu(props: OverflowMenuProps) {
         try {
             await sharing.share(modifyLocalFile.map(({ path }) => path));
         } catch {
-            UiUtils.showMessage("No se pudieron compartir los archivos");
+            UiUtils.showMessage({ message: "No se pudieron compartir los archivos" });
         }
     }
 
@@ -258,7 +258,7 @@ export default function OverflowMenu(props: OverflowMenuProps) {
             showError: true
         });
         if (result.success) {
-            UiUtils.applyLocalDirectoryUpdates(setLocalDirectory, result.data);
+            UiUtils.applyLocalDirectoryUpdates({ setLocalDirectory, updates: result.data });
         }
     }
 
@@ -330,9 +330,9 @@ export default function OverflowMenu(props: OverflowMenuProps) {
         <>
             <Ionicons name="ellipsis-vertical-outline" color={theme.text} size={25} onPress={() => setVisible(true)} />
             <Modal animationType="fade" transparent visible={visible} onRequestClose={() => setVisible(false)}>
-                <Pressable style={overflowMenu.backdrop} onPress={() => setVisible(false)}>
+                <Pressable style={OVERFLOW_MENU.backdrop} onPress={() => setVisible(false)}>
                     <View
-                        style={[overflowMenu.container, { backgroundColor: theme.surface, borderColor: theme.border }]}
+                        style={[OVERFLOW_MENU.container, { backgroundColor: theme.surface, borderColor: theme.border }]}
                         onStartShouldSetResponder={() => true}
                     >
                         {menuItems
@@ -385,7 +385,7 @@ export default function OverflowMenu(props: OverflowMenuProps) {
 
                             setMakeDirDialogs((current) => current.filter((value) => value !== id));
                         }}
-                        onCreated={(updates) => UiUtils.applyLocalDirectoryUpdates(setLocalDirectory, updates)}
+                        onCreated={(updates) => UiUtils.applyLocalDirectoryUpdates({ setLocalDirectory, updates })}
                     />
                 )
             )}

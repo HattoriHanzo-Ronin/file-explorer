@@ -3,7 +3,7 @@ import { Text, TextInput } from "react-native";
 import type { CreateDirectoryRequest } from "../types/ftp";
 import type { CreateDirectoryDialogProps } from "../types/components";
 import type { ValidationErrors } from "../types/ui";
-import { appDialog, overflowMenu } from "../styles/components/style";
+import { APP_DIALOG, OVERFLOW_MENU } from "../styles/components/style";
 import { useTheme } from "./theme-provider";
 import { useOperationContext } from "./operation-provider";
 import AppDialog from "./dialog";
@@ -46,7 +46,7 @@ export default function CreateDirectoryDialog(props: CreateDirectoryDialogProps)
             }
 
             const result = await executeLocalRequest(
-                (localFileManager) => localFileManager.createDirectory(rootPath, dir, name),
+                (localFileManager) => localFileManager.createDirectory({ rootPath, dir, name }),
                 { isBackground: true }
             );
             if (!result.success) {
@@ -85,7 +85,7 @@ export default function CreateDirectoryDialog(props: CreateDirectoryDialogProps)
                 autoFocus
                 editable={!isSubmitting}
                 returnKeyType="done"
-                style={[overflowMenu.input, { borderBottomColor: theme.border, color: theme.text }]}
+                style={[OVERFLOW_MENU.input, { borderBottomColor: theme.border, color: theme.text }]}
                 value={name}
                 onSubmitEditing={() => void createDirectory()}
                 onChangeText={(value) => {
@@ -94,7 +94,7 @@ export default function CreateDirectoryDialog(props: CreateDirectoryDialogProps)
                 }}
             />
             {validationErrors.name?.map((message) => (
-                <Text key={message} style={[appDialog.description, { color: theme.danger }]}>
+                <Text key={message} style={[APP_DIALOG.description, { color: theme.danger }]}>
                     {message}
                 </Text>
             ))}

@@ -18,7 +18,7 @@ import type {
 } from "../types/components";
 import type { ListViewMode } from "../types/ui";
 import type { FileIcons } from "../types/files";
-import { contentCard, fileList } from "../styles/components/style";
+import { CONTENT_CARD, FILE_LIST } from "../styles/components/style";
 import { useTheme } from "./theme-provider";
 import FileUtils from "../utils/file-utils";
 
@@ -69,11 +69,11 @@ function ContentCard(props: ContentCardProps) {
 
     return (
         <GestureDetector gesture={gestures}>
-            <View style={[getContentCardStyle(viewMode), selected && contentCard.selected]}>
+            <View style={[getContentCardStyle(viewMode), selected && CONTENT_CARD.selected]}>
                 <ContentThumbnail content={content} storage={storage} viewMode={viewMode} />
                 <Text
                     numberOfLines={viewMode === "LIST" ? 2 : 3}
-                    style={[viewMode === "LIST" ? contentCard.listText : contentCard.text, { color: theme.text }]}
+                    style={[viewMode === "LIST" ? CONTENT_CARD.listText : CONTENT_CARD.text, { color: theme.text }]}
                 >
                     {content.name}
                 </Text>
@@ -97,7 +97,7 @@ const ContentThumbnail = memo(function Thumbnail(props: ContentThumbnailProps) {
                 <Image resizeMode="cover" style={icon} source={imageSource} onError={() => void handleError()} />
             )}
             {!isLoading && fileType === "video" && (
-                <View pointerEvents="none" style={contentCard.videoOverlay}>
+                <View pointerEvents="none" style={CONTENT_CARD.videoOverlay}>
                     <Ionicons name="play" size={20} color="white" />
                 </View>
             )}
@@ -232,26 +232,22 @@ export default function List<T extends FileContent>(props: ListProps<T>) {
     const allSelected = selectableCount > 0 && selectionCount === selectableCount;
     const showSelectAll = selectionCount > 0;
 
-    function executeIfAvailable(callback: () => void): void {
-        callback();
-    }
-
     return (
         <>
-            <View style={fileList.toolbar}>
+            <View style={FILE_LIST.toolbar}>
                 {showSelectAll && (
-                    <Pressable style={fileList.selectAll} onPress={() => selectAll(!allSelected)}>
-                        <Text style={[fileList.selectAllText, { color: theme.text }]}>Seleccionar todo</Text>
+                    <Pressable style={FILE_LIST.selectAll} onPress={() => selectAll(!allSelected)}>
+                        <Text style={[FILE_LIST.selectAllText, { color: theme.text }]}>Seleccionar todo</Text>
                         {allSelected ? (
                             <Ionicons
-                                style={fileList.selectAllIcon}
+                                style={FILE_LIST.selectAllIcon}
                                 name="checkbox-outline"
                                 color={theme.text}
                                 size={20}
                             />
                         ) : (
                             <Ionicons
-                                style={fileList.selectAllIcon}
+                                style={FILE_LIST.selectAllIcon}
                                 name="square-outline"
                                 color={theme.text}
                                 size={20}
@@ -259,21 +255,21 @@ export default function List<T extends FileContent>(props: ListProps<T>) {
                         )}
                     </Pressable>
                 )}
-                <View style={fileList.viewActions}>
+                <View style={FILE_LIST.viewActions}>
                     <Pressable
-                        style={[fileList.viewButton, viewMode === "LIST" && fileList.activeViewButton]}
+                        style={[FILE_LIST.viewButton, viewMode === "LIST" && FILE_LIST.activeViewButton]}
                         onPress={() => setViewMode("LIST")}
                     >
                         <Ionicons name="list-outline" color={theme.text} size={26} />
                     </Pressable>
                     <Pressable
-                        style={[fileList.viewButton, viewMode === "SMALL_ICONS" && fileList.activeViewButton]}
+                        style={[FILE_LIST.viewButton, viewMode === "SMALL_ICONS" && FILE_LIST.activeViewButton]}
                         onPress={() => setViewMode("SMALL_ICONS")}
                     >
                         <Ionicons name="apps-outline" color={theme.text} size={20} />
                     </Pressable>
                     <Pressable
-                        style={[fileList.viewButton, viewMode === "LARGE_ICONS" && fileList.activeViewButton]}
+                        style={[FILE_LIST.viewButton, viewMode === "LARGE_ICONS" && FILE_LIST.activeViewButton]}
                         onPress={() => setViewMode("LARGE_ICONS")}
                     >
                         <Ionicons name="grid-outline" color={theme.text} size={20} />
@@ -282,7 +278,7 @@ export default function List<T extends FileContent>(props: ListProps<T>) {
             </View>
             <FlatList
                 key={viewMode}
-                style={fileList.content}
+                style={FILE_LIST.content}
                 data={[...dirContent].sort(({ name: aName }, { name: bName }) =>
                     aName.localeCompare(bName, undefined, { numeric: true })
                 )}
@@ -295,8 +291,8 @@ export default function List<T extends FileContent>(props: ListProps<T>) {
                             content={item}
                             storage={storage}
                             doubleTapAction={() => doubleTapAction(item.name, item.type)}
-                            longPressAction={() => executeIfAvailable(() => longPressAction(item.name, item.type))}
-                            oneTapAction={() => executeIfAvailable(() => oneTapAction(item.name, item.type))}
+                            longPressAction={() => longPressAction(item.name, item.type)}
+                            oneTapAction={() => oneTapAction(item.name, item.type)}
                             selected={
                                 storage === "ftp"
                                     ? modifyFtpFile.some(({ path }) => path === item.name)
@@ -325,18 +321,18 @@ function getColumnCount(viewMode: ListViewMode): number {
 
 function getContentCardStyle(viewMode: ListViewMode) {
     if (viewMode === "LIST") {
-        return contentCard.list;
+        return CONTENT_CARD.list;
     }
 
-    return viewMode === "SMALL_ICONS" ? contentCard.small : contentCard.large;
+    return viewMode === "SMALL_ICONS" ? CONTENT_CARD.small : CONTENT_CARD.large;
 }
 
 function getThumbnailStyles(viewMode: ListViewMode) {
     if (viewMode === "LIST") {
-        return { icon: contentCard.iconList, thumbnail: contentCard.thumbnailList };
+        return { icon: CONTENT_CARD.iconList, thumbnail: CONTENT_CARD.thumbnailList };
     }
 
     return viewMode === "SMALL_ICONS"
-        ? { icon: contentCard.iconSmall, thumbnail: contentCard.thumbnailSmall }
-        : { icon: contentCard.iconLarge, thumbnail: contentCard.thumbnailLarge };
+        ? { icon: CONTENT_CARD.iconSmall, thumbnail: CONTENT_CARD.thumbnailSmall }
+        : { icon: CONTENT_CARD.iconLarge, thumbnail: CONTENT_CARD.thumbnailLarge };
 }

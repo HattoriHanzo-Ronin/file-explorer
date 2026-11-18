@@ -2,13 +2,15 @@ import { NativeEventEmitter, NativeModules } from "react-native";
 import type {
     FileOperationSnapshot,
     NativeLocalCopyMoveRequest,
+    NativeLocalImmediateMkdirRequest,
+    NativeLocalImmediateRenameRequest,
     NativeLocalDeleteRequest,
     NativeLocalMkdirRequest,
     NativeLocalRenameRequest,
     NativeLocalExtractRequest
 } from "../../../types/file-operations";
 import type { LocalFileOperation } from "../local-file-operation";
-import type { FileSystemEntry, StorageRoot, StorageRootNames } from "../../../types/files";
+import type { StorageRoot, StorageRootNames } from "../../../types/files";
 
 interface NativeFileSystemEntry {
     name: string;
@@ -61,12 +63,12 @@ export default class NativeLocalFileOperation implements LocalFileOperation {
     }
 
     /** Returns mounted removable storage roots */
-    async getExternalRoots(): Promise<StorageRoot[]> {
+    async getExternalRoots() {
         return this.storageVolume.getExternalRoots(this.storageRootNames.external);
     }
 
     /** Adds a removable storage change listener */
-    addStorageRootsChangeListener(listener: (roots: StorageRoot[]) => void): () => void {
+    addStorageRootsChangeListener(listener: (roots: StorageRoot[]) => void) {
         const subscription = this.storageVolumeEmitter.addListener("StorageVolumesChanged", (roots) =>
             listener(roots as unknown as StorageRoot[])
         );
@@ -74,7 +76,7 @@ export default class NativeLocalFileOperation implements LocalFileOperation {
     }
 
     /** Returns the entries in a local directory */
-    async readDir(path: string): Promise<FileSystemEntry[]> {
+    async readDir(path: string) {
         const entries = await this.module.readDir(path);
         return entries.map(({ isDirectory, mtime, name, path: entryPath, size }) => ({
             name,
@@ -88,72 +90,80 @@ export default class NativeLocalFileOperation implements LocalFileOperation {
     /**
      * Creates a directory immediately if its path is available
      *
-     * @param destination Parent directory
-     * @param name Directory name
+     * @param params.destination Parent directory
+     * @param params.name Directory name
      * @returns Whether the operation was executed
      */
-    async tryCreateDirectory(destination: string, name: string): Promise<boolean> {
-        return this.module.tryLocalMkdir(destination, name);
+    async tryCreateDirectory(params: NativeLocalImmediateMkdirRequest) {
+        return this.module.tryLocalMkdir(params.destination, params.name);
     }
 
     /**
      * Renames an entry immediately if its path is available
      *
-     * @param source Entry path
-     * @param name New name
+     * @param params.source Entry path
+     * @param params.name New name
      * @returns Whether the operation was executed
      */
-    async tryRename(source: string, name: string): Promise<boolean> {
-        return this.module.tryLocalRename(source, name);
+    async tryRename(params: NativeLocalImmediateRenameRequest) {
+        return this.module.tryLocalRename(params.source, params.name);
     }
 
     /** Creates a uniquely named directory */
-    async createDirectory(request: NativeLocalMkdirRequest): Promise<string> {
+    async createDirectory(request: NativeLocalMkdirRequest) {
         return this.module.startLocalMkdir(request);
     }
 
     /** Renames an entry to a uniquely named destination */
-    async rename(request: NativeLocalRenameRequest): Promise<string> {
+    async rename(request: NativeLocalRenameRequest) {
         return this.module.startLocalRename(request);
     }
 
     /**
      * Starts a local copy operation
      *
-     * @param request Copy request
+     * @param request.notificationTexts Operation notification texts
+     * @param request.sources Source paths
+     * @param request.destination Destination directory
      * @returns Operation identifier
      */
-    async startCopy(request: NativeLocalCopyMoveRequest): Promise<string> {
+    async startCopy(request: NativeLocalCopyMoveRequest) {
         return this.module.startLocalCopy(request);
     }
 
     /**
      * Starts a local move operation
      *
-     * @param request Move request
+     * @param request.notificationTexts Operation notification texts
+     * @param request.sources Source paths
+     * @param request.destination Destination directory
      * @returns Operation identifier
      */
-    async startMove(request: NativeLocalCopyMoveRequest): Promise<string> {
+    async startMove(request: NativeLocalCopyMoveRequest) {
         return this.module.startLocalMove(request);
     }
 
     /**
      * Starts a local delete operation
      *
-     * @param request Delete request
+     * @param request.notificationTexts Operation notification texts
+     * @param request.sources Source paths
+     * @param request.destination Affected directory
      * @returns Operation identifier
      */
-    async startDelete(request: NativeLocalDeleteRequest): Promise<string> {
+    async startDelete(request: NativeLocalDeleteRequest) {
         return this.module.startLocalDelete(request);
     }
 
     /**
      * Starts a local archive extraction
      *
-     * @param request Extraction request
+     * @param request.notificationTexts Operation notification texts
+     * @param request.source Archive path
+     * @param request.destination Destination directory
      * @returns Operation identifier
      */
-    async startExtract(request: NativeLocalExtractRequest): Promise<string> {
+    async startExtract(request: NativeLocalExtractRequest) {
         return this.module.startLocalExtract(request);
     }
 
@@ -162,7 +172,7 @@ export default class NativeLocalFileOperation implements LocalFileOperation {
      *
      * @param path File path
      */
-    async openFile(path: string): Promise<void> {
+    async openFile(path: string) {
         await NativeModules.FileOpener.openFile(path);
     }
 
@@ -171,7 +181,7 @@ export default class NativeLocalFileOperation implements LocalFileOperation {
      *
      * @param id Operation identifier
      */
-    cancel(id: string): void {
+    cancel(id: string) {
         this.module.cancel(id);
     }
 
@@ -180,7 +190,7 @@ export default class NativeLocalFileOperation implements LocalFileOperation {
      *
      * @returns File operation snapshots
      */
-    async listOperations(): Promise<FileOperationSnapshot[]> {
+    async listOperations() {
         return JSON.parse(await this.module.listOperations()) as FileOperationSnapshot[];
     }
 
@@ -190,7 +200,7 @@ export default class NativeLocalFileOperation implements LocalFileOperation {
      * @param listener Operation listener
      * @returns Listener cleanup
      */
-    addChangeListener(listener: (operation: FileOperationSnapshot) => void): () => void {
+    addChangeListener(listener: (operation: FileOperationSnapshot) => void) {
         const subscription = this.eventEmitter.addListener("FileOperationChanged", (operation) =>
             listener(operation as unknown as FileOperationSnapshot)
         );

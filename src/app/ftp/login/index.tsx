@@ -7,8 +7,8 @@ import { useAppContext } from "../../../components/app-context-provider";
 import { useOperationContext } from "../../../components/operation-provider";
 import type { ApiValidationErrorDetail } from "../../../types/api-error";
 import type { FtpStackParamList } from "../../../types/navigation";
-import { loginStyles } from "../../../styles/app/ftp/style";
-import { commonStyles } from "../../../styles/style";
+import { LOGIN_STYLES } from "../../../styles/app/ftp/style";
+import { COMMON_STYLES } from "../../../styles/style";
 import { useTheme } from "../../../components/theme-provider";
 
 function getValidationMessage(details: ApiValidationErrorDetail[] | undefined, field: string): string {
@@ -19,8 +19,8 @@ export default function Login() {
     const { isAuthenticated, isLoading } = useAppContext();
     const { authUtils, loadingUtils } = useOperationContext();
     const { mode, theme } = useTheme();
-    const common = commonStyles[mode];
-    const login = loginStyles[mode];
+    const common = COMMON_STYLES[mode];
+    const login = LOGIN_STYLES[mode];
     const navigation = useNavigation<NativeStackNavigationProp<FtpStackParamList>>();
     const [username, setUsername] = useState<string>("");
     const [password, setPassword] = useState<string>("");

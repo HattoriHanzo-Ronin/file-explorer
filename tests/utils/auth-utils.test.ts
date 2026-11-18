@@ -47,8 +47,8 @@ describe("AuthUtils", () => {
         const { apiUtils, authUtils, setIsAuthenticated, setUser, storage } = createAuthUtils();
         apiUtils.login.mockResolvedValue({ success: true, data: RESPONSE });
         await expect(authUtils.login({ username: "ronin", password: "secret" })).resolves.toBeUndefined();
-        expect(storage.set).toHaveBeenCalledWith(STORAGE_KEYS.accessToken, "access");
-        expect(storage.set).toHaveBeenCalledWith(STORAGE_KEYS.refreshToken, { refreshToken: "refresh" });
+        expect(storage.set).toHaveBeenCalledWith({ key: STORAGE_KEYS.accessToken, payload: "access" });
+        expect(storage.set).toHaveBeenCalledWith({ key: STORAGE_KEYS.refreshToken, payload: { refreshToken: "refresh" } });
         expect(setUser).toHaveBeenCalledWith(USER);
         expect(setIsAuthenticated).toHaveBeenCalledWith(true);
     });

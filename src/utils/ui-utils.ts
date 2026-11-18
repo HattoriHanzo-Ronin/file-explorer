@@ -1,13 +1,13 @@
 import { ToastAndroid } from "react-native";
-import type { AppContextType } from "../types/context";
-import type { MessageDuration, ValidationErrors } from "../types/ui";
+import type { LocalDirectoryUpdatesParams, MessageParams, ValidationErrors } from "../types/ui";
 import type { ValidationErrorDetail } from "../types/response";
-import type { LocalDirectoryUpdate } from "../types/files";
 import type { FileOperationSnapshot } from "../types/file-operations";
 import { FILE_OPERATION_COMPLETED_MESSAGES, FILE_OPERATION_NOTIFICATION_TEXTS } from "../constants/file-operations";
 
 /**
  * Manages application messages
+ *
+ * @author HattoriHanzo-Ronin
  */
 export default class UiUtils {
     /** Returns a listener for foreground operation messages */
@@ -21,7 +21,7 @@ export default class UiUtils {
 
             const active = ["PENDING", "RUNNING"].includes(status);
             if (active && !previous?.started) {
-                UiUtils.showMessage(FILE_OPERATION_NOTIFICATION_TEXTS.running, "SHORT");
+                UiUtils.showMessage({ message: FILE_OPERATION_NOTIFICATION_TEXTS.running, duration: "SHORT" });
             }
 
             UiUtils.showOperationResult({ error, operation, status });
@@ -30,11 +30,14 @@ export default class UiUtils {
         };
     }
 
-    /** Applies a directory result only when it matches the current local directory */
-    static applyLocalDirectoryUpdates(
-        setLocalDirectory: AppContextType["setLocalDirectory"],
-        updates: LocalDirectoryUpdate[]
-    ): void {
+    /**
+     * Applies a result when it matches the current local directory
+     *
+     * @param params.setLocalDirectory Directory state updater
+     * @param params.updates Updated directories
+     */
+    static applyLocalDirectoryUpdates(params: LocalDirectoryUpdatesParams): void {
+        const { setLocalDirectory, updates } = params;
         setLocalDirectory((current) => {
             const path = current.dir === " " ? current.rootPath : `${current.rootPath}/${current.dir}`;
             const update = updates.find(({ path: updatePath }) => updatePath === path);
@@ -45,10 +48,11 @@ export default class UiUtils {
     /**
      * Displays a message
      *
-     * @param message Message
-     * @param duration Display duration
+     * @param params.message Message
+     * @param params.duration Display duration
      */
-    static showMessage(message: string, duration: MessageDuration = "LONG"): void {
+    static showMessage(params: MessageParams): void {
+        const { message, duration = "LONG" } = params;
         ToastAndroid.show(message, duration === "LONG" ? ToastAndroid.LONG : ToastAndroid.SHORT);
     }
 
@@ -73,11 +77,11 @@ export default class UiUtils {
     private static showOperationResult(result: Pick<FileOperationSnapshot, "error" | "operation" | "status">): void {
         const { error, operation, status } = result;
         if (status === "COMPLETED" && !["LOCAL_MKDIR", "LOCAL_RENAME"].includes(operation)) {
-            UiUtils.showMessage(FILE_OPERATION_COMPLETED_MESSAGES[operation]);
+            UiUtils.showMessage({ message: FILE_OPERATION_COMPLETED_MESSAGES[operation] });
         }
 
         if (status === "CANCELLED") {
-            UiUtils.showMessage(FILE_OPERATION_NOTIFICATION_TEXTS.cancelled);
+            UiUtils.showMessage({ message: FILE_OPERATION_NOTIFICATION_TEXTS.cancelled });
         }
 
         if (status === "FAILED") {
@@ -95,7 +99,7 @@ export default class UiUtils {
 
         const dialogOperation = ["REMOTE_MKDIR", "REMOTE_RENAME", "LOCAL_MKDIR", "LOCAL_RENAME"].includes(operation);
         if (dialogOperation || !error?.message) {
-            UiUtils.showMessage(error?.message || FILE_OPERATION_NOTIFICATION_TEXTS.failed);
+            UiUtils.showMessage({ message: error?.message || FILE_OPERATION_NOTIFICATION_TEXTS.failed });
         }
     }
 }

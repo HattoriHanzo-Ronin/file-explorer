@@ -2,6 +2,7 @@ import { StyleSheet } from "react-native";
 
 export type ThemeMode = "dark" | "light";
 
+/** Colors used by the application theme */
 export interface ThemeColors {
     background: string;
     header: string;
@@ -15,7 +16,7 @@ export interface ThemeColors {
     danger: string;
 }
 
-export const darkTheme: ThemeColors = {
+export const DARK_THEME: ThemeColors = {
     background: "#0b0e0d",
     header: "#0e1211",
     surface: "rgba(14, 18, 17, 0.88)",
@@ -28,7 +29,7 @@ export const darkTheme: ThemeColors = {
     danger: "#c8737c"
 };
 
-export const lightTheme: ThemeColors = {
+export const LIGHT_THEME: ThemeColors = {
     background: "#eef2ef",
     header: "#fafcfa",
     surface: "rgba(250, 252, 250, 0.9)",
@@ -40,6 +41,13 @@ export const lightTheme: ThemeColors = {
     accentMuted: "rgba(39, 142, 82, 0.22)",
     danger: "#a65d66"
 };
+
+export const COMMON_STYLES = {
+    dark: createCommonStyles(DARK_THEME, "dark"),
+    light: createCommonStyles(LIGHT_THEME, "light")
+};
+
+export const COMMON = COMMON_STYLES.dark;
 
 function createCommonStyles(theme: ThemeColors, mode: ThemeMode) {
     const isDark = mode === "dark";
@@ -86,10 +94,3 @@ function createCommonStyles(theme: ThemeColors, mode: ThemeMode) {
         explorerContent: { flex: 1, padding: 8 }
     });
 }
-
-export const commonStyles = {
-    dark: createCommonStyles(darkTheme, "dark"),
-    light: createCommonStyles(lightTheme, "light")
-};
-
-export const common = commonStyles.dark;

@@ -1,5 +1,12 @@
 import { StyleSheet } from "react-native";
-import { darkTheme, lightTheme, type ThemeColors, type ThemeMode } from "../style";
+import { DARK_THEME, LIGHT_THEME, type ThemeColors, type ThemeMode } from "../style";
+
+export const APP_STYLES = {
+    dark: createAppStyles(DARK_THEME, "dark"),
+    light: createAppStyles(LIGHT_THEME, "light")
+};
+
+export const APP = APP_STYLES.dark;
 
 function createAppStyles(theme: ThemeColors, mode: ThemeMode) {
     const isDark = mode === "dark";
@@ -56,10 +63,3 @@ function createAppStyles(theme: ThemeColors, mode: ThemeMode) {
         breadcrumbPath: { minHeight: 22, flexDirection: "row", alignItems: "center" }
     });
 }
-
-export const appStyles = {
-    dark: createAppStyles(darkTheme, "dark"),
-    light: createAppStyles(lightTheme, "light")
-};
-
-export const app = appStyles.dark;

@@ -7,12 +7,14 @@ import type {
 
 export type FtpEntryType = "DIR" | "FILE";
 
+/** File or directory returned by the FTP service */
 export interface FtpEntry {
     name: string;
     type: FtpEntryType;
     supportsThumbnail?: boolean;
 }
 
+/** Current FTP directory and its version */
 export interface FtpDirectoryState {
     dir: string;
     content: FtpEntry[];

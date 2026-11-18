@@ -1,6 +1,6 @@
 import { Modal, Pressable, Text, View } from "react-native";
 import type { DialogProps } from "../types/components";
-import { appDialog } from "../styles/components/style";
+import { APP_DIALOG } from "../styles/components/style";
 import { useTheme } from "./theme-provider";
 
 export default function AppDialog(props: DialogProps) {
@@ -9,21 +9,21 @@ export default function AppDialog(props: DialogProps) {
 
     return (
         <Modal animationType="fade" transparent visible={visible} onRequestClose={onCancel}>
-            <View style={appDialog.backdrop}>
-                <View style={[appDialog.container, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                    {title ? <Text style={[appDialog.description, { color: theme.text }]}>{title}</Text> : null}
+            <View style={APP_DIALOG.backdrop}>
+                <View style={[APP_DIALOG.container, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                    {title ? <Text style={[APP_DIALOG.description, { color: theme.text }]}>{title}</Text> : null}
                     {children}
-                    <View style={appDialog.actions}>
-                        <Pressable style={appDialog.button} onPress={onCancel}>
-                            <Text style={[appDialog.cancelText, { color: theme.danger }]}>Cancelar</Text>
+                    <View style={APP_DIALOG.actions}>
+                        <Pressable style={APP_DIALOG.button} onPress={onCancel}>
+                            <Text style={[APP_DIALOG.cancelText, { color: theme.danger }]}>Cancelar</Text>
                         </Pressable>
                         <Pressable
-                            style={appDialog.button}
+                            style={APP_DIALOG.button}
                             onPress={onAccept}
                             disabled={acceptDisabled}
                             accessibilityState={{ disabled: !!acceptDisabled }}
                         >
-                            <Text style={[appDialog.acceptText, { color: theme.accent }]}>Aceptar</Text>
+                            <Text style={[APP_DIALOG.acceptText, { color: theme.accent }]}>Aceptar</Text>
                         </Pressable>
                     </View>
                 </View>

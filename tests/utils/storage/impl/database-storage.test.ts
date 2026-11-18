@@ -20,30 +20,34 @@ describe("DatabaseStorage", () => {
 
     it("updates an existing preference", async () => {
         database.update.mockResolvedValue(1);
-        await storage.set(DATABASE_KEYS.viewMode, "LARGE_ICONS");
-        expect(database.update).toHaveBeenCalledWith("ui_preferences", { value: '"LARGE_ICONS"' }, { key: DATABASE_KEYS.viewMode });
+        await storage.set({ key: DATABASE_KEYS.viewMode, payload: "LARGE_ICONS" });
+        expect(database.update).toHaveBeenCalledWith({
+            table: "ui_preferences",
+            values: { value: '"LARGE_ICONS"' },
+            where: { key: DATABASE_KEYS.viewMode }
+        });
         expect(database.insert).not.toHaveBeenCalled();
     });
 
     it("inserts a preference when it does not exist", async () => {
         database.update.mockResolvedValue(0);
         database.insert.mockResolvedValue(1);
-        await storage.set(DATABASE_KEYS.viewMode, "LIST");
-        expect(database.insert).toHaveBeenCalledWith("ui_preferences", {
+        await storage.set({ key: DATABASE_KEYS.viewMode, payload: "LIST" });
+        expect(database.insert).toHaveBeenCalledWith({ table: "ui_preferences", values: {
             key: DATABASE_KEYS.viewMode,
             value: '"LIST"'
-        });
+        } });
     });
 
     it("deserializes a stored preference", async () => {
         database.getById.mockResolvedValue({ key: DATABASE_KEYS.viewMode, value: '"SMALL_ICONS"' });
         await expect(storage.get<string>(DATABASE_KEYS.viewMode)).resolves.toBe("SMALL_ICONS");
-        expect(database.getById).toHaveBeenCalledWith("ui_preferences", DATABASE_KEYS.viewMode, "key");
+        expect(database.getById).toHaveBeenCalledWith({ table: "ui_preferences", id: DATABASE_KEYS.viewMode, column: "key" });
     });
 
     it("deletes a preference", async () => {
         database.delete.mockResolvedValue(1);
         await storage.delete(DATABASE_KEYS.viewMode);
-        expect(database.delete).toHaveBeenCalledWith("ui_preferences", { key: DATABASE_KEYS.viewMode });
+        expect(database.delete).toHaveBeenCalledWith({ table: "ui_preferences", where: { key: DATABASE_KEYS.viewMode } });
     });
 });

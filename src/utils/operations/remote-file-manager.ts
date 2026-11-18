@@ -1,6 +1,5 @@
 import { STORAGE_KEYS } from "../../constants/storage";
 import { FILE_OPERATION_NOTIFICATION_TEXTS } from "../../constants/file-operations";
-import type { LocalModifyElement } from "../../types/files";
 import type { FtpEntry } from "../../types/ftp";
 import type {
     CopyEntriesRequest,
@@ -11,8 +10,10 @@ import type {
 } from "../../types/ftp";
 import type { ApiResponse } from "../../types/api-response";
 import type {
+    DownloadOperationRequest,
     FileOperationSelection,
     FileOperationSnapshot,
+    UploadOperationRequest,
     RemoteCopyOperationResult,
     RemoteDeleteOperationResult,
     RemoteDirectoryOperationResult,
@@ -72,11 +73,12 @@ export default class RemoteFileManager {
     /**
      * Uploads local entries
      *
-     * @param items Local entries
-     * @param remoteDir Remote directory
+     * @param params.items Local entries
+     * @param params.remoteDir Remote directory
      * @returns Remote operation response
      */
-    async upload(items: LocalModifyElement[], remoteDir: string): Promise<ApiResponse<RemoteDirectoryOperationResult>> {
+    async upload(params: UploadOperationRequest): Promise<ApiResponse<RemoteDirectoryOperationResult>> {
+        const { items, remoteDir } = params;
         const accessToken = await this.prepareOperation();
         if (!accessToken.success) {
             return accessToken;
@@ -108,18 +110,14 @@ export default class RemoteFileManager {
     /**
      * Downloads remote entries
      *
-     * @param items Remote entries
-     * @param remoteDir Remote directory
-     * @param localRoot Local storage root
-     * @param localDir Local directory
+     * @param params.items Remote entries
+     * @param params.remoteDir Remote directory
+     * @param params.localRoot Local storage root
+     * @param params.localDir Local directory
      * @returns Remote operation response
      */
-    async download(
-        items: FileOperationSelection[],
-        remoteDir: string,
-        localRoot: string,
-        localDir: string
-    ): Promise<ApiResponse<void>> {
+    async download(params: DownloadOperationRequest): Promise<ApiResponse<void>> {
+        const { items, remoteDir, localRoot, localDir } = params;
         const accessToken = await this.prepareOperation();
         if (!accessToken.success) {
             return accessToken;
@@ -189,7 +187,8 @@ export default class RemoteFileManager {
     /**
      * Deletes remote entries
      *
-     * @param request Delete request
+     * @param request.dir Remote directory
+     * @param request.entries Entries to delete
      * @returns Remote operation response
      */
     async delete(request: DeleteEntriesRequest): Promise<ApiResponse<RemoteDeleteOperationResult>> {
@@ -226,14 +225,23 @@ export default class RemoteFileManager {
     /**
      * Moves remote entries
      *
-     * @param request Move request
+     * @param request.dir Source directory
+     * @param request.entries Entries to move
+     * @param request.destination Destination directory
      * @returns Remote operation response
      */
     async move(request: MoveEntriesRequest): Promise<ApiResponse<RemoteMoveOperationResult>> {
         return this.copyMove(request, "REMOTE_MOVE");
     }
 
-    /** Copies remote entries */
+    /**
+     * Copies remote entries
+     *
+     * @param request.dir Source directory
+     * @param request.entries Entries to copy
+     * @param request.destination Destination directory
+     * @returns Remote operation response
+     */
     async copy(request: CopyEntriesRequest): Promise<ApiResponse<RemoteCopyOperationResult>> {
         return this.copyMove(request, "REMOTE_COPY");
     }

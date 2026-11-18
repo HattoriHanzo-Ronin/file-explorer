@@ -23,9 +23,11 @@ describe("NativeDatabase", () => {
         mockDatabase.insert.mockResolvedValue(3);
         mockDatabase.update.mockResolvedValue(2);
         mockDatabase.delete.mockResolvedValue(1);
-        await expect(database.insert("entries", { name: "report.txt" })).resolves.toBe(3);
-        await expect(database.update("entries", { name: "report-final.txt" }, { id: 3 })).resolves.toBe(2);
-        await expect(database.delete("entries", { id: 3 })).resolves.toBe(1);
+        await expect(database.insert({ table: "entries", values: { name: "report.txt" } })).resolves.toBe(3);
+        await expect(
+            database.update({ table: "entries", values: { name: "report-final.txt" }, where: { id: 3 } })
+        ).resolves.toBe(2);
+        await expect(database.delete({ table: "entries", where: { id: 3 } })).resolves.toBe(1);
         expect(mockDatabase.insert).toHaveBeenCalledWith("entries", { name: "report.txt" });
         expect(mockDatabase.update).toHaveBeenCalledWith("entries", { name: "report-final.txt" }, { id: 3 });
         expect(mockDatabase.delete).toHaveBeenCalledWith("entries", { id: 3 });
@@ -35,8 +37,10 @@ describe("NativeDatabase", () => {
         const row = { id: "entry-1", name: "report.txt" };
         mockDatabase.query.mockResolvedValue([row]);
         mockDatabase.getById.mockResolvedValue(row);
-        await expect(database.query("entries", { where: { name: "report.txt" }, limit: 1 })).resolves.toEqual([row]);
-        await expect(database.getById("entries", "entry-1")).resolves.toEqual(row);
+        await expect(
+            database.query({ table: "entries", options: { where: { name: "report.txt" }, limit: 1 } })
+        ).resolves.toEqual([row]);
+        await expect(database.getById({ table: "entries", id: "entry-1" })).resolves.toEqual(row);
         expect(mockDatabase.query).toHaveBeenCalledWith("entries", { where: { name: "report.txt" }, limit: 1 });
         expect(mockDatabase.getById).toHaveBeenCalledWith("entries", { value: "entry-1" }, "id");
     });

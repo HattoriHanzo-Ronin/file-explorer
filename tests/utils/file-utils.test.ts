@@ -26,3 +26,9 @@ describe("FileUtils", () => {
         expect(FileUtils.getTypeFile("app.ts")).toBe("code");
     });
 });
+
+test("supports extracted static file utilities", () => {
+    const { getTypeFile, validateOperationName } = FileUtils;
+    expect(getTypeFile("notes.txt")).toBe("text");
+    expect(validateOperationName({ name: "file.txt", field: "name" })).toBeUndefined();
+});

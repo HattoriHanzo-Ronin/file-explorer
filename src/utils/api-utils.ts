@@ -1,7 +1,6 @@
 import axios, { isAxiosError } from "axios";
 import type { ApiError } from "../types/api-error";
 import type { ApiResponse } from "../types/api-response";
-import type { LocalModifyElement } from "../types/files";
 import type {
     LoginRequest,
     LoginResponse,
@@ -27,7 +26,11 @@ import type {
     ThumbnailStatus
 } from "../types/ftp";
 import type { UpdatePasswordRequest, UpdateUsernameRequest, UpdateUsernameResponse } from "../types/users";
-import type { FileOperationSelection, RemoteDirectoryOperationResult } from "../types/file-operations";
+import type {
+    DownloadOperationRequest,
+    RemoteDirectoryOperationResult,
+    UploadOperationRequest
+} from "../types/file-operations";
 import type { SocketNotification, SocketSession } from "../types/socket-session";
 import type RemoteFileManager from "./operations/remote-file-manager";
 import type { Storage } from "./storage/storage";
@@ -129,13 +132,13 @@ export default class ApiUtils {
     /**
      * Uploads local entries to a remote directory
      *
-     * @param items Local entries
-     * @param remoteDir Remote directory
+     * @param params.items Local entries
+     * @param params.remoteDir Remote directory
      * @returns Updated remote directory
      */
-    async upload(items: LocalModifyElement[], remoteDir: string): Promise<ApiResponse<RemoteDirectoryOperationResult>> {
+    async upload(params: UploadOperationRequest): Promise<ApiResponse<RemoteDirectoryOperationResult>> {
         return this.executeRequest(async () => {
-            const result = await this.remoteFileManager.upload(items, remoteDir);
+            const result = await this.remoteFileManager.upload(params);
             if (!result.success) {
                 throw result.error;
             }
@@ -147,20 +150,15 @@ export default class ApiUtils {
     /**
      * Downloads remote entries to a local directory
      *
-     * @param items Remote entries
-     * @param remoteDir Remote directory
-     * @param localRoot Local storage root
-     * @param localDir Local directory
+     * @param params.items Remote entries
+     * @param params.remoteDir Remote directory
+     * @param params.localRoot Local storage root
+     * @param params.localDir Local directory
      * @returns Download response
      */
-    download(
-        items: FileOperationSelection[],
-        remoteDir: string,
-        localRoot: string,
-        localDir: string
-    ): Promise<ApiResponse<void>> {
+    download(params: DownloadOperationRequest): Promise<ApiResponse<void>> {
         return this.executeRequest(async () => {
-            const result = await this.remoteFileManager.download(items, remoteDir, localRoot, localDir);
+            const result = await this.remoteFileManager.download(params);
             if (!result.success) {
                 throw result.error;
             }
@@ -172,7 +170,8 @@ export default class ApiUtils {
     /**
      * Returns the login result
      *
-     * @param request Login credentials
+     * @param request.username Username
+     * @param request.password Password
      * @returns Login response
      */
     async login(request: LoginRequest): Promise<ApiResponse<LoginResponse>> {
@@ -185,7 +184,7 @@ export default class ApiUtils {
     /**
      * Returns refreshed authentication tokens
      *
-     * @param request Refresh token
+     * @param request.refreshToken Refresh token
      * @returns Refresh token response
      */
     async refreshToken(request: RefreshTokenRequest): Promise<ApiResponse<RefreshTokenResponse>> {
@@ -198,7 +197,7 @@ export default class ApiUtils {
     /**
      * Closes the current session
      *
-     * @param request Logout token
+     * @param request.refreshToken Refresh token
      * @returns Logout response
      */
     async logout(request: LogoutRequest): Promise<ApiResponse<void>> {
@@ -210,7 +209,8 @@ export default class ApiUtils {
     /**
      * Updates the current username
      *
-     * @param request Username data
+     * @param request.id User identifier
+     * @param request.username New username
      * @returns Updated username
      */
     async updateUsername(request: UpdateUsernameRequest): Promise<ApiResponse<UpdateUsernameResponse>> {
@@ -226,7 +226,8 @@ export default class ApiUtils {
     /**
      * Updates the current password
      *
-     * @param request Password data
+     * @param request.currentPassword Current password
+     * @param request.newPassword New password
      * @returns Update response
      */
     async updatePassword(request: UpdatePasswordRequest): Promise<ApiResponse<void>> {
@@ -253,7 +254,8 @@ export default class ApiUtils {
     /**
      * Returns the current FTP thumbnail status
      *
-     * @param request Thumbnail data
+     * @param request.dir Remote directory
+     * @param request.name File name
      * @returns Thumbnail status
      */
     async getThumbnailStatus(request: ThumbnailRequest): Promise<ApiResponse<ThumbnailStatus>> {
@@ -281,7 +283,8 @@ export default class ApiUtils {
     /**
      * Returns the current FTP thumbnail state and authenticated image source
      *
-     * @param request Thumbnail data
+     * @param request.dir Remote directory
+     * @param request.name File name
      * @returns Thumbnail response
      */
     async getThumbnail(request: ThumbnailRequest): Promise<ApiResponse<ThumbnailResponse>> {
@@ -312,11 +315,12 @@ export default class ApiUtils {
     /**
      * Creates a remote directory
      *
-     * @param request Directory data
+     * @param request.dir Remote directory
+     * @param request.name Directory name
      * @returns Updated directory entries
      */
     async createDirectory(request: CreateDirectoryRequest): Promise<ApiResponse<CreateDirectoryResponse>> {
-        const error = FileUtils.validateOperationName(request.name, "name");
+        const error = FileUtils.validateOperationName({ name: request.name, field: "name" });
         if (error) {
             return { success: false, error };
         }
@@ -334,7 +338,9 @@ export default class ApiUtils {
     /**
      * Moves remote entries
      *
-     * @param request Entries and destination
+     * @param request.dir Source directory
+     * @param request.entries Entries to move
+     * @param request.destination Destination directory
      * @returns Confirmed moved entries
      */
     async moveEntries(request: MoveEntriesRequest): Promise<ApiResponse<MoveEntriesResponse>> {
@@ -358,7 +364,9 @@ export default class ApiUtils {
     /**
      * Copies remote entries
      *
-     * @param request Entries and destination
+     * @param request.dir Source directory
+     * @param request.entries Entries to copy
+     * @param request.destination Destination directory
      * @returns Confirmed copied entries
      */
     async copyEntries(request: CopyEntriesRequest): Promise<ApiResponse<CopyEntriesResponse>> {
@@ -375,11 +383,17 @@ export default class ApiUtils {
     /**
      * Renames a remote entry
      *
-     * @param request Entry and new name
+     * @param request.dir Remote directory
+     * @param request.entry Entry to rename
+     * @param request.newName New name
      * @returns Updated directory entries
      */
     async renameEntry(request: RenameEntryRequest): Promise<ApiResponse<RenameEntryResponse>> {
-        const error = FileUtils.validateOperationName(request.newName, "newName", request.entry.name.split("/").pop());
+        const error = FileUtils.validateOperationName({
+            name: request.newName,
+            field: "newName",
+            currentName: request.entry.name.split("/").pop()
+        });
         if (error) {
             return { success: false, error };
         }
@@ -397,7 +411,8 @@ export default class ApiUtils {
     /**
      * Deletes remote entries
      *
-     * @param request Entries to delete
+     * @param request.dir Remote directory
+     * @param request.entries Entries to delete
      * @returns Confirmed deleted entries
      */
     async deleteEntries(request: DeleteEntriesRequest): Promise<ApiResponse<DeleteEntriesResponse>> {
