@@ -50,6 +50,7 @@ export default class ApiUtils {
     private readonly socketReconnectListeners = new Set<() => void>();
     private socketSessionRequest: Promise<ApiResponse<void>> | null = null;
     private isSocketSessionSuspended = true;
+    private socketGeneration = 0;
 
     constructor(remoteFileManager: RemoteFileManager, storage: Storage, apiUrl: string) {
         this.remoteFileManager = remoteFileManager;
@@ -68,6 +69,7 @@ export default class ApiUtils {
      * Creates or renews the socket session
      */
     async refreshSocketSession(): Promise<ApiResponse<void>> {
+        this.isSocketSessionSuspended = false;
         if (this.socketSessionRequest) {
             return this.socketSessionRequest;
         }
@@ -103,6 +105,7 @@ export default class ApiUtils {
     /** Suspends the socket session */
     suspendSocketSession(): void {
         this.isSocketSessionSuspended = true;
+        this.socketGeneration++;
         this.closeSocket();
     }
 
@@ -413,7 +416,6 @@ export default class ApiUtils {
     }
 
     private async executeSocketSessionRefresh(): Promise<ApiResponse<void>> {
-        this.isSocketSessionSuspended = false;
         const session = this.socketSession
             ? await this.executeRequest(async () => {
                   const { data } = await axios.post<SocketSession>(
@@ -441,6 +443,10 @@ export default class ApiUtils {
     }
 
     private async openSocket(): Promise<void> {
+        if (this.isSocketSessionSuspended) {
+            return;
+        }
+
         if (!this.socketSession) {
             throw new Error("Socket session not found");
         }
@@ -454,9 +460,14 @@ export default class ApiUtils {
             return;
         }
 
+        const generation = this.socketGeneration;
         const accessToken = await this.storage.get<string>(STORAGE_KEYS.accessToken);
         if (!accessToken) {
             throw new Error("Access token not found");
+        }
+
+        if (this.isSocketSessionSuspended || generation !== this.socketGeneration || !this.socketSession) {
+            return;
         }
 
         const socket = new WebSocket(this.buildSocketUrl(this.socketSession.id));
