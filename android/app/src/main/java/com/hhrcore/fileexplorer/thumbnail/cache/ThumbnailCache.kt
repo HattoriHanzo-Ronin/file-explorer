@@ -1,4 +1,4 @@
-package com.hhrcore.fileexplorer.thumbnail
+package com.hhrcore.fileexplorer.thumbnail.cache
 
 import java.io.File
 

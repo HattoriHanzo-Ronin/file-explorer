@@ -1,4 +1,6 @@
-package com.hhrcore.fileexplorer.operation
+package com.hhrcore.fileexplorer.operation.store
+
+import com.hhrcore.fileexplorer.operation.FileOperationRecord
 
 /** Persists and reconciles file operations */
 interface OperationStore {

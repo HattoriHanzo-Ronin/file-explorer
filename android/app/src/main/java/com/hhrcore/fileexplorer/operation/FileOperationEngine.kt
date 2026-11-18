@@ -1,13 +1,27 @@
 package com.hhrcore.fileexplorer.operation
 
-import android.util.Log
-import android.webkit.MimeTypeMap
-import com.hhrcore.fileexplorer.thumbnail.ThumbnailCache
-import com.hhrcore.fileexplorer.thumbnail.ThumbnailSnapshot
-import com.hhrcore.fileexplorer.sharing.SharedFileCleanup
 import android.system.ErrnoException
 import android.system.Os
 import android.system.OsConstants
+import android.util.Log
+import android.webkit.MimeTypeMap
+import com.hhrcore.fileexplorer.operation.store.OperationStore
+import com.hhrcore.fileexplorer.operation.transfer.RemoteTransferClient
+import com.hhrcore.fileexplorer.sharing.SharedFileCleanup
+import com.hhrcore.fileexplorer.thumbnail.cache.ThumbnailCache
+import com.hhrcore.fileexplorer.thumbnail.cache.ThumbnailSnapshot
+import java.io.BufferedInputStream
+import java.io.File
+import java.io.InputStream
+import java.io.RandomAccessFile
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
+import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 import okhttp3.Call
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
@@ -21,18 +35,6 @@ import org.apache.commons.compress.archivers.sevenz.SevenZFile
 import org.apache.commons.compress.compressors.CompressorStreamFactory
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.BufferedInputStream
-import java.io.File
-import java.io.InputStream
-import java.io.RandomAccessFile
-import java.net.URLEncoder
-import java.nio.charset.StandardCharsets
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicInteger
-import java.util.concurrent.atomic.AtomicReference
-import java.util.UUID
 
 /**
  * File operation engine

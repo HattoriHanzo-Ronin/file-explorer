@@ -4,9 +4,9 @@ import android.content.Context
 import android.os.Environment
 import com.hhrcore.fileexplorer.operation.FileOperationRecord
 import com.hhrcore.fileexplorer.operation.OperationRegistry
-import com.hhrcore.fileexplorer.operation.impl.SqliteOperationStore
-import org.json.JSONObject
+import com.hhrcore.fileexplorer.operation.store.impl.SqliteOperationStore
 import java.io.File
+import org.json.JSONObject
 
 /**
  * Cleans up temporary files received from other applications

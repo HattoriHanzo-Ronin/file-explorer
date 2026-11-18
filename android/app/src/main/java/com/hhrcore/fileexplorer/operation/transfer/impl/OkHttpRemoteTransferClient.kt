@@ -1,10 +1,10 @@
-package com.hhrcore.fileexplorer.operation.impl
+package com.hhrcore.fileexplorer.operation.transfer.impl
 
-import com.hhrcore.fileexplorer.operation.RemoteTransferClient
+import com.hhrcore.fileexplorer.operation.transfer.RemoteTransferClient
+import java.util.concurrent.TimeUnit
 import okhttp3.Call
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import java.util.concurrent.TimeUnit
 
 /**
  * HTTP remote transfer client

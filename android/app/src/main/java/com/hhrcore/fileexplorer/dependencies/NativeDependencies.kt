@@ -4,13 +4,13 @@ import android.content.Context
 import com.hhrcore.fileexplorer.operation.FileOperationEngine
 import com.hhrcore.fileexplorer.operation.FileOperationRecord
 import com.hhrcore.fileexplorer.operation.MediaIndex
-import com.hhrcore.fileexplorer.operation.OperationStore
-import com.hhrcore.fileexplorer.operation.RemoteTransferClient
-import com.hhrcore.fileexplorer.operation.impl.OkHttpRemoteTransferClient
-import com.hhrcore.fileexplorer.operation.impl.SqliteOperationStore
+import com.hhrcore.fileexplorer.operation.store.OperationStore
+import com.hhrcore.fileexplorer.operation.store.impl.SqliteOperationStore
+import com.hhrcore.fileexplorer.operation.transfer.RemoteTransferClient
+import com.hhrcore.fileexplorer.operation.transfer.impl.OkHttpRemoteTransferClient
 import com.hhrcore.fileexplorer.sharing.SharedFileCleanup
-import com.hhrcore.fileexplorer.thumbnail.ThumbnailCache
-import com.hhrcore.fileexplorer.thumbnail.impl.NativeThumbnailCache
+import com.hhrcore.fileexplorer.thumbnail.cache.ThumbnailCache
+import com.hhrcore.fileexplorer.thumbnail.cache.impl.NativeThumbnailCache
 
 /**
  * Native dependency factory

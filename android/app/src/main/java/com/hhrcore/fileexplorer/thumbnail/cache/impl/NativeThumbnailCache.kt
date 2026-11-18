@@ -1,4 +1,4 @@
-package com.hhrcore.fileexplorer.thumbnail.impl
+package com.hhrcore.fileexplorer.thumbnail.cache.impl
 
 import android.content.ContentValues
 import android.content.Context
@@ -6,8 +6,8 @@ import android.database.sqlite.SQLiteDatabase
 import android.os.StatFs
 import android.webkit.MimeTypeMap
 import com.hhrcore.fileexplorer.database.ExplorerDatabaseHelper
-import com.hhrcore.fileexplorer.thumbnail.ThumbnailCache
-import com.hhrcore.fileexplorer.thumbnail.ThumbnailSnapshot
+import com.hhrcore.fileexplorer.thumbnail.cache.ThumbnailCache
+import com.hhrcore.fileexplorer.thumbnail.cache.ThumbnailSnapshot
 import java.io.File
 import java.security.MessageDigest
 
