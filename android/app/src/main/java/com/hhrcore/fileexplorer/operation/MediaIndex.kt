@@ -57,7 +57,7 @@ class MediaIndex(context: Context) {
         Thread { scanPaths(change.removedPaths + change.createdFiles.flatMap(::paths)) }.start()
     }
 
-    private fun scanPaths(paths: Collection<String>) {
+    private fun scanPaths(paths: Collection<String>): Unit {
         val files = paths.distinct()
         if (files.isEmpty()) {
             return

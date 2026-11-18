@@ -5,6 +5,11 @@ import com.facebook.react.bridge.NativeModule
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.uimanager.ViewManager
 
+/**
+ * Storage volume package
+ *
+ * @author HattoriHanzo-Ronin
+ */
 class StorageVolumePackage : ReactPackage {
     override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> =
         listOf(StorageVolumeModule(reactContext))

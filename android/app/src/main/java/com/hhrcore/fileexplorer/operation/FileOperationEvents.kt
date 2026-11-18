@@ -9,10 +9,20 @@ import java.lang.ref.WeakReference
 object FileOperationEvents {
     private var context = WeakReference<ReactApplicationContext>(null)
 
+    /**
+     * Attaches the React context
+     *
+     * @param reactContext React application context
+     */
     fun attach(reactContext: ReactApplicationContext) {
         context = WeakReference(reactContext)
     }
 
+    /**
+     * Emits an operation update
+     *
+     * @param record File operation record
+     */
     fun emit(record: FileOperationRecord) {
         val reactContext = context.get() ?: return
         if (!reactContext.hasActiveReactInstance()) {

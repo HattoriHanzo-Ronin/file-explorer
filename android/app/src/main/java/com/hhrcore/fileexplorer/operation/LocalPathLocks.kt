@@ -9,10 +9,25 @@ object LocalPathLocks {
     private val held = mutableMapOf<String, MutableList<Claim>>()
     private val waiting = mutableListOf<Pair<String, List<Claim>>>()
 
+    /**
+     * Creates a claim for a local path
+     *
+     * @param file Path to claim
+     * @param write Whether the claim requires write access
+     * @param subtree Whether the claim includes descendants
+     * @return Path claim
+     */
     fun claim(file: File, write: Boolean, subtree: Boolean = true): Claim =
         Claim(file.canonicalFile.path, write, subtree)
 
-    fun acquire(owner: String, claims: List<Claim>, checkCancelled: () -> Unit = {}) {
+    /**
+     * Acquires path claims for an operation
+     *
+     * @param owner Operation identifier
+     * @param claims Path claims
+     * @param checkCancelled Cancellation check while waiting
+     */
+    fun acquire(owner: String, claims: List<Claim>, checkCancelled: () -> Unit = {}): Unit {
         synchronized(monitor) {
             val request = owner to claims
             waiting.add(request)
@@ -30,6 +45,13 @@ object LocalPathLocks {
         }
     }
 
+    /**
+     * Attempts to acquire path claims
+     *
+     * @param owner Operation identifier
+     * @param claims Path claims
+     * @return Whether the claims were acquired
+     */
     fun tryAcquire(owner: String, claims: List<Claim>): Boolean = synchronized(monitor) {
         if (!available(owner, claims)) {
             return@synchronized false
@@ -39,12 +61,23 @@ object LocalPathLocks {
         true
     }
 
-    fun release(owner: String) = synchronized(monitor) {
+    /**
+     * Releases an operation's path claims
+     *
+     * @param owner Operation identifier
+     */
+    fun release(owner: String): Unit = synchronized(monitor) {
         held.remove(owner)
         monitor.notifyAll()
     }
 
-    fun releaseClaim(owner: String, claim: Claim) = synchronized(monitor) {
+    /**
+     * Releases a path claim
+     *
+     * @param owner Operation identifier
+     * @param claim Path claim
+     */
+    fun releaseClaim(owner: String, claim: Claim): Unit = synchronized(monitor) {
         held[owner]?.remove(claim)
         monitor.notifyAll()
     }
@@ -64,6 +97,7 @@ object LocalPathLocks {
         if (first.path == second.path) {
             return true
         }
+
         return (first.subtree && isChild(first.path, second.path)) ||
             (second.subtree && isChild(second.path, first.path))
     }

@@ -15,6 +15,11 @@ import com.hhrcore.fileexplorer.storage.StorageVolumePackage
 import com.hhrcore.fileexplorer.thumbnail.ThumbnailGeneratorPackage
 import com.hhrcore.fileexplorer.sharing.SharingPackage
 
+/**
+ * Main application
+ *
+ * @author HattoriHanzo-Ronin
+ */
 class MainApplication : Application(), ReactApplication {
   val nativeDependencies by lazy { NativeDependencies(applicationContext) }
 

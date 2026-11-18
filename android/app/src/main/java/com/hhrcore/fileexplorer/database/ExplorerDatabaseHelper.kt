@@ -4,6 +4,11 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 
+/**
+ * Application database helper
+ *
+ * @author HattoriHanzo-Ronin
+ */
 class ExplorerDatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
     override fun onConfigure(database: SQLiteDatabase) {
         database.setForeignKeyConstraintsEnabled(true)
@@ -53,7 +58,7 @@ class ExplorerDatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATAB
         }
     }
 
-    private fun createThumbnailTables(database: SQLiteDatabase) {
+    private fun createThumbnailTables(database: SQLiteDatabase): Unit {
         database.execSQL(
             """
                 CREATE TABLE thumbnail_directories (
@@ -80,7 +85,7 @@ class ExplorerDatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATAB
         database.execSQL("CREATE INDEX idx_thumbnails_last_accessed ON thumbnails(last_accessed_at)")
     }
 
-    private fun createOperationTables(database: SQLiteDatabase) {
+    private fun createOperationTables(database: SQLiteDatabase): Unit {
         database.execSQL(
             """
                 CREATE TABLE file_operations (
@@ -96,7 +101,7 @@ class ExplorerDatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATAB
         database.execSQL("CREATE INDEX idx_file_operations_status ON file_operations(status)")
     }
 
-    private fun createOperationRecoveryTables(database: SQLiteDatabase) {
+    private fun createOperationRecoveryTables(database: SQLiteDatabase): Unit {
         database.execSQL(
             """
                 CREATE TABLE file_operation_recovery (
@@ -111,7 +116,7 @@ class ExplorerDatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATAB
         database.execSQL("CREATE INDEX idx_file_operation_recovery_status ON file_operation_recovery(status)")
     }
 
-    private fun createUiPreferenceTables(database: SQLiteDatabase) {
+    private fun createUiPreferenceTables(database: SQLiteDatabase): Unit {
         database.execSQL(
             """
                 CREATE TABLE ui_preferences (

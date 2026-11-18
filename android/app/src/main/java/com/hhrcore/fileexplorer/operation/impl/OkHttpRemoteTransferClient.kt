@@ -6,6 +6,11 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.util.concurrent.TimeUnit
 
+/**
+ * HTTP remote transfer client
+ *
+ * @author HattoriHanzo-Ronin
+ */
 class OkHttpRemoteTransferClient : RemoteTransferClient {
     private val client = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)

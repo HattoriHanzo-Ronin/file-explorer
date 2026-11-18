@@ -20,6 +20,11 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import org.json.JSONObject
 
+/**
+ * File operation service
+ *
+ * @author HattoriHanzo-Ronin
+ */
 class FileOperationService : Service() {
     private val executor = Executors.newCachedThreadPool()
     private val activeOperations = ConcurrentHashMap.newKeySet<String>()
@@ -214,7 +219,7 @@ class FileOperationService : Service() {
 
     private fun text(record: FileOperationRecord, key: String): String = record.notificationTexts.getString(key)
 
-    private fun updateNotification(record: FileOperationRecord) {
+    private fun updateNotification(record: FileOperationRecord): Unit {
         getSystemService(NotificationManager::class.java).notify(notificationId(record.id), createNotification(record))
         lastNotificationAt = SystemClock.uptimeMillis()
         if (record.status == FileOperationRecord.STATUS_PENDING || record.status == FileOperationRecord.STATUS_RUNNING) {
@@ -224,7 +229,7 @@ class FileOperationService : Service() {
         }
     }
 
-    private fun enqueueNotification(record: FileOperationRecord) {
+    private fun enqueueNotification(record: FileOperationRecord): Unit {
         val active = record.status == FileOperationRecord.STATUS_PENDING || record.status == FileOperationRecord.STATUS_RUNNING
         if (active && record.id !in notifiedOperations) {
             return
@@ -240,7 +245,7 @@ class FileOperationService : Service() {
         scheduleNotification()
     }
 
-    private fun scheduleNotificationStart(record: FileOperationRecord) {
+    private fun scheduleNotificationStart(record: FileOperationRecord): Unit {
         val id = record.id
         val delay = Runnable {
             notificationDelays.remove(id)
@@ -262,7 +267,7 @@ class FileOperationService : Service() {
         handler.postDelayed(delay, NOTIFICATION_START_DELAY)
     }
 
-    private fun scheduleNotification() {
+    private fun scheduleNotification(): Unit {
         if (notificationScheduled || pendingNotifications.isEmpty()) {
             return
         }
@@ -289,7 +294,7 @@ class FileOperationService : Service() {
         }, delay)
     }
 
-    private fun stopWhenFinished() {
+    private fun stopWhenFinished(): Unit {
         if (activeOperations.isEmpty() && pendingNotifications.isEmpty() && pendingConfirmations.isEmpty() &&
             notificationDelays.isEmpty() && !notificationScheduled
         ) {
@@ -297,7 +302,7 @@ class FileOperationService : Service() {
         }
     }
 
-    private fun confirmFinalNotification(record: FileOperationRecord) {
+    private fun confirmFinalNotification(record: FileOperationRecord): Unit {
         val attempts = pendingConfirmations[record.id] ?: return
         val notification = runCatching {
             getSystemService(NotificationManager::class.java).activeNotifications
@@ -325,7 +330,7 @@ class FileOperationService : Service() {
         stopWhenFinished()
     }
 
-    private fun finishOperation(record: FileOperationRecord) {
+    private fun finishOperation(record: FileOperationRecord): Unit {
         val id = record.id
         notificationDelays.remove(id)?.let(handler::removeCallbacks)
         activeOperations.remove(id)
@@ -352,7 +357,7 @@ class FileOperationService : Service() {
         stopWhenFinished()
     }
 
-    private fun promote(record: FileOperationRecord) {
+    private fun promote(record: FileOperationRecord): Unit {
         notifiedOperations.add(record.id)
         startForeground(notificationId(record.id), createNotification(record))
         lastNotificationAt = SystemClock.uptimeMillis()
@@ -360,7 +365,7 @@ class FileOperationService : Service() {
         foregroundId = record.id
     }
 
-    private fun createNotificationChannel(record: FileOperationRecord) {
+    private fun createNotificationChannel(record: FileOperationRecord): Unit {
         val channel = NotificationChannel(CHANNEL_ID, text(record, "channelName"), NotificationManager.IMPORTANCE_LOW)
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
@@ -379,6 +384,13 @@ class FileOperationService : Service() {
 
         private fun notificationId(id: String): Int = NOTIFICATION_ID_BASE + (id.hashCode() and 0x00ffffff)
 
+        /**
+         * Starts the file operation service
+         *
+         * @param context Application context
+         * @param id Operation identifier
+         * @param token Access token for remote operations
+         */
         fun start(context: Context, id: String, token: String?) {
             val intent = Intent(context, FileOperationService::class.java)
                 .setAction(ACTION_START)
@@ -387,6 +399,12 @@ class FileOperationService : Service() {
             context.startService(intent)
         }
 
+        /**
+         * Requests cancellation of a file operation
+         *
+         * @param context Application context
+         * @param id Operation identifier
+         */
         fun cancel(context: Context, id: String) {
             context.startService(Intent(context, FileOperationService::class.java).setAction(ACTION_CANCEL).putExtra(EXTRA_ID, id))
         }

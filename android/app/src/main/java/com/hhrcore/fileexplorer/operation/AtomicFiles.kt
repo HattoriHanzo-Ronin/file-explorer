@@ -4,6 +4,15 @@ import android.system.OsConstants
 import java.io.File
 
 object AtomicFiles {
+    /**
+     * Reserves a unique file or directory path
+     *
+     * @param destination Destination directory
+     * @param name Requested name
+     * @param directory Whether to create a directory
+     * @param owner Lock owner identifier
+     * @return Reserved entry
+     */
     fun reserve(destination: File, name: String, directory: Boolean, owner: String): File {
         var index = 0
         while (true) {
@@ -27,6 +36,15 @@ object AtomicFiles {
         }
     }
 
+    /**
+     * Renames an entry to a unique path
+     *
+     * @param source Source entry
+     * @param destination Destination directory
+     * @param name Requested name
+     * @param owner Lock owner identifier
+     * @return Renamed entry
+     */
     fun rename(source: File, destination: File, name: String, owner: String): File {
         var index = 0
         while (true) {
@@ -47,6 +65,13 @@ object AtomicFiles {
         }
     }
 
+    /**
+     * Returns a candidate name for a conflicting entry
+     *
+     * @param name Requested name
+     * @param index Candidate index
+     * @return Candidate name
+     */
     fun candidate(name: String, index: Int): String {
         if (index == 0) {
             return name
