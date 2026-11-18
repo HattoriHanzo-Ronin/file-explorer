@@ -3,6 +3,7 @@ import type {
     FileOperationSnapshot,
     NativeDownloadRequest,
     NativeRemoteDeleteRequest,
+    NativeRemoteCopyRequest,
     NativeRemoteMoveRequest,
     NativeRemoteMkdirRequest,
     NativeRemoteRenameRequest,
@@ -17,6 +18,7 @@ interface NativeFileOperationModule {
     startRemoteMkdir(request: NativeRemoteMkdirRequest): Promise<string>;
     startRemoteRename(request: NativeRemoteRenameRequest): Promise<string>;
     startRemoteMove(request: NativeRemoteMoveRequest): Promise<string>;
+    startRemoteCopy(request: NativeRemoteCopyRequest): Promise<string>;
     cancel(id: string): void;
     listOperations(): Promise<string>;
     clearSettled(): void;
@@ -79,6 +81,11 @@ export default class NativeRemoteFileOperation implements RemoteFileOperation {
      */
     async startMove(request: NativeRemoteMoveRequest): Promise<string> {
         return this.module.startRemoteMove(request);
+    }
+
+    /** Starts a remote copy operation */
+    async startCopy(request: NativeRemoteCopyRequest): Promise<string> {
+        return this.module.startRemoteCopy(request);
     }
 
     /**

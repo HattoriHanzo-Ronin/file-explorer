@@ -11,6 +11,7 @@ import type {
 } from "../types/components";
 import type { FileSystemEntry, LocalDirectoryUpdate, StorageRoot } from "../types/files";
 import type { CreateDirectoryResponse, FtpEntry } from "../types/ftp";
+import type { RemoteCopyOperationResult, RemoteMoveOperationResult } from "../types/file-operations";
 import { operationDestination } from "../styles/components/style";
 import UiUtils from "../utils/ui-utils";
 import Breadcrumb from "./breadcrumb";
@@ -101,7 +102,7 @@ function isRemoteDestination(action: DestinationOperationModalProps["action"], f
         return true;
     }
 
-    return action === "move" && ftpEntryCount > 0;
+    return (action === "move" || action === "copy") && ftpEntryCount > 0;
 }
 
 function getDirectories(entries: FtpEntry[] | FileSystemEntry[], remote: boolean): string[] {
@@ -246,16 +247,19 @@ export default function OperationDestinationModal(props: DestinationOperationMod
         }
     }
 
-    async function moveRemote() {
+    async function copyMoveRemote(move: boolean) {
         const selectedEntries = modifyFtpFile.map(({ path, type }) => ({ name: path, type }));
-        const result = await executeApiRequest(
-            (apiUtils) => apiUtils.moveEntries({ dir: ftpSelectionDir, entries: selectedEntries, destination: dir }),
+        const result = await executeApiRequest<RemoteCopyOperationResult | RemoteMoveOperationResult>(
+            (apiUtils) => move
+                ? apiUtils.moveEntries({ dir: ftpSelectionDir, entries: selectedEntries, destination: dir })
+                : apiUtils.copyEntries({ dir: ftpSelectionDir, entries: selectedEntries, destination: dir }),
             { isBackground: true, showError: true }
         );
         if (result.success) {
             setFtpDirectory((current) => {
-                const { changes, destination, source } = result.data;
-                if (current.dir === ftpSelectionDir) {
+                const { changes, destination } = result.data;
+                if (move && "source" in result.data && current.dir === ftpSelectionDir) {
+                    const { source } = result.data;
                     return {
                         ...current,
                         content: current.content.filter(
@@ -302,11 +306,16 @@ export default function OperationDestinationModal(props: DestinationOperationMod
                 await download(destination);
                 break;
             case "copy":
-                await copyMoveLocal(destination, false);
+                if (modifyFtpFile.length > 0) {
+                    await copyMoveRemote(false);
+                } else {
+                    await copyMoveLocal(destination, false);
+                }
+
                 break;
             case "move":
                 if (modifyFtpFile.length > 0) {
-                    await moveRemote();
+                    await copyMoveRemote(true);
                 } else {
                     await copyMoveLocal(destination, true);
                 }

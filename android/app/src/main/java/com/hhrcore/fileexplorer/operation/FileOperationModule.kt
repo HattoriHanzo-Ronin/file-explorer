@@ -224,6 +224,16 @@ class FileOperationModule(context: ReactApplicationContext, dependencies: Native
         start(options, FileOperationRecord.OPERATION_REMOTE_MOVE, promise)
 
     /**
+     * Starts a remote copy
+     *
+     * @param options Operation request options
+     * @param promise Receives the operation result
+     */
+    @ReactMethod
+    fun startRemoteCopy(options: ReadableMap, promise: Promise) =
+        start(options, FileOperationRecord.OPERATION_REMOTE_COPY, promise)
+
+    /**
      * Starts a local copy
      *
      * @param options Operation request options
@@ -325,6 +335,7 @@ class FileOperationModule(context: ReactApplicationContext, dependencies: Native
                     FileOperationRecord.OPERATION_REMOTE_MKDIR,
                     FileOperationRecord.OPERATION_REMOTE_RENAME,
                     FileOperationRecord.OPERATION_REMOTE_MOVE,
+                    FileOperationRecord.OPERATION_REMOTE_COPY,
                     FileOperationRecord.OPERATION_REMOTE_DELETE
                 ) && token == null
             ) {

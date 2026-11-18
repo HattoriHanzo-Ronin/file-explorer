@@ -8,6 +8,7 @@ export type FileOperationType =
     | "REMOTE_MKDIR"
     | "REMOTE_RENAME"
     | "REMOTE_MOVE"
+    | "REMOTE_COPY"
     | "REMOTE_DELETE"
     | "LOCAL_MKDIR"
     | "LOCAL_RENAME"
@@ -44,6 +45,10 @@ export interface FileOperationNotificationTexts {
     remoteRenameCompleted: string;
     remoteRenameFailed: string;
     remoteRenameInterrupted: string;
+    remoteCopyActive: string;
+    remoteCopyCompleted: string;
+    remoteCopyFailed: string;
+    remoteCopyInterrupted: string;
     remoteMoveActive: string;
     remoteMoveCompleted: string;
     remoteMoveFailed: string;
@@ -109,10 +114,13 @@ export interface RemoteDirectoryVersion {
     version: string;
 }
 
-export interface RemoteMoveOperationResult {
+export interface RemoteCopyOperationResult {
     changes: RemoteFileChange[];
-    source: RemoteDirectoryVersion;
     destination: RemoteDirectoryVersion;
+}
+
+export interface RemoteMoveOperationResult extends RemoteCopyOperationResult {
+    source: RemoteDirectoryVersion;
 }
 
 export interface FileOperationSnapshot {
@@ -123,7 +131,7 @@ export interface FileOperationSnapshot {
     totalBytes: number;
     revision: number;
     error?: ResponseError;
-    result?: RemoteDirectoryOperationResult | RemoteDeleteOperationResult | RemoteMoveOperationResult;
+    result?: RemoteDirectoryOperationResult | RemoteDeleteOperationResult | RemoteCopyOperationResult | RemoteMoveOperationResult;
     remoteDir: string;
     destinationDir: string;
     localDir: string;
@@ -162,6 +170,8 @@ export interface NativeRemoteMoveRequest extends NativeRemoteRequest {
     destination: string;
     entries: FtpEntry[];
 }
+
+export type NativeRemoteCopyRequest = NativeRemoteMoveRequest;
 
 interface NativeLocalRequest {
     notificationTexts: FileOperationNotificationTexts;

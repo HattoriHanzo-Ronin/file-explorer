@@ -91,8 +91,8 @@ class FileOperationEngine(
                     remoteDirectoryChange(record, requireToken(accessToken))
                     MediaIndexChange()
                 }
-                FileOperationRecord.OPERATION_REMOTE_MOVE -> {
-                    remoteMove(record, requireToken(accessToken))
+                FileOperationRecord.OPERATION_REMOTE_MOVE, FileOperationRecord.OPERATION_REMOTE_COPY -> {
+                    remoteCopyMove(record, requireToken(accessToken))
                     MediaIndexChange()
                 }
                 FileOperationRecord.OPERATION_REMOTE_DELETE -> {
@@ -499,15 +499,16 @@ class FileOperationEngine(
         executeRemoteChanges(record, token, remoteRequest)
     }
 
-    private fun remoteMove(record: FileOperationRecord, token: String): Unit {
+    private fun remoteCopyMove(record: FileOperationRecord, token: String): Unit {
         val request = record.request
         val body = JSONObject().apply {
             request.optString("remoteDir").takeIf { it.isNotEmpty() }?.let { put("dir", it) }
             request.optString("destination").takeIf { it.isNotEmpty() }?.let { put("destination", it) }
             put("entries", request.getJSONArray("entries"))
         }
+        val endpoint = if (record.operation == FileOperationRecord.OPERATION_REMOTE_COPY) "copy" else "move"
         val remoteRequest = Request.Builder()
-            .url("${request.getString("apiUrl")}/ftp/move")
+            .url("${request.getString("apiUrl")}/ftp/$endpoint")
             .post(body.toString().toRequestBody(JSON_MEDIA_TYPE))
             .build()
         executeRemoteChanges(record, token, remoteRequest)
@@ -537,24 +538,31 @@ class FileOperationEngine(
                     }
 
                     val event = JSONObject(line)
+                    if (event.getString("event") == "error") {
+                        event.remove("event")
+                        throw ApiException(event.toString(), response.code)
+                    }
+
                     if (event.getString("event") == "complete") {
                         if (complete || completed != expectedTotal) {
                             throw IllegalStateException("Finalización remota no válida")
                         }
 
-                        if (record.operation == FileOperationRecord.OPERATION_REMOTE_MOVE) {
-                            val sourceVersion = event.getJSONObject("source")
+                        if (record.operation in setOf(FileOperationRecord.OPERATION_REMOTE_MOVE, FileOperationRecord.OPERATION_REMOTE_COPY)) {
                             val destinationVersion = event.getJSONObject("destination")
-                            if (
-                                sourceVersion.getString("dir").isEmpty() ||
-                                sourceVersion.getString("version").isEmpty() ||
-                                destinationVersion.getString("dir").isEmpty() ||
-                                destinationVersion.getString("version").isEmpty()
-                            ) {
-                                throw IllegalStateException("Versiones remotas no válidas")
+                            if (destinationVersion.getString("dir").isEmpty() || destinationVersion.getString("version").isEmpty()) {
+                                throw IllegalStateException("Versión de destino no válida")
                             }
 
-                            record.result?.put("source", sourceVersion)?.put("destination", destinationVersion)
+                            record.result?.put("destination", destinationVersion)
+                            if (record.operation == FileOperationRecord.OPERATION_REMOTE_MOVE) {
+                                val sourceVersion = event.getJSONObject("source")
+                                if (sourceVersion.getString("dir").isEmpty() || sourceVersion.getString("version").isEmpty()) {
+                                    throw IllegalStateException("Versión de origen no válida")
+                                }
+
+                                record.result?.put("source", sourceVersion)
+                            }
                         } else {
                             val version = event.getString("version")
                             if (version.isEmpty()) {
@@ -582,7 +590,7 @@ class FileOperationEngine(
                     completed = eventCompleted
                     changes.put(change)
                     record.bytesTransferred = completed.toLong()
-                    if (record.operation == FileOperationRecord.OPERATION_REMOTE_MOVE) {
+                    if (record.operation in setOf(FileOperationRecord.OPERATION_REMOTE_MOVE, FileOperationRecord.OPERATION_REMOTE_COPY)) {
                         record.currentFileName = change.optString("targetPath").takeIf { it.isNotEmpty() }
                             ?: change.getString("path")
                     }

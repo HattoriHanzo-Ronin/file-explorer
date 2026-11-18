@@ -2,6 +2,7 @@ import type {
     FileOperationSnapshot,
     NativeDownloadRequest,
     NativeRemoteDeleteRequest,
+    NativeRemoteCopyRequest,
     NativeRemoteMoveRequest,
     NativeRemoteMkdirRequest,
     NativeRemoteRenameRequest,
@@ -21,6 +22,8 @@ export interface RemoteFileOperation {
     startRename(request: NativeRemoteRenameRequest): Promise<string>;
 
     startMove(request: NativeRemoteMoveRequest): Promise<string>;
+
+    startCopy(request: NativeRemoteCopyRequest): Promise<string>;
 
     cancel(id: string): void;
 

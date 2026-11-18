@@ -66,6 +66,7 @@ data class FileOperationRecord(
         const val OPERATION_REMOTE_MKDIR = "REMOTE_MKDIR"
         const val OPERATION_REMOTE_RENAME = "REMOTE_RENAME"
         const val OPERATION_REMOTE_MOVE = "REMOTE_MOVE"
+        const val OPERATION_REMOTE_COPY = "REMOTE_COPY"
         const val OPERATION_REMOTE_DELETE = "REMOTE_DELETE"
         const val OPERATION_LOCAL_MKDIR = "LOCAL_MKDIR"
         const val OPERATION_LOCAL_RENAME = "LOCAL_RENAME"

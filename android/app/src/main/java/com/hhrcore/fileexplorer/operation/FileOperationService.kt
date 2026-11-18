@@ -169,6 +169,7 @@ class FileOperationService : Service() {
             FileOperationRecord.OPERATION_REMOTE_MKDIR -> "remoteMkdir"
             FileOperationRecord.OPERATION_REMOTE_RENAME -> "remoteRename"
             FileOperationRecord.OPERATION_REMOTE_MOVE -> "remoteMove"
+            FileOperationRecord.OPERATION_REMOTE_COPY -> "remoteCopy"
             FileOperationRecord.OPERATION_REMOTE_DELETE -> "remoteDelete"
             FileOperationRecord.OPERATION_LOCAL_MKDIR -> "localMkdir"
             FileOperationRecord.OPERATION_LOCAL_RENAME -> "localRename"

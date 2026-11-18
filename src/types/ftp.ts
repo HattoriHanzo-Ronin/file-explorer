@@ -1,6 +1,7 @@
 import type {
     RemoteDeleteOperationResult,
     RemoteDirectoryOperationResult,
+    RemoteCopyOperationResult,
     RemoteMoveOperationResult
 } from "./file-operations";
 
@@ -43,6 +44,8 @@ export interface MoveEntriesRequest extends FtpDirectoryRequest {
     destination: string;
 }
 
+export type CopyEntriesRequest = MoveEntriesRequest;
+
 export interface RenameEntryRequest extends FtpDirectoryRequest {
     entry: FtpEntry;
     newName: string;
@@ -63,5 +66,6 @@ export type DeleteEntriesRequest = EntriesRequest;
 export type GetDirectoryResponse = RemoteDirectoryOperationResult;
 export type CreateDirectoryResponse = RemoteDirectoryOperationResult;
 export type MoveEntriesResponse = RemoteMoveOperationResult;
+export type CopyEntriesResponse = RemoteCopyOperationResult;
 export type RenameEntryResponse = RemoteDirectoryOperationResult;
 export type DeleteEntriesResponse = RemoteDeleteOperationResult;

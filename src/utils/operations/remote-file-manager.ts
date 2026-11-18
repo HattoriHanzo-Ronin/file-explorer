@@ -3,6 +3,7 @@ import { FILE_OPERATION_NOTIFICATION_TEXTS } from "../../constants/file-operatio
 import type { LocalModifyElement } from "../../types/files";
 import type { FtpEntry } from "../../types/ftp";
 import type {
+    CopyEntriesRequest,
     CreateDirectoryRequest,
     DeleteEntriesRequest,
     MoveEntriesRequest,
@@ -12,6 +13,7 @@ import type { ApiResponse } from "../../types/api-response";
 import type {
     FileOperationSelection,
     FileOperationSnapshot,
+    RemoteCopyOperationResult,
     RemoteDeleteOperationResult,
     RemoteDirectoryOperationResult,
     RemoteMoveOperationResult
@@ -228,35 +230,12 @@ export default class RemoteFileManager {
      * @returns Remote operation response
      */
     async move(request: MoveEntriesRequest): Promise<ApiResponse<RemoteMoveOperationResult>> {
-        const { destination, dir, entries } = request;
-        const accessToken = await this.prepareOperation();
-        if (!accessToken.success) {
-            return accessToken;
-        }
+        return this.copyMove(request, "REMOTE_MOVE");
+    }
 
-        try {
-            const id = await this.remoteFileOperation.startMove({
-                apiUrl: this.apiUrl,
-                accessToken: accessToken.data,
-                notificationTexts: FILE_OPERATION_NOTIFICATION_TEXTS,
-                ...(dir === undefined || dir === " " ? {} : { remoteDir: dir }),
-                destination: destination === " " ? "" : destination,
-                entries
-            });
-            const result = await this.waitForCompletion(id);
-            if (!result.success) {
-                return result;
-            }
-
-            const operationResult = this.getRemoteMoveResult(result.data);
-            if (!operationResult) {
-                return this.operationError();
-            }
-
-            return { success: true, data: operationResult };
-        } catch {
-            return this.operationError();
-        }
+    /** Copies remote entries */
+    async copy(request: CopyEntriesRequest): Promise<ApiResponse<RemoteCopyOperationResult>> {
+        return this.copyMove(request, "REMOTE_COPY");
     }
 
     /**
@@ -312,6 +291,42 @@ export default class RemoteFileManager {
         return (this.activeDownloads.get(dir)?.size ?? 0) > 0;
     }
 
+    private copyMove(request: MoveEntriesRequest, operation: "REMOTE_MOVE"): Promise<ApiResponse<RemoteMoveOperationResult>>;
+    private copyMove(request: CopyEntriesRequest, operation: "REMOTE_COPY"): Promise<ApiResponse<RemoteCopyOperationResult>>;
+    private async copyMove(
+        request: MoveEntriesRequest,
+        operation: "REMOTE_MOVE" | "REMOTE_COPY"
+    ): Promise<ApiResponse<RemoteMoveOperationResult | RemoteCopyOperationResult>> {
+        const { destination, dir, entries } = request;
+        const accessToken = await this.prepareOperation();
+        if (!accessToken.success) {
+            return accessToken;
+        }
+
+        try {
+            const options = {
+                apiUrl: this.apiUrl,
+                accessToken: accessToken.data,
+                notificationTexts: FILE_OPERATION_NOTIFICATION_TEXTS,
+                ...(dir === undefined || dir === " " ? {} : { remoteDir: dir }),
+                destination: destination === " " ? "" : destination,
+                entries
+            };
+            const id = operation === "REMOTE_MOVE"
+                ? await this.remoteFileOperation.startMove(options)
+                : await this.remoteFileOperation.startCopy(options);
+            const result = await this.waitForCompletion(id);
+            if (!result.success) {
+                return result;
+            }
+
+            const operationResult = this.getRemoteCopyMoveResult(result.data);
+            return operationResult ? { success: true, data: operationResult } : this.operationError();
+        } catch {
+            return this.operationError();
+        }
+    }
+
     private handleChange(operation: FileOperationSnapshot, notifyError: boolean): boolean {
         const { destinationDir, id, operation: type, remoteDir, revision, status } = operation;
         if (!this.acceptRevision(id, revision, notifyError)) {
@@ -323,9 +338,9 @@ export default class RemoteFileManager {
             revision,
             unclaimed: !active && !notifyError && !this.completionListeners.has(id)
         });
-        if (["REMOTE_MOVE", "REMOTE_DELETE", "REMOTE_MKDIR", "REMOTE_RENAME"].includes(type)) {
+        if (["REMOTE_MOVE", "REMOTE_COPY", "REMOTE_DELETE", "REMOTE_MKDIR", "REMOTE_RENAME"].includes(type)) {
             const directories = [remoteDir];
-            if (type === "REMOTE_MOVE") {
+            if (type === "REMOTE_MOVE" || type === "REMOTE_COPY") {
                 directories.push(destinationDir);
             }
 
@@ -458,20 +473,28 @@ export default class RemoteFileManager {
         return "changes" in result && "version" in result ? result : undefined;
     }
 
-    private getRemoteMoveResult(operation: FileOperationSnapshot): RemoteMoveOperationResult | undefined {
+    private getRemoteCopyMoveResult(
+        operation: FileOperationSnapshot
+    ): RemoteMoveOperationResult | RemoteCopyOperationResult | undefined {
         const { operation: operationType, result } = operation;
-        if (operationType !== "REMOTE_MOVE" || !result) {
+        if (!["REMOTE_MOVE", "REMOTE_COPY"].includes(operationType) || !result ||
+            !("changes" in result) || !("destination" in result)) {
             return undefined;
         }
 
-        if (!("changes" in result) || !("source" in result) || !("destination" in result)) {
+        const destination = { ...result.destination, dir: this.normalizeRemoteDir(result.destination.dir) };
+        if (operationType === "REMOTE_COPY") {
+            return { changes: result.changes, destination };
+        }
+
+        if (!("source" in result)) {
             return undefined;
         }
 
         return {
-            ...result,
+            changes: result.changes,
             source: { ...result.source, dir: this.normalizeRemoteDir(result.source.dir) },
-            destination: { ...result.destination, dir: this.normalizeRemoteDir(result.destination.dir) }
+            destination
         };
     }
 
@@ -507,7 +530,7 @@ export default class RemoteFileManager {
     }
 
     private isRemoteOperation(operation: FileOperationSnapshot): boolean {
-        return ["UPLOAD", "DOWNLOAD", "REMOTE_MOVE", "REMOTE_DELETE", "REMOTE_MKDIR", "REMOTE_RENAME"].includes(
+        return ["UPLOAD", "DOWNLOAD", "REMOTE_MOVE", "REMOTE_COPY", "REMOTE_DELETE", "REMOTE_MKDIR", "REMOTE_RENAME"].includes(
             operation.operation
         );
     }

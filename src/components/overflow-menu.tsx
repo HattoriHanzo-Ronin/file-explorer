@@ -192,7 +192,7 @@ function getMenuVisibility(
         showUpload: hasLocalSelection && !hasFtpSelection,
         showShare: storage === "local" && canShare,
         showDownload: hasFtpSelection && !hasLocalSelection,
-        showCopy: storage === "local" && hasLocalSelection,
+        showCopy: activeSelectionCount > 0,
         showMove: activeSelectionCount > 0,
         showMakeDir: !hasSelection,
         showRename: activeSelectionCount === 1,

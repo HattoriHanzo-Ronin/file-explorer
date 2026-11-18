@@ -12,6 +12,8 @@ import type {
 import type {
     CreateDirectoryRequest,
     CreateDirectoryResponse,
+    CopyEntriesRequest,
+    CopyEntriesResponse,
     DeleteEntriesRequest,
     DeleteEntriesResponse,
     FtpEntry,
@@ -342,6 +344,23 @@ export default class ApiUtils {
 
         return this.executeRequest(async () => {
             const result = await this.remoteFileManager.move(request);
+            if (!result.success) {
+                throw result.error;
+            }
+
+            return result.data;
+        });
+    }
+
+    /**
+     * Copies remote entries
+     *
+     * @param request Entries and destination
+     * @returns Confirmed copied entries
+     */
+    async copyEntries(request: CopyEntriesRequest): Promise<ApiResponse<CopyEntriesResponse>> {
+        return this.executeRequest(async () => {
+            const result = await this.remoteFileManager.copy(request);
             if (!result.success) {
                 throw result.error;
             }

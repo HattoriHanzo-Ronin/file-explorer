@@ -42,6 +42,7 @@ function createApiUtils() {
         rename: jest.fn(),
         isRemoteDirectoryBusy: jest.fn(),
         move: jest.fn(),
+        copy: jest.fn(),
         delete: jest.fn()
     };
     const storage = { get: jest.fn() };
@@ -256,6 +257,19 @@ describe("ApiUtils", () => {
                 }
             }
         );
+    });
+
+    it("returns API errors from remote copy", async () => {
+        const { apiUtils, remoteFileManager } = createApiUtils();
+        remoteFileManager.copy.mockResolvedValue({
+            success: false,
+            error: { code: "FTP_COPY_FAILED", message: "Error al copiar los archivos" }
+        });
+
+        await expect(apiUtils.copyEntries({ dir: "source", destination: "target", entries: ENTRIES })).resolves.toEqual({
+            success: false,
+            error: { code: "FTP_COPY_FAILED", message: "Error al copiar los archivos" }
+        });
     });
 
     it("rejects a remote move to the source directory", async () => {
