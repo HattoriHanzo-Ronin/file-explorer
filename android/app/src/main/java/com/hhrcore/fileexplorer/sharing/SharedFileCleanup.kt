@@ -2,7 +2,6 @@ package com.hhrcore.fileexplorer.sharing
 
 import android.content.Context
 import android.os.Environment
-import com.hhrcore.fileexplorer.BuildConfig
 import com.hhrcore.fileexplorer.operation.FileOperationRecord
 import com.hhrcore.fileexplorer.operation.OperationRegistry
 import com.hhrcore.fileexplorer.operation.impl.SqliteOperationStore
@@ -20,7 +19,7 @@ class SharedFileCleanup(context: Context) {
     private val publicDirectory = File(
         Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "FileExplorer-shared"
     ).canonicalFile
-    internal val sharedDirectory = if (BuildConfig.DEBUG) publicDirectory else privateDirectory
+    internal val sharedDirectory = privateDirectory
     private val sharedDirectories = setOf(privateDirectory, publicDirectory)
 
     /**
@@ -113,7 +112,7 @@ class SharedFileCleanup(context: Context) {
                 val paths = (0 until entries.length()).mapNotNull { entries.optJSONObject(it)?.optString("path") }
                 directories(paths)
             }.toSet()
-            val cutoff = System.currentTimeMillis() - if (BuildConfig.DEBUG) DEBUG_EXPIRY_MS else EXPIRY_MS
+            val cutoff = System.currentTimeMillis() - EXPIRY_MS
             records.filter {
                 it.operation == FileOperationRecord.OPERATION_SHARED && it.status == FileOperationRecord.STATUS_PENDING &&
                     it.updatedAt <= cutoff && !OperationRegistry.isActive(it.id)
@@ -147,7 +146,6 @@ class SharedFileCleanup(context: Context) {
 
     companion object {
         internal val LOCK = Any()
-        private const val DEBUG_EXPIRY_MS = 3 * 60 * 1000L
         private const val EXPIRY_MS = 15 * 60 * 1000L
     }
 }
