@@ -15,7 +15,9 @@
 * Keep methods small whenever reasonable; extract repeated logic only when it provides real value
 * Avoid duplication, unnecessary layers, helpers, and abstractions
 * When a module has a single export, use `export default`; for a type alias, use a named `export type` on its declaration because TypeScript does not support `export default type`
+* Declare exports at the end of a file when exporting constants; other exports do not need to be placed at the end
 * Maintain the project's compact style; keep code inline when it fits on one line and remains readable
+* When an arrow function spans more than one line, use a block body with braces; use an explicit return when it must return a value
 * Do not write inline `if` statements; always use a block with braces
 * Allow simple `if/else` statements when they clearly express two paths; avoid `else if` chains, nested trees, and complex flow. Prefer early returns, independent conditions, or `continue`; use `switch` when it represents several discrete cases more clearly
 * If more code continues in the same block after an `if` block, add a blank line
@@ -26,7 +28,7 @@
 * Declare a schema regular expression inline when it is used only once; make it a local constant only when it is reused within the same schema
 * Do not add unnecessary line breaks or split strings and expressions solely for style when they remain readable and do not clearly exceed the horizontal limit
 * Do not add comments to explain obvious code
-* In simple callbacks, keep `it` when destructuring would not be useful; when the full object does not need to be retained, destructure the used properties. If it is retained, use a descriptive name
+* In methods, functions, arrow callbacks, and iterators, destructure the properties used when the full object is not needed; when it must be retained, use a descriptive name instead of `it`
 * Do not create intermediate variables solely to satisfy lint rules when direct destructuring with `let` is clearer
 * When importing an object-type constant, access its property directly when it is used only once; destructure when two or more properties are used or when the same property is used more than once
 * Group the consumed properties of the same constant in a single destructuring expression, including nested destructuring when appropriate
@@ -41,29 +43,34 @@
 * Preserve intentional `value == null` and `value != null` comparisons when they deliberately match both `null` and `undefined`; do not replace them solely to satisfy `eqeqeq`
 * Preserve typed arrays and structures in mappings when other components need to filter them; convert them to text only in the final presentation layer
 * Keep static styles in `src/styles`; only leave dynamically computed values in components
-* Place every component with its own file in `src/components`, whether it is shared or route-specific; keep route files as minimal adapters only when the router requires them
+* Place components reused across screens or containing substantial logic in `src/components`; keep small components with specific functionality in their existing file, and use minimal route adapters only when the router requires them
 * Inject instantiable dependencies that share state or configuration, such as API clients, storage, and authentication managers
 * When an abstraction has a dedicated folder, place its implementations in `impl`
+* Name implementations for their concrete responsibility; do not apply an `Impl` suffix by default. Reserve the `Utils` suffix for pure utility classes
 
 ## Typing, contracts, and generics
 
 * Type parameters whenever possible and use the most specific available type that respects the complete contract
 * Represent fixed sets of values with `Object.freeze({ ... } as const)` instead of TypeScript `enum`, following the existing configuration constants
 * Typing and JSDoc must reflect the complete contract received by a function or method, not only the properties used internally
-* When receiving an object with an existing contract, preserve and reference its complete type; do not replace it with a partial type, reduced inline object, or the type of a locally used property
+* If a parameter receives a complete object, preserve and reference its complete type; do not replace it with a partial type, reduced inline object, or the type of a locally used property
+* A distinct contract may derive the properties it needs from an existing type using `Pick` or `Omit`; do not reduce an already established complete parameter contract solely to match its internal usage
 * Explicitly type the value of every `useState`, even when TypeScript can infer it, so every state exposes a clear contract
 * Every component must receive its parameters through a single `props` object; do not destructure directly in the signature
 * Destructure `props` inside the component when it receives more than one property or when a single property is used more than once; if it receives one property used once, access it through `props.name`
 * Every component that receives `children` must type its props with `PropsWithChildren`, whether it only receives `children` or extends its own contract
-* Services, facades, and methods in other layers whose contract may grow must receive a single object parameter
+* Service and facade methods that receive parameters must group them in an object; methods in other layers that receive parameters and may grow should also group them in an object
+* Methods that need no parameters must not receive an empty object or introduce an empty parameter type solely for this convention
 * Prefer named interfaces or types for reusable, public, or complex contracts; use inline types only for simple local contracts
-* Use generics only when they express a reusable relationship between types; avoid generic types when a more precise alternative exists
+* Use generics when a contract preserves a caller-defined type, defers an implementation-specific dependency to the implementation, or models a genuinely variable result; avoid them when a concrete type expresses the complete contract
 * When a method supports a fixed set of input and output types, prefer concrete overloads that preserve each input-to-output relationship over a generic
 * Reuse dependency types already defined in `types/`; implementations must reuse parameter and data-contract types declared by their public interfaces rather than recreating equivalent local types
+* When a class receives multiple dependencies, store them as a single object using its existing dependency type; when it receives one dependency, type its property using the existing dependency type's property
 * Model actual control flow with precise types and narrowing whenever possible; when an error class is available, check it with `instanceof` before accessing its properties
 * Use assertions and non-null assertions only when a verified flow or contract guarantees the value and TypeScript cannot express it; never use them to replace validation or invent a guarantee
-* Public methods that implement an interface or abstract contract may omit an explicit return type when the contract already defines it; private methods and methods without a contract must declare it explicitly
+* Public methods that implement an interface or abstract contract omit an explicit return type when the contract already defines it; private methods and methods without a contract must declare it explicitly
 * Interfaces define public contracts: they do not contain `private` or `protected` members, and their properties must be `readonly` when consumers should only read them
+* Do not bind an interface or its public data types to an implementation-specific package or technology; use a generic parameter when the implementation determines the type
 * Plain objects, interfaces, types, and configuration may expose properties directly; preserve the names and types of the public contract
 
 ## Encapsulation and property access
@@ -83,6 +90,7 @@
 * Document base types such as `ApiResponse` and `ApiErrorResponse`, interfaces reused throughout the application, and types whose purpose is not obvious
 * Do not document CRUD DTOs, such as `LoginRequest`, `UserResponse`, or `UpdateDeviceRequest`, nor interfaces whose name clearly explains their role
 * Do not document `params` as an intermediate object; document `params.id`, `params.data`, and other properties directly
+* Before documenting a parameter, check its contract and existing types; do not infer or redefine the contract from local use
 * Do not add `@returns` when a function does not explicitly return anything
 * Do not add JSDoc to React components
 * Maintain documentation consistency throughout the project
@@ -118,6 +126,18 @@
 * Document private methods only when their name does not explain the behavior, they contain relevant logic, perform complex transformations, or are not immediately obvious
 * Do not document obvious private helpers
 
+## Logging
+
+* Follow the complete operation and error flow before choosing where to log; record each failure once at the layer that knows its original cause and has the information needed to diagnose it
+* Do not log the same failure again when another layer transforms or propagates it; log a separate event for a distinct outcome such as a failed rollback, including the resources that could not be restored
+* Include relevant identifiers and operation context already available at the responsible layer; do not introduce dependencies or catch blocks solely to obtain unnecessary context
+* Choose error, warning, and information levels according to the outcome and operational value; do not treat expected cancellations or ordinary validation failures as unexpected errors or generate noise from routine activity
+* Keep log messages and text context in English and preserve useful diagnostic details without exposing credentials or tokens
+* When log events are intended for metrics, ensure their meaning and placement do not count the same operation failure more than once
+* Measure duration for completed operations when useful, especially long-running work; include total size for completed transfers when available and clarify whether duration includes preparation, waiting, or pauses
+* Record completion and its measurements only when the complete operation has succeeded; account for retries, resumed transfers, and concurrent work to avoid duplicate or misleading metrics
+* For sampled resource peaks, state whether consumption belongs to a process, session, or shared container, record the sampling period and relevant concurrent workload, and report unavailable data as unavailable rather than zero
+
 ## Testing
 
 * Keep tests outside `src`, within `tests`
@@ -136,6 +156,7 @@
 ## Expected way of working
 
 * Do not create commits unless the user explicitly requests them
+* When requested, commit changes to `ai-context.md` and `README.md` together in a documentation commit separate from code changes
 * When commits are requested, separate dependency updates, implementation, tests, and documentation according to their responsibility
 * Strictly limit changes to the requested scope; do not modify, fix, or refactor files or code the user did not ask to touch
 * If refactoring is requested, generate the refactored code directly
