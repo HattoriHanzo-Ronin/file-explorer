@@ -1,4 +1,4 @@
-package com.hhrcore.fileexplorer.operation.impl
+package com.hhrcore.fileexplorer.operation.store.impl
 
 import android.content.ContentValues
 import android.content.Context
@@ -6,10 +6,15 @@ import android.database.sqlite.SQLiteDatabase
 import com.hhrcore.fileexplorer.database.ExplorerDatabaseHelper
 import com.hhrcore.fileexplorer.operation.FileOperationRecord
 import com.hhrcore.fileexplorer.operation.OperationRegistry
-import com.hhrcore.fileexplorer.operation.OperationStore
+import com.hhrcore.fileexplorer.operation.store.OperationStore
 import org.json.JSONArray
 import org.json.JSONObject
 
+/**
+ * SQLite file operation store
+ *
+ * @author HattoriHanzo-Ronin
+ */
 class SqliteOperationStore(context: Context) : OperationStore {
     private val helper: ExplorerDatabaseHelper
     private val legacyPreferences = context.getSharedPreferences(LEGACY_PREFERENCES, Context.MODE_PRIVATE)
@@ -24,7 +29,9 @@ class SqliteOperationStore(context: Context) : OperationStore {
         record.revision = nextRevision(database)
         record.updatedAt = System.currentTimeMillis()
         database.transaction {
-            insertWithOnConflict(TABLE, null, record.values(), SQLiteDatabase.CONFLICT_REPLACE)
+            check(insertWithOnConflict(TABLE, null, record.values(), SQLiteDatabase.CONFLICT_REPLACE) != -1L) {
+                "Could not save file operation"
+            }
             saveRecovery(record)
         }
     }
@@ -67,9 +74,9 @@ class SqliteOperationStore(context: Context) : OperationStore {
     }
 
     override fun reconcileInterrupted(reconcile: (FileOperationRecord) -> Unit): String = synchronized(reconciliationLock) {
-        list().filter { (it.status in ACTIVE_STATUSES || it.moveCommitStarted || it.cleanupPending || it.pendingStagePath != null) && !OperationRegistry.isActive(it.id) }
+        list().filter { it.operation != FileOperationRecord.OPERATION_SHARED && (it.status in ACTIVE_STATUSES || it.moveCommitStarted || it.cleanupPending || it.pendingStagePath != null) && !OperationRegistry.isActive(it.id) }
             .forEach(reconcile)
-        JSONArray(list().map { it.toJson() }).toString()
+        JSONArray(list().filter { it.operation != FileOperationRecord.OPERATION_SHARED }.map { it.toJson() }).toString()
     }
 
     override fun removeSettled() = synchronized(lock) {
@@ -89,7 +96,7 @@ class SqliteOperationStore(context: Context) : OperationStore {
         helper.close()
     }
 
-    private fun migrateLegacyRecords() = synchronized(lock) {
+    private fun migrateLegacyRecords(): Unit = synchronized(lock) {
         val records = legacyPreferences.all
             .filterKeys { it != LEGACY_REVISION_KEY }
             .values
@@ -130,7 +137,7 @@ class SqliteOperationStore(context: Context) : OperationStore {
         }
     }
 
-    private fun SQLiteDatabase.saveRecovery(record: FileOperationRecord) {
+    private fun SQLiteDatabase.saveRecovery(record: FileOperationRecord): Unit {
         val recovery = record.recovery() ?: run {
             delete(RECOVERY_TABLE, "$COLUMN_OPERATION_ID = ?", arrayOf(record.id))
             return
@@ -172,7 +179,7 @@ class SqliteOperationStore(context: Context) : OperationStore {
         return null
     }
 
-    private fun SQLiteDatabase.transaction(operation: SQLiteDatabase.() -> Unit) {
+    private fun SQLiteDatabase.transaction(operation: SQLiteDatabase.() -> Unit): Unit {
         beginTransaction()
         try {
             operation()
@@ -212,7 +219,6 @@ class SqliteOperationStore(context: Context) : OperationStore {
         private const val RECOVERY_ROLLBACK = "ROLLBACK"
         private const val RECOVERY_PENDING = "PENDING"
         private const val RECOVERY_COMPLETED = "COMPLETED"
-
     }
 
     private data class OperationRecovery(val type: String, val status: String)

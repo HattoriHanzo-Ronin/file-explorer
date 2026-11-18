@@ -1,5 +1,15 @@
 import { NativeModules } from "react-native";
-import type { DatabaseMutation, DatabaseQuery, DatabaseRow, DatabaseValue } from "../../../types/database";
+import type {
+    DatabaseDeleteParams,
+    DatabaseGetByIdParams,
+    DatabaseInsertParams,
+    DatabaseMutation,
+    DatabaseQuery,
+    DatabaseQueryParams,
+    DatabaseRow,
+    DatabaseUpdateParams,
+    DatabaseValue
+} from "../../../types/database";
 import type { Database } from "../database";
 
 interface NativeDatabaseModule {
@@ -26,58 +36,58 @@ export default class NativeDatabase implements Database {
     /**
      * Inserts a row
      *
-     * @param table Table name
-     * @param values Row values
+     * @param params.table Table name
+     * @param params.values Row values
      * @returns Inserted row identifier
      */
-    async insert(table: string, values: DatabaseRow): Promise<number> {
-        return this.module.insert(table, values);
+    async insert(params: DatabaseInsertParams) {
+        return this.module.insert(params.table, params.values);
     }
 
     /**
      * Updates rows
      *
-     * @param table Table name
-     * @param values Values to update
-     * @param where Row condition
+     * @param params.table Table name
+     * @param params.values Values to update
+     * @param params.where Row condition
      * @returns Updated row count
      */
-    async update(table: string, values: DatabaseRow, where: DatabaseRow): Promise<number> {
-        return this.module.update(table, values, where);
+    async update(params: DatabaseUpdateParams) {
+        return this.module.update(params.table, params.values, params.where);
     }
 
     /**
      * Deletes rows
      *
-     * @param table Table name
-     * @param where Row condition
+     * @param params.table Table name
+     * @param params.where Row condition
      * @returns Deleted row count
      */
-    async delete(table: string, where: DatabaseRow): Promise<number> {
-        return this.module.delete(table, where);
+    async delete(params: DatabaseDeleteParams) {
+        return this.module.delete(params.table, params.where);
     }
 
     /**
      * Returns matching rows
      *
-     * @param table Table name
-     * @param options Query options
+     * @param params.table Table name
+     * @param params.options Query options
      * @returns Matching rows
      */
-    async query<T extends DatabaseRow>(table: string, options?: DatabaseQuery): Promise<T[]> {
-        return (await this.module.query(table, options ?? null)) as T[];
+    async query<T extends DatabaseRow>(params: DatabaseQueryParams) {
+        return (await this.module.query(params.table, params.options ?? null)) as T[];
     }
 
     /**
      * Returns a row by identifier
      *
-     * @param table Table name
-     * @param id Row identifier
-     * @param column Identifier column
+     * @param params.table Table name
+     * @param params.id Row identifier
+     * @param params.column Identifier column
      * @returns Matching row
      */
-    async getById<T extends DatabaseRow>(table: string, id: DatabaseValue, column = "id"): Promise<T | null> {
-        return (await this.module.getById(table, { value: id }, column)) as T | null;
+    async getById<T extends DatabaseRow>(params: DatabaseGetByIdParams) {
+        return (await this.module.getById(params.table, { value: params.id }, params.column ?? "id")) as T | null;
     }
 
     /**
@@ -86,7 +96,7 @@ export default class NativeDatabase implements Database {
      * @param operations Database mutations
      * @returns Transaction completion
      */
-    async executeTransaction(operations: DatabaseMutation[]): Promise<void> {
+    async executeTransaction(operations: DatabaseMutation[]) {
         return this.module.executeTransaction(operations);
     }
 }

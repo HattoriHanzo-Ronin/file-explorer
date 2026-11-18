@@ -9,15 +9,21 @@ import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
+import com.hhrcore.fileexplorer.thumbnail.cache.ThumbnailCache
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
-import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
 import kotlin.math.max
 
+/**
+ * Local thumbnail generator
+ *
+ * @author HattoriHanzo-Ronin
+ */
 class ThumbnailGeneratorModule(context: ReactApplicationContext, cache: ThumbnailCache) : ReactContextBaseJavaModule(context) {
     private val context: ReactApplicationContext
     private val executor: ExecutorService
@@ -40,32 +46,48 @@ class ThumbnailGeneratorModule(context: ReactApplicationContext, cache: Thumbnai
 
     override fun getName() = "ThumbnailGenerator"
 
+    /**
+     * Configures the idle timeout for cache cleanup
+     *
+     * @param idleTimeoutMs Idle timeout in milliseconds
+     */
     @ReactMethod
     fun configure(idleTimeoutMs: Double) {
         synchronized(cacheLock) {
             this.idleTimeoutMs = idleTimeoutMs.toLong()
-        }
-        cleanupExecutor.execute {
-            cleanupCache()
+            if (!cleanupExecutor.isShutdown) {
+                cleanupExecutor.execute { cleanupCache() }
+            }
         }
     }
 
+    /**
+     * Returns a cached or newly generated thumbnail
+     *
+     * @param path Source file path
+     * @param promise Receives the thumbnail URI or null
+     */
     @ReactMethod
     fun generate(path: String, promise: Promise) {
         synchronized(cacheLock) {
+            if (executor.isShutdown) {
+                promise.reject("THUMBNAIL_GENERATION_ERROR", "El generador de miniaturas está cerrado")
+                return
+            }
+
             pendingRequests++
             cleanupTask?.cancel(false)
-        }
-        executor.execute {
-            try {
-                synchronized(locks[(path.hashCode() and Int.MAX_VALUE) % locks.size]) {
-                    generateThumbnail(path, promise)
-                }
-            } finally {
-                synchronized(cacheLock) {
-                    pendingRequests--
-                    if (pendingRequests == 0 && idleTimeoutMs > 0) {
-                        cleanupTask = cleanupExecutor.schedule(::cleanupCache, idleTimeoutMs, TimeUnit.MILLISECONDS)
+            executor.execute {
+                try {
+                    synchronized(locks[(path.hashCode() and Int.MAX_VALUE) % locks.size]) {
+                        generateThumbnail(path, promise)
+                    }
+                } finally {
+                    synchronized(cacheLock) {
+                        pendingRequests--
+                        if (pendingRequests == 0 && idleTimeoutMs > 0 && !cleanupExecutor.isShutdown) {
+                            cleanupTask = cleanupExecutor.schedule(::cleanupCache, idleTimeoutMs, TimeUnit.MILLISECONDS)
+                        }
                     }
                 }
             }
@@ -73,13 +95,26 @@ class ThumbnailGeneratorModule(context: ReactApplicationContext, cache: Thumbnai
     }
 
     override fun invalidate() {
-        executor.shutdownNow()
-        cleanupExecutor.shutdownNow()
-        cache.close()
+        synchronized(cacheLock) {
+            cleanupTask?.cancel(false)
+            executor.shutdown()
+            cleanupExecutor.shutdown()
+        }
+        Thread {
+            try {
+                while (!executor.awaitTermination(1, TimeUnit.DAYS)) {
+                }
+                while (!cleanupExecutor.awaitTermination(1, TimeUnit.DAYS)) {
+                }
+                cache.close()
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+            }
+        }.start()
         super.invalidate()
     }
 
-    private fun generateThumbnail(path: String, promise: Promise) {
+    private fun generateThumbnail(path: String, promise: Promise): Unit {
         try {
             val source = File(path).canonicalFile
             if (!source.isFile) {
@@ -113,8 +148,11 @@ class ThumbnailGeneratorModule(context: ReactApplicationContext, cache: Thumbnai
             } finally {
                 bitmap.recycle()
             }
-            val cachedThumbnail = cache.store(source, thumbnail)
-            thumbnail.delete()
+            val cachedThumbnail = try {
+                cache.store(source, thumbnail)
+            } finally {
+                thumbnail.delete()
+            }
             promise.resolve(Uri.fromFile(cachedThumbnail).toString())
         } catch (error: Exception) {
             promise.reject("THUMBNAIL_GENERATION_ERROR", error.message, error)
@@ -159,7 +197,10 @@ class ThumbnailGeneratorModule(context: ReactApplicationContext, cache: Thumbnai
 
     private fun calculateSampleSize(width: Int, height: Int): Int {
         var sampleSize = 1
-        while (width / sampleSize > THUMBNAIL_SIZE * 2 || height / sampleSize > THUMBNAIL_SIZE * 2) sampleSize *= 2
+        while (width / sampleSize > THUMBNAIL_SIZE * 2 || height / sampleSize > THUMBNAIL_SIZE * 2) {
+            sampleSize *= 2
+        }
+
         return sampleSize
     }
 
@@ -174,7 +215,7 @@ class ThumbnailGeneratorModule(context: ReactApplicationContext, cache: Thumbnai
         }
     }
 
-    private fun cleanupCache() {
+    private fun cleanupCache(): Unit {
         synchronized(cacheLock) {
             if (pendingRequests > 0) {
                 return

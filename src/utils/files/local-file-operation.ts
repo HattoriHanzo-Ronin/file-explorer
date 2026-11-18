@@ -1,6 +1,8 @@
 import type {
     FileOperationSnapshot,
     NativeLocalCopyMoveRequest,
+    NativeLocalImmediateMkdirRequest,
+    NativeLocalImmediateRenameRequest,
     NativeLocalDeleteRequest,
     NativeLocalMkdirRequest,
     NativeLocalRenameRequest,
@@ -18,9 +20,9 @@ export interface LocalFileOperation {
 
     readDir(path: string): Promise<FileSystemEntry[]>;
 
-    tryCreateDirectory(destination: string, name: string): Promise<boolean>;
+    tryCreateDirectory(params: NativeLocalImmediateMkdirRequest): Promise<boolean>;
 
-    tryRename(source: string, name: string): Promise<boolean>;
+    tryRename(params: NativeLocalImmediateRenameRequest): Promise<boolean>;
 
     createDirectory(request: NativeLocalMkdirRequest): Promise<string>;
 

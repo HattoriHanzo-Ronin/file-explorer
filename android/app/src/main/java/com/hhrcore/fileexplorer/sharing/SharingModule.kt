@@ -4,7 +4,9 @@ import android.content.ClipData
 import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
+import android.util.Log
 import android.webkit.MimeTypeMap
+import android.widget.Toast
 import androidx.core.content.FileProvider
 import com.facebook.react.bridge.ActivityEventListener
 import com.facebook.react.bridge.Arguments
@@ -21,9 +23,15 @@ import java.util.UUID
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
+/**
+ * File sharing module
+ *
+ * @author HattoriHanzo-Ronin
+ */
 class SharingModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext), ActivityEventListener {
     private val context: ReactApplicationContext
     private val executor: ExecutorService = Executors.newSingleThreadExecutor()
+    private val cleanup: SharedFileCleanup
     private val pendingFiles = mutableListOf<SharedFile>()
     private var initialIntentHandled = false
     @Volatile
@@ -31,11 +39,18 @@ class SharingModule(reactContext: ReactApplicationContext) : ReactContextBaseJav
 
     init {
         context = reactContext
+        cleanup = SharedFileCleanup(context)
         context.addActivityEventListener(this)
     }
 
     override fun getName() = "Sharing"
 
+    /**
+     * Shares local files with another application
+     *
+     * @param paths Local file paths
+     * @param promise Receives the sharing result
+     */
     @ReactMethod
     fun share(paths: ReadableArray, promise: Promise) {
         context.runOnUiQueueThread {
@@ -68,6 +83,11 @@ class SharingModule(reactContext: ReactApplicationContext) : ReactContextBaseJav
         }
     }
 
+    /**
+     * Returns received files awaiting processing
+     *
+     * @param promise Receives the shared files
+     */
     @ReactMethod
     fun getReceivedFiles(promise: Promise) {
         executor.execute {
@@ -79,25 +99,24 @@ class SharingModule(reactContext: ReactApplicationContext) : ReactContextBaseJav
                     copyReceivedFiles(files)
                     return@execute
                 }
-                promise.resolve(takePendingFiles())
+                promise.resolve(takePendingFiles().toWritableArray())
             } catch (error: Throwable) {
                 promise.reject("SHARING_RECEIVE_FAILED", error.message, error)
             }
         }
     }
 
+    /**
+     * Deletes temporary copies of received files
+     *
+     * @param paths Temporary file paths
+     * @param promise Receives cleanup completion
+     */
     @ReactMethod
     fun cleanupReceivedFiles(paths: ReadableArray, promise: Promise) {
         executor.execute {
             try {
-                val sharedDirectory = File(context.filesDir, SHARED_DIRECTORY).canonicalFile
-                (0 until paths.size()).mapNotNull(paths::getString).forEach { path ->
-                    val file = File(path).canonicalFile
-                    if (file.parentFile?.parentFile == sharedDirectory) {
-                        file.parentFile?.deleteRecursively()
-                    }
-                }
-
+                cleanup.cleanup((0 until paths.size()).mapNotNull(paths::getString))
                 promise.resolve(null)
             } catch (error: Throwable) {
                 promise.reject("SHARING_CLEANUP_FAILED", error.message, error)
@@ -105,11 +124,21 @@ class SharingModule(reactContext: ReactApplicationContext) : ReactContextBaseJav
         }
     }
 
+    /**
+     * Registers a shared file event listener
+     *
+     * @param eventName Event name
+     */
     @ReactMethod
     fun addListener(eventName: String) {
         listenerCount++
     }
 
+    /**
+     * Removes shared file event listeners
+     *
+     * @param count Number of listeners
+     */
     @ReactMethod
     fun removeListeners(count: Double) {
         listenerCount = (listenerCount - count.toInt()).coerceAtLeast(0)
@@ -118,7 +147,15 @@ class SharingModule(reactContext: ReactApplicationContext) : ReactContextBaseJav
     override fun onNewIntent(intent: Intent) {
         initialIntentHandled = true
         executor.execute {
-            val files = prepareReceivedFiles(intent)
+            val files = try {
+                prepareReceivedFiles(intent)
+            } catch (error: Exception) {
+                Log.e("SharingModule", "Could not receive shared files", error)
+                context.runOnUiQueueThread {
+                    Toast.makeText(context, "No se pudieron recibir los archivos", Toast.LENGTH_LONG).show()
+                }
+                return@execute
+            }
             if (files.isEmpty()) {
                 return@execute
             }
@@ -136,13 +173,12 @@ class SharingModule(reactContext: ReactApplicationContext) : ReactContextBaseJav
         super.invalidate()
     }
 
-    private fun takePendingFiles(): WritableArray {
-        val files = synchronized(pendingFiles) {
+    private fun takePendingFiles(): List<SharedFile> {
+        return synchronized(pendingFiles) {
             val receivedFiles = pendingFiles.toList()
             pendingFiles.clear()
             receivedFiles
         }
-        return files.toWritableArray()
     }
 
     private fun prepareReceivedFiles(intent: Intent?): List<SharedFile> {
@@ -151,18 +187,44 @@ class SharingModule(reactContext: ReactApplicationContext) : ReactContextBaseJav
             return emptyList()
         }
 
-        return receivedIntent.sharedUris().map { uri -> SharedFile(UUID.randomUUID().toString(), displayName(uri), uri, null, STATUS_PREPARING) }
+        val shareId = UUID.randomUUID().toString()
+        val files = receivedIntent.sharedUris().map { uri ->
+            SharedFile(UUID.randomUUID().toString(), shareId, displayName(uri), uri, null, STATUS_PREPARING)
+        }
+        if (files.isNotEmpty()) {
+            cleanup.register(shareId)
+        }
+
+        return files
     }
 
-    private fun copyReceivedFiles(files: List<SharedFile>) {
-        files.forEach { file ->
-            executor.execute {
-                dispatchReceivedFiles(listOf(copyReceivedFile(file)))
+    private fun copyReceivedFiles(files: List<SharedFile>): Unit {
+        val first = files.firstOrNull() ?: return
+        executor.execute {
+            try {
+                val copied = files.map { file ->
+                    val result = copyReceivedFile(file)
+                    check(result.status == STATUS_READY) { "No se pudo copiar el archivo recibido" }
+                    result
+                }
+                dispatchReceivedFiles(copied)
+            } catch (error: Exception) {
+                Log.e("SharingModule", "Could not copy shared files", error)
+                val path = File(cleanup.sharedDirectory, "${first.shareId}/${first.id}/${first.name}").path
+                runCatching { cleanup.cleanup(listOf(path)) }
+                    .onFailure { Log.w("SharingModule", "Could not clean shared files", it) }
+                dispatchReceivedFiles(files.map { it.copy(status = STATUS_ERROR) })
+                context.runOnUiQueueThread {
+                    Toast.makeText(context, "No se pudieron recibir los archivos", Toast.LENGTH_LONG).show()
+                }
+            } finally {
+                runCatching { cleanup.finishPreparation(first.shareId) }
+                    .onFailure { Log.w("SharingModule", "Could not finish share preparation", it) }
             }
         }
     }
 
-    private fun dispatchReceivedFiles(files: List<SharedFile>) {
+    private fun dispatchReceivedFiles(files: List<SharedFile>): Unit {
         if (listenerCount > 0 && context.hasActiveReactInstance()) {
             context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java).emit(EVENT_NAME, files.toWritableArray())
             return
@@ -185,7 +247,7 @@ class SharingModule(reactContext: ReactApplicationContext) : ReactContextBaseJav
     }
 
     private fun copyReceivedFile(file: SharedFile): SharedFile {
-        val directory = File(context.filesDir, "$SHARED_DIRECTORY/${UUID.randomUUID()}")
+        val directory = File(cleanup.sharedDirectory, "${file.shareId}/${file.id}")
         if (!directory.mkdirs()) {
             return file.copy(status = STATUS_ERROR)
         }
@@ -203,6 +265,7 @@ class SharingModule(reactContext: ReactApplicationContext) : ReactContextBaseJav
         } finally {
             if (!copied) {
                 directory.deleteRecursively()
+                directory.parentFile?.delete()
             }
         }
     }
@@ -239,11 +302,17 @@ class SharingModule(reactContext: ReactApplicationContext) : ReactContextBaseJav
         }
     }
 
-    private data class SharedFile(val id: String, val name: String, val uri: Uri, val path: String?, val status: String)
+    private data class SharedFile(
+        val id: String,
+        val shareId: String,
+        val name: String,
+        val uri: Uri,
+        val path: String?,
+        val status: String
+    )
 
     private companion object {
         const val EVENT_NAME = "SharedFilesReceived"
-        const val SHARED_DIRECTORY = "shared"
         const val STATUS_ERROR = "ERROR"
         const val STATUS_PREPARING = "PREPARING"
         const val STATUS_READY = "READY"

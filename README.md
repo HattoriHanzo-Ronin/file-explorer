@@ -28,11 +28,12 @@ The Android application is the client of that system. Deployment, exposure to th
 | Area                  | Capabilities                                                                                                                                    |
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | Local storage         | Browse internal and removable storage; create folders; rename, copy, move and delete entries; open compatible files; extract supported archives |
-| Network workspace     | Authenticate and browse remote directories through the API; create folders; rename, move and delete entries; upload and download files          |
+| Network workspace     | Authenticate and browse remote directories through the API; create folders; rename, copy, move and delete entries; upload and download files    |
 | Background operations | Native Android operations report progress and completion through notifications and in-app messages                                              |
+| Android sharing       | Share local files with other apps and receive files for upload to the remote workspace                                                           |
 | File views            | List, compact-icon and large-icon modes, with the selected mode persisted between launches                                                      |
 | Thumbnails            | Background generation and bounded caching of local image and video thumbnails, plus remote thumbnail availability checks                        |
-| Synchronization       | Directory versions avoid redundant reloads; remote changes arrive through a socket while the Network files screen is active                     |
+| Synchronization       | Directory versions avoid redundant reloads; remote changes arrive through a socket while the app and Network files screen are active             |
 | Authentication        | JWT login, session restoration, refresh flow and secure token storage through the Android keychain                                              |
 | Interface             | System light/dark theme, selection mode, path navigation, contextual actions and Android back-button handling                                   |
 
@@ -76,18 +77,20 @@ flowchart TD
     Login --> Remote
 
     Root --> LocalOps[Local file operations]
-    Remote --> RemoteOps[Upload, download, move or delete]
+    Remote --> RemoteOps[Upload, download, copy, move or delete]
     LocalOps --> Progress[Native progress notification]
     RemoteOps --> Progress
 ```
 
 ## Architecture
 
-Screens work through the application context instead of constructing platform services themselves. `AppContextProvider` creates the concrete dependencies once and injects their contracts into the managers.
+Screens use application state and operation contexts instead of constructing platform services themselves. `AppContextProvider` holds shared state; `OperationProvider` creates the services and injects their dependencies into the managers.
 
 ```mermaid
 flowchart TD
-    UI[Screens and components] --> Context[AppContextProvider]
+    UI[Screens and components] --> State[AppContextProvider]
+    UI --> Context[OperationProvider]
+    Context --> State
     Context --> Auth[AuthUtils]
     Context --> API[ApiUtils]
     Context --> Local[LocalFileManager]
@@ -106,7 +109,7 @@ flowchart TD
 | Layer                          | Responsibility                                                                                              |
 | ------------------------------ | ----------------------------------------------------------------------------------------------------------- |
 | Screens and components         | Render directories, collect input and trigger typed requests                                                |
-| App context                    | Compose dependencies, expose shared state and coordinate API/local request execution                        |
+| App and operation contexts     | Expose shared state, compose dependencies and coordinate API/local request execution                        |
 | `AuthUtils`                    | Log in, restore or clear a session, refresh tokens and manage the Axios authorization interceptor           |
 | `ApiUtils`                     | Encapsulate the HTTP contract and normalize successful and failed responses                                 |
 | `LocalFileManager`             | Coordinate local listing, file operations, directory versions and restoration                               |
@@ -117,7 +120,13 @@ flowchart TD
 
 `LocalFileManager` and `RemoteFileManager` receive native operation contracts through their constructors. Android performs directory listing, local operations and upload preparation with its own filesystem APIs; TypeScript receives typed directory entries and operation results.
 
-`NativeLocalFileOperation` exposes internal and removable storage roots to `AppContextProvider`. The concrete adapters for roots, operations, storage and permissions are created outside the managers, which keeps platform details replaceable and prevents managers from constructing their own dependencies.
+`NativeLocalFileOperation` exposes removable storage roots through the operation context. The concrete adapters for roots, operations, storage and permissions are created outside the managers, which keeps platform details replaceable and prevents managers from constructing their own dependencies.
+
+Android updates its media index after local changes and downloads, including reconciliation after interrupted operations. Indexing runs independently of the operation result.
+
+### Received files
+
+Files received from another app are prepared in private storage for upload. Their records support cleanup when a share is cancelled or finished, and stale pending shares are checked on startup. A pending share becomes eligible for cleanup after 15 minutes without activity; preparation and active uploads are protected from expiry.
 
 ### Session and token handling
 
@@ -212,6 +221,8 @@ file-explorer/
 |       |-- operations/
 |       |-- permissions/
 |       |   `-- impl/
+|       |-- sharing/
+|       |   `-- impl/
 |       |-- storage/
 |       |   `-- impl/
 |       `-- thumbnails/
@@ -227,7 +238,7 @@ file-explorer/
 
 - **User-facing Network section:** the interface uses the broader label `Red` instead of exposing the historical FTP implementation name.
 - **API-mediated SFTP access:** the Android client talks to the REST API; it does not connect directly to the SFTP server.
-- **Dependency injection:** file managers receive filesystem, native-operation, storage and permission contracts from `AppContextProvider`.
+- **Dependency injection:** file managers receive filesystem, native-operation, storage and permission contracts composed by `OperationProvider`.
 - **Secure cross-component session state:** Axios keeps the active authorization interceptor in memory, while Keychain-backed storage makes tokens available to native operations and session restoration.
 - **Native background work:** Android owns long-running file operations and reports their progress through persistent notifications.
 - **All-or-nothing transfers:** interrupted or failed transfers restart from zero rather than resuming partial data.

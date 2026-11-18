@@ -1,7 +1,7 @@
 import { StyleSheet } from "react-native";
-import { darkTheme } from "../style";
+import { DARK_THEME } from "../style";
 
-export const contentCard = StyleSheet.create({
+export const CONTENT_CARD = StyleSheet.create({
     large: {
         width: "32%",
         alignItems: "center",
@@ -23,7 +23,7 @@ export const contentCard = StyleSheet.create({
         gap: 12,
         margin: 2
     },
-    selected: { backgroundColor: darkTheme.accentMuted, borderRadius: 8 },
+    selected: { backgroundColor: DARK_THEME.accentMuted, borderRadius: 8 },
     thumbnailLarge: { height: 86, width: 86, alignItems: "center", justifyContent: "center" },
     thumbnailSmall: { height: 64, width: 64, alignItems: "center", justifyContent: "center" },
     thumbnailList: { height: 48, width: 48, alignItems: "center", justifyContent: "center" },
@@ -39,10 +39,10 @@ export const contentCard = StyleSheet.create({
         borderRadius: 16,
         backgroundColor: "rgba(0, 0, 0, 0.55)"
     },
-    text: { width: "100%", color: darkTheme.text, fontSize: 16, lineHeight: 18, textAlign: "center" },
-    listText: { flex: 1, color: darkTheme.text, fontSize: 16, lineHeight: 20 }
+    text: { width: "100%", color: DARK_THEME.text, fontSize: 16, lineHeight: 18, textAlign: "center" },
+    listText: { flex: 1, color: DARK_THEME.text, fontSize: 16, lineHeight: 20 }
 });
-export const fileList = StyleSheet.create({
+export const FILE_LIST = StyleSheet.create({
     content: { flex: 1 },
     toolbar: {
         minHeight: 44,
@@ -52,47 +52,47 @@ export const fileList = StyleSheet.create({
         paddingHorizontal: 6
     },
     selectAll: { height: 32, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 6 },
-    selectAllText: { color: darkTheme.text, lineHeight: 20, textAlignVertical: "center", includeFontPadding: false },
+    selectAllText: { color: DARK_THEME.text, lineHeight: 20, textAlignVertical: "center", includeFontPadding: false },
     selectAllIcon: { height: 20, lineHeight: 20 },
     viewActions: { flexDirection: "row", alignItems: "center", gap: 4, marginLeft: "auto" },
     viewButton: { padding: 6, borderRadius: 6 },
-    activeViewButton: { backgroundColor: darkTheme.accentMuted }
+    activeViewButton: { backgroundColor: DARK_THEME.accentMuted }
 });
-export const appDialog = StyleSheet.create({
+export const APP_DIALOG = StyleSheet.create({
     backdrop: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0, 0, 0, 0.5)" },
     container: {
         width: "82%",
         padding: 20,
         borderRadius: 8,
-        backgroundColor: darkTheme.surface,
+        backgroundColor: DARK_THEME.surface,
         borderWidth: 1,
-        borderColor: darkTheme.border
+        borderColor: DARK_THEME.border
     },
-    description: { marginBottom: 12, color: darkTheme.text, fontSize: 16 },
-    message: { color: darkTheme.text, fontSize: 18 },
-    input: { borderBottomWidth: 1, borderBottomColor: darkTheme.border, color: darkTheme.text, paddingVertical: 6 },
+    description: { marginBottom: 12, color: DARK_THEME.text, fontSize: 16 },
+    message: { color: DARK_THEME.text, fontSize: 18 },
+    input: { borderBottomWidth: 1, borderBottomColor: DARK_THEME.border, color: DARK_THEME.text, paddingVertical: 6 },
     actions: { flexDirection: "row", justifyContent: "flex-end", gap: 8, marginTop: 18 },
     button: { paddingHorizontal: 10, paddingVertical: 8 },
     cancelText: { color: "#a65d66", fontWeight: "600" },
-    acceptText: { color: darkTheme.accent, fontWeight: "600" }
+    acceptText: { color: DARK_THEME.accent, fontWeight: "600" }
 });
-export const overflowMenu = StyleSheet.create({
+export const OVERFLOW_MENU = StyleSheet.create({
     backdrop: { flex: 1, alignItems: "flex-end", paddingTop: 52, paddingRight: 8, backgroundColor: "transparent" },
     container: {
         minWidth: 190,
         paddingVertical: 6,
         borderRadius: 8,
-        backgroundColor: darkTheme.surface,
+        backgroundColor: DARK_THEME.surface,
         borderWidth: 1,
-        borderColor: darkTheme.border,
+        borderColor: DARK_THEME.border,
         elevation: 6
     },
     item: { paddingHorizontal: 18, paddingVertical: 12 },
-    itemText: { color: darkTheme.text, fontSize: 16 },
-    input: { borderBottomWidth: 1, borderBottomColor: darkTheme.border, color: darkTheme.text, paddingVertical: 6 },
+    itemText: { color: DARK_THEME.text, fontSize: 16 },
+    input: { borderBottomWidth: 1, borderBottomColor: DARK_THEME.border, color: DARK_THEME.text, paddingVertical: 6 },
     validationError: { marginTop: 6, color: "#a65d66" }
 });
-export const userMenu = StyleSheet.create({
+export const USER_MENU = StyleSheet.create({
     backdrop: {
         flex: 1,
         justifyContent: "flex-end",
@@ -105,46 +105,46 @@ export const userMenu = StyleSheet.create({
         marginLeft: 8,
         padding: 16,
         borderRadius: 12,
-        backgroundColor: darkTheme.surface,
+        backgroundColor: DARK_THEME.surface,
         borderWidth: 1,
-        borderColor: darkTheme.border,
+        borderColor: DARK_THEME.border,
         elevation: 6
     },
-    username: { marginBottom: 12, color: darkTheme.text, fontSize: 18, fontWeight: "600" },
+    username: { marginBottom: 12, color: DARK_THEME.text, fontSize: 18, fontWeight: "600" },
     option: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12 },
-    optionText: { color: darkTheme.text, fontSize: 16 },
+    optionText: { color: DARK_THEME.text, fontSize: 16 },
     logoutText: { color: "#a65d66", fontSize: 16 },
     cancelText: { color: "#a65d66", fontSize: 16 },
-    acceptText: { color: darkTheme.text, fontSize: 16 },
+    acceptText: { color: DARK_THEME.text, fontSize: 16 },
     dialogBackdrop: { flex: 1, justifyContent: "center", padding: 24, backgroundColor: "rgba(0, 0, 0, 0.65)" },
     dialog: {
         padding: 16,
         borderRadius: 12,
-        backgroundColor: darkTheme.surface,
+        backgroundColor: DARK_THEME.surface,
         borderWidth: 1,
-        borderColor: darkTheme.border,
+        borderColor: DARK_THEME.border,
         gap: 12
     },
-    dialogTitle: { color: darkTheme.text, fontSize: 18, fontWeight: "600" },
-    input: { padding: 10, borderWidth: 1, borderColor: darkTheme.border, borderRadius: 6, color: darkTheme.text },
-    fieldLabel: { color: darkTheme.text, fontSize: 16 },
+    dialogTitle: { color: DARK_THEME.text, fontSize: 18, fontWeight: "600" },
+    input: { padding: 10, borderWidth: 1, borderColor: DARK_THEME.border, borderRadius: 6, color: DARK_THEME.text },
+    fieldLabel: { color: DARK_THEME.text, fontSize: 16 },
     validationError: { marginTop: 6, color: "#a65d66" },
-    lineInput: { borderBottomWidth: 1, borderBottomColor: darkTheme.border, color: darkTheme.text, paddingVertical: 6 },
+    lineInput: { borderBottomWidth: 1, borderBottomColor: DARK_THEME.border, color: DARK_THEME.text, paddingVertical: 6 },
     passwordField: {
         flexDirection: "row",
         alignItems: "center",
         borderBottomWidth: 1,
-        borderBottomColor: darkTheme.border
+        borderBottomColor: DARK_THEME.border
     },
-    passwordInput: { flex: 1, color: darkTheme.text },
+    passwordInput: { flex: 1, color: DARK_THEME.text },
     dialogActions: { flexDirection: "row", justifyContent: "flex-end", gap: 20 }
 });
-export const loading = StyleSheet.create({
+export const LOADING = StyleSheet.create({
     parent: { flex: 1, justifyContent: "center", alignItems: "center" },
     image: { width: 200, height: 200 },
     backgroundImage: { opacity: 0.1 }
 });
-export const operationDestination = StyleSheet.create({
+export const OPERATION_DESTINATION = StyleSheet.create({
     backdrop: { flex: 1, justifyContent: "center", padding: 16, backgroundColor: "rgba(0, 0, 0, 0.56)" },
     container: { maxHeight: "88%", padding: 14, borderRadius: 12, borderWidth: 1 },
     titleRow: { marginBottom: 16 },
@@ -161,7 +161,7 @@ export const operationDestination = StyleSheet.create({
     directoryList: { height: 220, marginTop: 8, borderWidth: 1, borderRadius: 10, overflow: "hidden" },
     directory: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14 },
     directoryText: { flex: 1, fontSize: 15 },
-    parentDirectoryText: { color: darkTheme.textMuted },
+    parentDirectoryText: { color: DARK_THEME.textMuted },
     loading: { flex: 1, minHeight: 150 },
     footer: { marginTop: 4 },
     actions: { flexDirection: "row", justifyContent: "flex-end", gap: 8 },

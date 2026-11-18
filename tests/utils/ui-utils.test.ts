@@ -28,14 +28,14 @@ describe("foreground operation messages", () => {
         listener(operation({ status: "COMPLETED", revision: 3 }));
         listener(operation({ id: "operation-2", operation: "LOCAL_COPY" }));
         listener(operation({ id: "operation-2", operation: "LOCAL_COPY", status: "COMPLETED", revision: 2 }));
-        expect(show.mock.calls.map(([message]) => message)).toEqual([
+        expect(show.mock.calls.map(([{ message }]) => message)).toEqual([
             "Operación en curso",
             "Descarga completada",
             "Operación en curso",
             "Copia completada"
         ]);
-        expect(show.mock.calls[0]).toEqual(["Operación en curso", "SHORT"]);
-        expect(show.mock.calls[1]).toEqual(["Descarga completada"]);
+        expect(show.mock.calls[0]).toEqual([{ message: "Operación en curso", duration: "SHORT" }]);
+        expect(show.mock.calls[1]).toEqual([{ message: "Descarga completada" }]);
     });
 
     it("shows cancellation and silent failures without duplicating API validation errors", () => {
@@ -51,7 +51,7 @@ describe("foreground operation messages", () => {
                 error: { code: "VALIDATION_FAILED", message: "No válido" }
             })
         );
-        expect(show.mock.calls.map(([message]) => message)).toEqual([
+        expect(show.mock.calls.map(([{ message }]) => message)).toEqual([
             "Operación cancelada",
             "No se pudo completar la operación"
         ]);

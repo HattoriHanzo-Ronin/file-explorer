@@ -2,7 +2,7 @@ import { Pressable, Text } from "react-native";
 import { useAppContext } from "./app-context-provider";
 import { useTheme } from "./theme-provider";
 import type { DrawerNavigationItemProps } from "../types/components";
-import { appStyles } from "../styles/app/style";
+import { APP_STYLES } from "../styles/app/style";
 import { handleNavigationPress, openStorage } from "../utils/navigation-utils";
 
 export default function DrawerNavigationItem(props: DrawerNavigationItemProps) {
@@ -10,7 +10,7 @@ export default function DrawerNavigationItem(props: DrawerNavigationItemProps) {
     const context = useAppContext();
     const { activeStorageRoot } = context;
     const { mode } = useTheme();
-    const app = appStyles[mode];
+    const app = APP_STYLES[mode];
     const isFtp = !root;
     const label = root?.name ?? "Red";
     const active = root ? storage === "local" && activeStorageRoot.id === root.id : storage === "ftp";

@@ -14,6 +14,7 @@ function createManager() {
         startDownload: jest.fn(),
         startDelete: jest.fn(),
         startMove: jest.fn(),
+        startCopy: jest.fn(),
         startMkdir: jest.fn(),
         startRename: jest.fn(),
         cancel: jest.fn()
@@ -129,7 +130,7 @@ describe("RemoteFileManager", () => {
             );
             return "upload-1";
         });
-        await expect(manager.upload(entries, " ")).resolves.toEqual({
+        await expect(manager.upload({ items: entries, remoteDir: " " })).resolves.toEqual({
             success: true,
             data: { entries: [], version: "10" }
         });
@@ -152,6 +153,55 @@ describe("RemoteFileManager", () => {
             expect.objectContaining({ destination: "", entries: [{ name: "file.txt", type: "FILE" }] })
         );
         expect(remoteFileOperation.startMove.mock.calls[0][0]).not.toHaveProperty("remoteDir");
+    });
+
+    it("returns the result of a remote copy and keeps both directories busy while it runs", async () => {
+        const { listener, manager, remoteFileOperation } = createManager();
+        const completed: FileOperationSnapshot = {
+            ...completedOperation("REMOTE_MOVE"),
+            id: "copy-1",
+            operation: "REMOTE_COPY",
+            result: {
+                destination: { dir: "target", version: "9" },
+                changes: [{ path: "file.txt", targetPath: "file (1).txt", type: "FILE", completed: 1, total: 1 }]
+            }
+        };
+        remoteFileOperation.startCopy.mockImplementation(async () => {
+            listener()({ ...completed, status: "RUNNING" });
+            expect(manager.isRemoteDirectoryBusy("source")).toBe(true);
+            expect(manager.isRemoteDirectoryBusy("target")).toBe(true);
+            void Promise.resolve().then(() => listener()({ ...completed, revision: 2 }));
+            return "copy-1";
+        });
+
+        await expect(manager.copy({
+            dir: "source", destination: "target", entries: [{ name: "file.txt", type: "FILE" }]
+        })).resolves.toEqual({ success: true, data: completed.result });
+        expect(remoteFileOperation.startCopy).toHaveBeenCalledWith(expect.objectContaining({
+            remoteDir: "source", destination: "target"
+        }));
+        expect(manager.isRemoteDirectoryBusy("source")).toBe(false);
+        expect(manager.isRemoteDirectoryBusy("target")).toBe(false);
+    });
+
+    it.each([
+        ["REMOTE_MOVE", "FTP_MOVE_FAILED"],
+        ["REMOTE_COPY", "FTP_COPY_FAILED"]
+    ] as const)("preserves the API error for %s", async (operation, code) => {
+        const { listener, manager, remoteFileOperation } = createManager();
+        const start = operation === "REMOTE_MOVE" ? remoteFileOperation.startMove : remoteFileOperation.startCopy;
+        start.mockImplementation(async () => {
+            void Promise.resolve().then(() => listener()({
+                ...completedOperation("REMOTE_MOVE"),
+                operation,
+                status: "FAILED",
+                error: { code, message: "Error remoto" }
+            }));
+            return "REMOTE_MOVE-1";
+        });
+        const request = { dir: "source", destination: "target", entries: [{ name: "file.txt", type: "FILE" as const }] };
+        await expect(operation === "REMOTE_MOVE" ? manager.move(request) : manager.copy(request))
+            .resolves.toEqual({ success: false, error: { code, message: "Error remoto" } });
     });
 
     it("tracks busy directories while an upload is active", () => {
@@ -183,8 +233,18 @@ describe("RemoteFileManager", () => {
     it("completes each download independently when they share a destination", async () => {
         const { listener, manager, remoteFileOperation } = createManager();
         remoteFileOperation.startDownload.mockResolvedValueOnce("download-1").mockResolvedValueOnce("download-2");
-        const first = manager.download([{ path: "one.txt", type: "FILE" }], " ", "/storage", " ");
-        const second = manager.download([{ path: "two.txt", type: "FILE" }], " ", "/storage", " ");
+        const first = manager.download({
+            items: [{ path: "one.txt", type: "FILE" }],
+            remoteDir: " ",
+            localRoot: "/storage",
+            localDir: " "
+        });
+        const second = manager.download({
+            items: [{ path: "two.txt", type: "FILE" }],
+            remoteDir: " ",
+            localRoot: "/storage",
+            localDir: " "
+        });
         await new Promise<void>((resolve) => setImmediate(resolve));
 
         const running: FileOperationSnapshot = {
@@ -229,7 +289,12 @@ describe("RemoteFileManager", () => {
             localDir: "/storage"
         };
         remoteFileOperation.listOperations.mockResolvedValue([completed]);
-        const download = manager.download([{ path: "one.txt", type: "FILE" }], " ", "/storage", " ");
+        const download = manager.download({
+            items: [{ path: "one.txt", type: "FILE" }],
+            remoteDir: " ",
+            localRoot: "/storage",
+            localDir: " "
+        });
         await new Promise<void>((resolve) => setImmediate(resolve));
         await manager.restore();
         listener()(completed);

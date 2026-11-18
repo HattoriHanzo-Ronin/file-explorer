@@ -4,25 +4,31 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import androidx.core.content.FileProvider
-import com.facebook.react.bridge.*
+import com.facebook.react.bridge.ReactApplicationContext
+import com.facebook.react.bridge.ReactContextBaseJavaModule
+import com.facebook.react.bridge.ReactMethod
 import java.io.File
 
-class FileOpenerModule(reactContext: ReactApplicationContext) :
-    ReactContextBaseJavaModule(reactContext) {
-
+/**
+ * File opener module
+ *
+ * @author HattoriHanzo-Ronin
+ */
+class FileOpenerModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
     override fun getName() = "FileOpener"
 
+    /**
+     * Opens a file with an available application
+     *
+     * @param path File path
+     */
     @ReactMethod
     fun openFile(path: String) {
         val context = reactApplicationContext
         val file = File(path)
 
         val uri: Uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            FileProvider.getUriForFile(
-                context,
-                context.packageName + ".provider",
-                file
-            )
+            FileProvider.getUriForFile(context, context.packageName + ".provider", file)
         } else {
             Uri.fromFile(file)
         }

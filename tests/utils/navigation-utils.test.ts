@@ -25,7 +25,7 @@ test("keeps the current root content when its drawer item is pressed again", () 
 test("applies completed operation results only to the matching storage and directory", () => {
     const setLocalDirectory = jest.fn();
     const entries = [{ name: "new.txt" }] as FileSystemEntry[];
-    UiUtils.applyLocalDirectoryUpdates(setLocalDirectory, [{ path: "/storage/docs", entries }]);
+    UiUtils.applyLocalDirectoryUpdates({ setLocalDirectory, updates: [{ path: "/storage/docs", entries }] });
     const update = setLocalDirectory.mock.calls[0][0];
     const current = { rootPath: "/storage", dir: "docs", content: [] };
     const otherStorage = { rootPath: "/sdcard", dir: "docs", content: [] };

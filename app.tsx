@@ -9,8 +9,8 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import React from "react";
 import AppContextProvider, { useAppContext } from "./src/components/app-context-provider";
 import type { StorageType } from "./src/types/navigation";
-import { appStyles } from "./src/styles/app/style";
-import { commonStyles } from "./src/styles/style";
+import { APP_STYLES } from "./src/styles/app/style";
+import { COMMON_STYLES } from "./src/styles/style";
 import { Image, Pressable, StatusBar, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Local from "./src/app/local/index";
@@ -22,6 +22,7 @@ import { useTheme } from "./src/components/theme-provider";
 import DrawerNavigationItem from "./src/components/drawer-navigation-item";
 import Breadcrumb from "./src/components/breadcrumb";
 import SharedFilesReceiver from "./src/components/shared-files-receiver";
+import OperationDestinationModal from "./src/components/operation-destination-modal";
 
 const Drawer = createDrawerNavigator();
 
@@ -29,8 +30,8 @@ const AppDrawerContent = (props: DrawerContentComponentProps) => {
     const { navigation, state } = props;
     const { externalRoots, internalRoot, isAuthenticated, user } = useAppContext();
     const { mode, theme } = useTheme();
-    const app = appStyles[mode];
-    const common = commonStyles[mode];
+    const app = APP_STYLES[mode];
+    const common = COMMON_STYLES[mode];
     const [userMenuVisible, setUserMenuVisible] = React.useState<boolean>(false);
     const safeArea = useSafeAreaInsets();
     const storage = state.routes[state.index].name as StorageType;
@@ -69,9 +70,9 @@ const AppDrawerContent = (props: DrawerContentComponentProps) => {
 };
 const AppHeader = (props: DrawerHeaderProps) => {
     const { navigation, route } = props;
-    const { isAuthenticated } = useAppContext();
+    const { isAuthenticated, pendingLocalUpload, setPendingLocalUpload } = useAppContext();
     const { mode, theme } = useTheme();
-    const app = appStyles[mode];
+    const app = APP_STYLES[mode];
     const storage = route.name as StorageType;
     const safeArea = useSafeAreaInsets().top;
     const showActions = storage !== "ftp" || isAuthenticated;
@@ -91,6 +92,9 @@ const AppHeader = (props: DrawerHeaderProps) => {
                 </>
             )}
             <SharedFilesReceiver onRequireLogin={requireLogin} />
+            {pendingLocalUpload && isAuthenticated && (
+                <OperationDestinationModal action="upload" visible onClose={() => setPendingLocalUpload(false)} />
+            )}
         </View>
     );
 };
@@ -139,8 +143,8 @@ export default function App() {
 
 function ThemedApp() {
     const { mode, theme } = useTheme();
-    const app = appStyles[mode];
-    const common = commonStyles[mode];
+    const app = APP_STYLES[mode];
+    const common = COMMON_STYLES[mode];
     const navigationTheme = mode === "dark" ? DarkTheme : DefaultTheme;
     return (
         <GestureHandlerRootView style={common.root}>

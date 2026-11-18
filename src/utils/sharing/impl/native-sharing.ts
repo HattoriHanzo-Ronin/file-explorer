@@ -8,28 +8,32 @@ interface NativeSharingModule {
     cleanupReceivedFiles(paths: string[]): Promise<void>;
 }
 
-/** Android sharing implementation */
+/**
+ * Android sharing implementation
+ *
+ * @author HattoriHanzo-Ronin
+ */
 export default class NativeSharing implements Sharing {
     private readonly module = NativeModules.Sharing as NativeSharingModule;
     private readonly eventEmitter = new NativeEventEmitter(NativeModules.Sharing);
 
     /** Shares local files through Android */
-    async share(paths: string[]): Promise<void> {
+    async share(paths: string[]) {
         await this.module.share(paths);
     }
 
     /** Returns files received before JavaScript was ready */
-    async getReceivedFiles(): Promise<SharedFile[]> {
+    async getReceivedFiles() {
         return this.module.getReceivedFiles();
     }
 
     /** Deletes temporary files received from other applications */
-    async cleanupReceivedFiles(paths: string[]): Promise<void> {
+    async cleanupReceivedFiles(paths: string[]) {
         await this.module.cleanupReceivedFiles(paths);
     }
 
     /** Adds a listener for files received while the app is active */
-    addReceivedFilesListener(listener: (files: SharedFile[]) => void): () => void {
+    addReceivedFilesListener(listener: (files: SharedFile[]) => void) {
         const subscription = this.eventEmitter.addListener("SharedFilesReceived", (files) =>
             listener(files as SharedFile[])
         );

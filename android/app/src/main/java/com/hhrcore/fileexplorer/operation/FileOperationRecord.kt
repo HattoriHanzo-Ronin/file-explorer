@@ -3,6 +3,11 @@ package com.hhrcore.fileexplorer.operation
 import org.json.JSONArray
 import org.json.JSONObject
 
+/**
+ * Persisted file operation state
+ *
+ * @author HattoriHanzo-Ronin
+ */
 data class FileOperationRecord(
     val id: String,
     val operation: String,
@@ -23,8 +28,14 @@ data class FileOperationRecord(
     val createdAt: Long = System.currentTimeMillis(),
     var updatedAt: Long = createdAt,
     val createdPaths: MutableList<String> = mutableListOf(),
-    val ownedIdentities: JSONObject = JSONObject()
+    val ownedIdentities: JSONObject = JSONObject(),
+    val mediaPaths: MutableList<String> = mutableListOf()
 ) {
+    /**
+     * Returns the serialized operation
+     *
+     * @return Serialized operation
+     */
     fun toJson(): JSONObject = JSONObject()
         .put("id", id)
         .put("operation", operation)
@@ -46,13 +57,16 @@ data class FileOperationRecord(
         .put("updatedAt", updatedAt)
         .put("createdPaths", JSONArray(createdPaths))
         .put("ownedIdentities", ownedIdentities)
+        .put("mediaPaths", JSONArray(mediaPaths))
 
     companion object {
         const val OPERATION_UPLOAD = "UPLOAD"
+        const val OPERATION_SHARED = "SHARED"
         const val OPERATION_DOWNLOAD = "DOWNLOAD"
         const val OPERATION_REMOTE_MKDIR = "REMOTE_MKDIR"
         const val OPERATION_REMOTE_RENAME = "REMOTE_RENAME"
         const val OPERATION_REMOTE_MOVE = "REMOTE_MOVE"
+        const val OPERATION_REMOTE_COPY = "REMOTE_COPY"
         const val OPERATION_REMOTE_DELETE = "REMOTE_DELETE"
         const val OPERATION_LOCAL_MKDIR = "LOCAL_MKDIR"
         const val OPERATION_LOCAL_RENAME = "LOCAL_RENAME"
@@ -67,12 +81,25 @@ data class FileOperationRecord(
         const val STATUS_CANCELLED = "CANCELLED"
         const val STATUS_INTERRUPTED = "INTERRUPTED"
 
-        fun isCancellable(operation: String) = operation == OPERATION_UPLOAD ||
+        /**
+         * Returns whether an operation can be cancelled
+         *
+         * @param operation Operation type
+         * @return Whether cancellation is supported
+         */
+        fun isCancellable(operation: String): Boolean = operation == OPERATION_UPLOAD ||
             operation == OPERATION_DOWNLOAD || operation == OPERATION_LOCAL_COPY ||
             operation == OPERATION_LOCAL_MOVE || operation == OPERATION_LOCAL_EXTRACT
 
+        /**
+         * Returns an operation from its serialized form
+         *
+         * @param source Serialized operation
+         * @return File operation record
+         */
         fun fromJson(source: JSONObject): FileOperationRecord {
             val paths = source.optJSONArray("createdPaths") ?: JSONArray()
+            val mediaPaths = source.optJSONArray("mediaPaths") ?: JSONArray()
             return FileOperationRecord(
                 id = source.getString("id"),
                 operation = source.optString("operation").takeIf { it.isNotEmpty() }
@@ -94,7 +121,8 @@ data class FileOperationRecord(
                 createdAt = source.optLong("createdAt", System.currentTimeMillis()),
                 updatedAt = source.optLong("updatedAt", System.currentTimeMillis()),
                 createdPaths = MutableList(paths.length()) { paths.getString(it) },
-                ownedIdentities = source.optJSONObject("ownedIdentities") ?: JSONObject()
+                ownedIdentities = source.optJSONObject("ownedIdentities") ?: JSONObject(),
+                mediaPaths = MutableList(mediaPaths.length()) { mediaPaths.getString(it) }
             )
         }
     }

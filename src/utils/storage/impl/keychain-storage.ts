@@ -1,5 +1,6 @@
 import * as Keychain from "react-native-keychain";
 import type { Storage } from "../storage";
+import type { StorageSetParams } from "../../../types/storage";
 
 /**
  * Provides secure storage through the native keychain
@@ -12,10 +13,11 @@ export default class KeychainStorage implements Storage {
     /**
      * Stores a value securely
      *
-     * @param key Storage key
-     * @param payload Value to store
+     * @param params.key Storage key
+     * @param params.payload Value to store
      */
-    async set<T>(key: string, payload: T): Promise<void> {
+    async set<T>(params: StorageSetParams<T>) {
+        const { key, payload } = params;
         await Keychain.setGenericPassword(key, JSON.stringify(payload), { service: this.getService(key) });
     }
 
@@ -25,7 +27,7 @@ export default class KeychainStorage implements Storage {
      * @param key Storage key
      * @returns Stored value or null
      */
-    async get<T>(key: string): Promise<T | null> {
+    async get<T>(key: string) {
         const credentials = await Keychain.getGenericPassword({ service: this.getService(key) });
         if (credentials) {
             return JSON.parse(credentials.password) as T;
@@ -39,7 +41,7 @@ export default class KeychainStorage implements Storage {
      *
      * @param key Storage key
      */
-    async delete(key: string): Promise<void> {
+    async delete(key: string) {
         await Keychain.resetGenericPassword({ service: this.getService(key) });
     }
 

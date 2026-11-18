@@ -17,9 +17,15 @@ import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
+import com.facebook.react.bridge.WritableArray
 import com.facebook.react.modules.core.DeviceEventManagerModule
 import java.io.File
 
+/**
+ * Storage volume module
+ *
+ * @author HattoriHanzo-Ronin
+ */
 class StorageVolumeModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext),
     LifecycleEventListener {
     private val context: ReactApplicationContext
@@ -88,6 +94,12 @@ class StorageVolumeModule(reactContext: ReactApplicationContext) : ReactContextB
 
     override fun onHostDestroy() = Unit
 
+    /**
+     * Returns the removable storage roots
+     *
+     * @param externalStorageName Label for external storage
+     * @param promise Receives the detected storage roots
+     */
     @ReactMethod
     fun getExternalRoots(externalStorageName: String, promise: Promise) {
         try {
@@ -98,13 +110,23 @@ class StorageVolumeModule(reactContext: ReactApplicationContext) : ReactContextB
         }
     }
 
+    /**
+     * Provides the listener hook required by React Native
+     *
+     * @param eventName Event name
+     */
     @ReactMethod
     fun addListener(eventName: String) = Unit
 
+    /**
+     * Provides the listener removal hook required by React Native
+     *
+     * @param count Number of listeners
+     */
     @ReactMethod
     fun removeListeners(count: Double) = Unit
 
-    private fun emitVolumes() {
+    private fun emitVolumes(): Unit {
         if (!context.hasActiveReactInstance() || externalStorageName.isEmpty()) {
             return
         }
@@ -113,12 +135,12 @@ class StorageVolumeModule(reactContext: ReactApplicationContext) : ReactContextB
             .emit(EVENT_NAME, externalRoots())
     }
 
-    private fun scheduleVolumesUpdate() {
+    private fun scheduleVolumesUpdate(): Unit {
         handler.removeCallbacks(emitVolumesTask)
         handler.postDelayed(emitVolumesTask, VOLUME_UPDATE_DELAY)
     }
 
-    private fun externalRoots() = Arguments.createArray().apply {
+    private fun externalRoots(): WritableArray = Arguments.createArray().apply {
         removableVolumes()
             .distinctBy { it.directory.absolutePath }
             .map { volume ->

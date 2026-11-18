@@ -4,21 +4,27 @@ import { useOperationContext } from "./operation-provider";
 import OperationDestinationModal from "./operation-destination-modal";
 import UiUtils from "../utils/ui-utils";
 import type { SharedFile } from "../types/sharing";
+import type { LocalModifyElement } from "../types/files";
 import type { SharedFilesReceiverProps } from "../types/components";
 
 export default function SharedFilesReceiver(props: SharedFilesReceiverProps) {
     const { onRequireLogin } = props;
-    const { isAuthenticated, modifyLocalFile, setModifyLocalFile, setSharedFiles, sharedFiles } = useAppContext();
+    const {
+        isAuthenticated, modifyLocalFile, setModifyLocalFile, setSharedFiles, sharedFiles, sharedLoginRequested
+    } = useAppContext();
     const { authUtils, sharing } = useOperationContext();
     const [visible, setVisible] = useState<boolean>(false);
-    const receivedIds = useRef<Set<string>>(new Set());
-    const receivedPaths = useRef<string[]>([]);
     const discardedIds = useRef<Set<string>>(new Set());
     const isPreparing = sharedFiles.some(({ status }) => status === "PREPARING");
 
     const receiveFiles = useCallback(
         (receivedFiles: SharedFile[]) => {
+            const failedIds = new Set(receivedFiles.filter(({ status }) => status === "ERROR").map(({ id }) => id));
             const acceptedFiles = receivedFiles.filter(({ id, path, status }) => {
+                if (failedIds.has(id)) {
+                    return false;
+                }
+
                 if (!discardedIds.current.has(id)) {
                     return true;
                 }
@@ -28,14 +34,9 @@ export default function SharedFilesReceiver(props: SharedFilesReceiverProps) {
                 }
                 return false;
             });
-            acceptedFiles.forEach(({ id, path, status }) => {
-                receivedIds.current.add(id);
-                if (status === "READY" && path && !receivedPaths.current.includes(path)) {
-                    receivedPaths.current = [...receivedPaths.current, path];
-                }
-            });
             setSharedFiles((current) => {
                 const files = new Map(current.map((file) => [file.id, file]));
+                failedIds.forEach((id) => files.delete(id));
                 acceptedFiles.forEach((file) => files.set(file.id, file));
                 return [...files.values()];
             });
@@ -47,32 +48,64 @@ export default function SharedFilesReceiver(props: SharedFilesReceiverProps) {
         const removeListener = sharing.addReceivedFilesListener(receiveFiles);
         void sharing
             .getReceivedFiles()
-            .then(receiveFiles, () => UiUtils.showMessage("No se pudieron recibir los archivos"));
+            .then(receiveFiles, () => UiUtils.showMessage({ message: "No se pudieron recibir los archivos" }));
         return removeListener;
     }, [receiveFiles, sharing]);
 
     useEffect(() => {
-        if (sharedFiles.length === 0 || visible) {
+        if (sharedFiles.length === 0) {
+            sharedLoginRequested.current = false;
+            setVisible(false);
+            return;
+        }
+
+        if (visible) {
             return;
         }
 
         if (isAuthenticated) {
+            sharedLoginRequested.current = false;
             setModifyLocalFile(
-                sharedFiles
-                    .filter(({ path, status }) => status === "READY" && path !== null)
-                    .map(({ path }) => ({ path: path as string, type: "file" }))
+                sharedFiles.flatMap<LocalModifyElement>(({ path, status }) => {
+                    if (status !== "READY" || path === null) {
+                        return [];
+                    }
+
+                    return [{ path, type: "file" }];
+                })
             );
             setVisible(true);
             return;
         }
 
+        if (sharedLoginRequested.current) {
+            return;
+        }
+
+        sharedLoginRequested.current = true;
         void authUtils.restoreSession().then((restored) => {
             if (!restored) {
-                UiUtils.showMessage("Debe iniciar sesión para subir archivos");
+                UiUtils.showMessage({ message: "Debe iniciar sesión para subir archivos" });
                 onRequireLogin();
             }
         });
-    }, [authUtils, isAuthenticated, onRequireLogin, setModifyLocalFile, sharedFiles, visible]);
+    }, [authUtils, isAuthenticated, onRequireLogin, setModifyLocalFile, sharedFiles, sharedLoginRequested, visible]);
+
+    useEffect(() => {
+        if (!visible || !isAuthenticated) {
+            return;
+        }
+
+        setModifyLocalFile(
+            sharedFiles.flatMap<LocalModifyElement>(({ path, status }) => {
+                if (status !== "READY" || path === null) {
+                    return [];
+                }
+
+                return [{ path, type: "file" }];
+            })
+        );
+    }, [isAuthenticated, setModifyLocalFile, sharedFiles, visible]);
 
     function close() {
         setVisible(false);
@@ -81,9 +114,8 @@ export default function SharedFilesReceiver(props: SharedFilesReceiverProps) {
     }
 
     function cleanup() {
-        receivedIds.current.forEach((id) => discardedIds.current.add(id));
-        const paths = receivedPaths.current;
-        receivedPaths.current = [];
+        sharedFiles.forEach(({ id }) => discardedIds.current.add(id));
+        const paths = sharedFiles.flatMap(({ path }) => (path ? [path] : []));
         if (paths.length > 0) {
             void sharing.cleanupReceivedFiles(paths).catch(() => undefined);
         }
@@ -97,7 +129,6 @@ export default function SharedFilesReceiver(props: SharedFilesReceiverProps) {
             visible={visible}
             onClose={close}
             onCancel={cleanup}
-            onOperationFinished={cleanup}
             selectedCount={sharedFiles.length}
         />
     );

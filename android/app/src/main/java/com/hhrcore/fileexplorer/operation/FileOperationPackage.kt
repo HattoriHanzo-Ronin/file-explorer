@@ -6,6 +6,11 @@ import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.uimanager.ViewManager
 import com.hhrcore.fileexplorer.dependencies.NativeDependencies
 
+/**
+ * File operation package
+ *
+ * @author HattoriHanzo-Ronin
+ */
 class FileOperationPackage(dependencies: NativeDependencies) : ReactPackage {
     private val dependencies: NativeDependencies
 

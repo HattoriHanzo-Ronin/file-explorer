@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Animated, Image, Modal, View } from "react-native";
-import { loading } from "../styles/components/style";
+import { LOADING } from "../styles/components/style";
 import { useTheme } from "./theme-provider";
-import { commonStyles } from "../styles/style";
+import { COMMON_STYLES } from "../styles/style";
 import { useAppContext } from "./app-context-provider";
 
 const MINIMUM_DISPLAY_MS = 1500;
@@ -12,9 +12,9 @@ export default function LoadingWindow() {
     const [visible, setVisible] = useState<boolean>(false);
     const [shownAt, setShownAt] = useState<number | null>(null);
     const { mode, theme } = useTheme();
-    const common = commonStyles[mode];
+    const common = COMMON_STYLES[mode];
     const scale = useRef(new Animated.Value(1)).current;
-    const imageStyle = [loading.image, { transform: [{ scale }] }];
+    const imageStyle = [LOADING.image, { transform: [{ scale }] }];
 
     useEffect(() => {
         if (isLoading) {
@@ -60,11 +60,11 @@ export default function LoadingWindow() {
 
     return (
         <Modal animationType="fade" visible={visible} onShow={() => setShownAt(Date.now())}>
-            <View style={[loading.parent, { backgroundColor: theme.background }]}>
+            <View style={[LOADING.parent, { backgroundColor: theme.background }]}>
                 <Image
                     source={require("../../assets/images/background.jpg")}
                     resizeMode="cover"
-                    style={[common.absoluteImage, common.contentBackgroundImage, loading.backgroundImage]}
+                    style={[common.absoluteImage, common.contentBackgroundImage, LOADING.backgroundImage]}
                 />
                 <Animated.Image style={imageStyle} source={require("../../assets/images/icon.png")} />
             </View>

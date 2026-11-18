@@ -17,9 +17,15 @@ import com.facebook.react.bridge.WritableMap
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
+/**
+ * Database module
+ *
+ * @author HattoriHanzo-Ronin
+ */
 class DatabaseModule(context: ReactApplicationContext) : ReactContextBaseJavaModule(context) {
     private val executor: ExecutorService
     private val helper: ExplorerDatabaseHelper
+    private val executorLock = Any()
 
     init {
         executor = Executors.newSingleThreadExecutor()
@@ -28,6 +34,13 @@ class DatabaseModule(context: ReactApplicationContext) : ReactContextBaseJavaMod
 
     override fun getName() = "Database"
 
+    /**
+     * Inserts a database row
+     *
+     * @param table Table name
+     * @param values Row values
+     * @param promise Receives the inserted row identifier
+     */
     @ReactMethod
     fun insert(table: String, values: ReadableMap, promise: Promise) {
         execute(promise) {
@@ -36,6 +49,14 @@ class DatabaseModule(context: ReactApplicationContext) : ReactContextBaseJavaMod
         }
     }
 
+    /**
+     * Updates matching database rows
+     *
+     * @param table Table name
+     * @param values Updated values
+     * @param where Matching conditions
+     * @param promise Receives the number of updated rows
+     */
     @ReactMethod
     fun update(table: String, values: ReadableMap, where: ReadableMap, promise: Promise) {
         execute(promise) {
@@ -45,6 +66,13 @@ class DatabaseModule(context: ReactApplicationContext) : ReactContextBaseJavaMod
         }
     }
 
+    /**
+     * Deletes matching database rows
+     *
+     * @param table Table name
+     * @param where Matching conditions
+     * @param promise Receives the number of deleted rows
+     */
     @ReactMethod
     fun delete(table: String, where: ReadableMap, promise: Promise) {
         execute(promise) {
@@ -54,6 +82,13 @@ class DatabaseModule(context: ReactApplicationContext) : ReactContextBaseJavaMod
         }
     }
 
+    /**
+     * Returns database rows matching the query options
+     *
+     * @param table Table name
+     * @param options Query options
+     * @param promise Receives the matching rows
+     */
     @ReactMethod
     fun query(table: String, options: ReadableMap?, promise: Promise) {
         execute(promise) {
@@ -74,6 +109,14 @@ class DatabaseModule(context: ReactApplicationContext) : ReactContextBaseJavaMod
         }
     }
 
+    /**
+     * Returns a database row by its identifier
+     *
+     * @param table Table name
+     * @param id Identifier value
+     * @param column Identifier column
+     * @param promise Receives the matching row or null
+     */
     @ReactMethod
     fun getById(table: String, id: ReadableMap, column: String, promise: Promise) {
         execute(promise) {
@@ -96,6 +139,12 @@ class DatabaseModule(context: ReactApplicationContext) : ReactContextBaseJavaMod
         }
     }
 
+    /**
+     * Executes database mutations in a transaction
+     *
+     * @param operations Mutations to execute
+     * @param promise Receives transaction completion
+     */
     @ReactMethod
     fun executeTransaction(operations: ReadableArray, promise: Promise) {
         execute(promise) {
@@ -110,12 +159,16 @@ class DatabaseModule(context: ReactApplicationContext) : ReactContextBaseJavaMod
     }
 
     override fun invalidate() {
-        executor.shutdownNow()
-        helper.close()
+        synchronized(executorLock) {
+            if (!executor.isShutdown) {
+                executor.execute { helper.close() }
+                executor.shutdown()
+            }
+        }
         super.invalidate()
     }
 
-    private fun executeMutation(operation: ReadableMap) {
+    private fun executeMutation(operation: ReadableMap): Unit {
         val table = operation.getString("table")?.identifier() ?: throw IllegalArgumentException("Falta la tabla")
         when (operation.getString("type")) {
             "insert" -> {
@@ -137,17 +190,24 @@ class DatabaseModule(context: ReactApplicationContext) : ReactContextBaseJavaMod
         }
     }
 
-    private fun execute(promise: Promise, operation: () -> Unit) {
-        executor.execute {
-            try {
-                operation()
-            } catch (error: Throwable) {
-                promise.reject("DATABASE_ERROR", error.message, error)
+    private fun execute(promise: Promise, operation: () -> Unit): Unit {
+        synchronized(executorLock) {
+            if (executor.isShutdown) {
+                promise.reject("DATABASE_ERROR", "La base de datos está cerrada")
+                return
+            }
+
+            executor.execute {
+                try {
+                    operation()
+                } catch (error: Throwable) {
+                    promise.reject("DATABASE_ERROR", error.message, error)
+                }
             }
         }
     }
 
-    private fun SQLiteDatabase.transaction(operation: SQLiteDatabase.() -> Unit) {
+    private fun SQLiteDatabase.transaction(operation: SQLiteDatabase.() -> Unit): Unit {
         beginTransaction()
         try {
             operation()

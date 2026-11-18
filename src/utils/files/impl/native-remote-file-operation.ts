@@ -3,6 +3,7 @@ import type {
     FileOperationSnapshot,
     NativeDownloadRequest,
     NativeRemoteDeleteRequest,
+    NativeRemoteCopyRequest,
     NativeRemoteMoveRequest,
     NativeRemoteMkdirRequest,
     NativeRemoteRenameRequest,
@@ -17,6 +18,7 @@ interface NativeFileOperationModule {
     startRemoteMkdir(request: NativeRemoteMkdirRequest): Promise<string>;
     startRemoteRename(request: NativeRemoteRenameRequest): Promise<string>;
     startRemoteMove(request: NativeRemoteMoveRequest): Promise<string>;
+    startRemoteCopy(request: NativeRemoteCopyRequest): Promise<string>;
     cancel(id: string): void;
     listOperations(): Promise<string>;
     clearSettled(): void;
@@ -34,51 +36,84 @@ export default class NativeRemoteFileOperation implements RemoteFileOperation {
     /**
      * Starts an upload operation
      *
-     * @param request Upload request
+     * @param request.apiUrl API base URL
+     * @param request.accessToken Access token
+     * @param request.notificationTexts Operation notification texts
+     * @param request.remoteDir Remote directory
+     * @param request.entries Local entries to upload
      * @returns Operation identifier
      */
-    async startUpload(request: NativeUploadRequest): Promise<string> {
+    async startUpload(request: NativeUploadRequest) {
         return this.module.startUpload(request);
     }
 
     /**
      * Starts a download operation
      *
-     * @param request Download request
+     * @param request.apiUrl API base URL
+     * @param request.accessToken Access token
+     * @param request.notificationTexts Operation notification texts
+     * @param request.remoteDir Remote directory
+     * @param request.destination Local destination
+     * @param request.entries Remote entries to download
      * @returns Operation identifier
      */
-    async startDownload(request: NativeDownloadRequest): Promise<string> {
+    async startDownload(request: NativeDownloadRequest) {
         return this.module.startDownload(request);
     }
 
     /**
      * Starts a remote delete operation
      *
-     * @param request Delete request
+     * @param request.apiUrl API base URL
+     * @param request.accessToken Access token
+     * @param request.notificationTexts Operation notification texts
+     * @param request.remoteDir Remote directory
+     * @param request.entries Entries to delete
      * @returns Operation identifier
      */
-    async startDelete(request: NativeRemoteDeleteRequest): Promise<string> {
+    async startDelete(request: NativeRemoteDeleteRequest) {
         return this.module.startRemoteDelete(request);
     }
 
     /** Starts a remote directory creation */
-    async startMkdir(request: NativeRemoteMkdirRequest): Promise<string> {
+    async startMkdir(request: NativeRemoteMkdirRequest) {
         return this.module.startRemoteMkdir(request);
     }
 
     /** Starts a remote rename operation */
-    async startRename(request: NativeRemoteRenameRequest): Promise<string> {
+    async startRename(request: NativeRemoteRenameRequest) {
         return this.module.startRemoteRename(request);
     }
 
     /**
      * Starts a remote move operation
      *
-     * @param request Move request
+     * @param request.apiUrl API base URL
+     * @param request.accessToken Access token
+     * @param request.notificationTexts Operation notification texts
+     * @param request.remoteDir Remote directory
+     * @param request.destination Destination directory
+     * @param request.entries Entries to move
      * @returns Operation identifier
      */
-    async startMove(request: NativeRemoteMoveRequest): Promise<string> {
+    async startMove(request: NativeRemoteMoveRequest) {
         return this.module.startRemoteMove(request);
+    }
+
+    /**
+     * Starts a remote copy operation
+     *
+     * @param request.apiUrl API base URL
+     * @param request.accessToken Access token
+     * @param request.notificationTexts Operation notification texts
+     * @param request.remoteDir Remote directory
+     * @param request.destination Destination directory
+     * @param request.entries Entries to copy
+     * @returns Operation identifier
+     */
+    async startCopy(request: NativeRemoteCopyRequest) {
+        return this.module.startRemoteCopy(request);
     }
 
     /**
@@ -86,7 +121,7 @@ export default class NativeRemoteFileOperation implements RemoteFileOperation {
      *
      * @param id Operation identifier
      */
-    cancel(id: string): void {
+    cancel(id: string) {
         this.module.cancel(id);
     }
 
@@ -95,12 +130,12 @@ export default class NativeRemoteFileOperation implements RemoteFileOperation {
      *
      * @returns File operation snapshots
      */
-    async listOperations(): Promise<FileOperationSnapshot[]> {
+    async listOperations() {
         return JSON.parse(await this.module.listOperations()) as FileOperationSnapshot[];
     }
 
     /** Clears completed operations */
-    clearSettled(): void {
+    clearSettled() {
         this.module.clearSettled();
     }
 
@@ -110,7 +145,7 @@ export default class NativeRemoteFileOperation implements RemoteFileOperation {
      * @param listener Operation listener
      * @returns Listener cleanup
      */
-    addChangeListener(listener: (operation: FileOperationSnapshot) => void): () => void {
+    addChangeListener(listener: (operation: FileOperationSnapshot) => void) {
         const subscription = this.eventEmitter.addListener("FileOperationChanged", (operation) =>
             listener(operation as unknown as FileOperationSnapshot)
         );

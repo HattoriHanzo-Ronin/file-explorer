@@ -42,6 +42,7 @@ function createApiUtils() {
         rename: jest.fn(),
         isRemoteDirectoryBusy: jest.fn(),
         move: jest.fn(),
+        copy: jest.fn(),
         delete: jest.fn()
     };
     const storage = { get: jest.fn() };
@@ -85,6 +86,70 @@ describe("ApiUtils", () => {
         await apiUtils.refreshSocketSession();
         apiUtils.suspendSocketSession();
         expect(MockWebSocket.instances[0].close).toHaveBeenCalled();
+    });
+
+    it("does not open a socket when the app becomes inactive during session creation", async () => {
+        const { apiUtils, storage } = createApiUtils();
+        storage.get.mockResolvedValue("access-token");
+        let resolveRequest: ((response: { data: typeof SOCKET_SESSION }) => void) | undefined;
+        jest.mocked(axios.post).mockReturnValue(new Promise((resolve) => { resolveRequest = resolve; }));
+
+        const refresh = apiUtils.refreshSocketSession();
+        apiUtils.suspendSocketSession();
+        resolveRequest?.({ data: SOCKET_SESSION });
+        await refresh;
+        await Promise.resolve();
+
+        expect(MockWebSocket.instances).toHaveLength(0);
+    });
+
+    it("does not open a socket when the app becomes inactive while reading the token", async () => {
+        const { apiUtils, storage } = createApiUtils();
+        let resolveToken: ((token: string) => void) | undefined;
+        storage.get.mockReturnValue(new Promise((resolve) => { resolveToken = resolve; }));
+        jest.mocked(axios.post).mockResolvedValue({ data: SOCKET_SESSION });
+
+        await apiUtils.refreshSocketSession();
+        apiUtils.suspendSocketSession();
+        resolveToken?.("access-token");
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(MockWebSocket.instances).toHaveLength(0);
+    });
+
+    it("opens the socket when the app resumes before session creation finishes", async () => {
+        const { apiUtils, storage } = createApiUtils();
+        storage.get.mockResolvedValue("access-token");
+        let resolveRequest: ((response: { data: typeof SOCKET_SESSION }) => void) | undefined;
+        jest.mocked(axios.post).mockReturnValue(new Promise((resolve) => { resolveRequest = resolve; }));
+
+        const first = apiUtils.refreshSocketSession();
+        apiUtils.suspendSocketSession();
+        const resumed = apiUtils.refreshSocketSession();
+        resolveRequest?.({ data: SOCKET_SESSION });
+        await Promise.all([first, resumed]);
+        await Promise.resolve();
+
+        expect(MockWebSocket.instances).toHaveLength(1);
+    });
+
+    it("does not open an outdated connection after a quick resume", async () => {
+        const { apiUtils, storage } = createApiUtils();
+        let resolveOldToken: ((token: string) => void) | undefined;
+        storage.get
+            .mockReturnValueOnce(new Promise((resolve) => { resolveOldToken = resolve; }))
+            .mockResolvedValueOnce("access-token");
+        jest.mocked(axios.post).mockResolvedValue({ data: SOCKET_SESSION });
+
+        await apiUtils.refreshSocketSession();
+        apiUtils.suspendSocketSession();
+        await apiUtils.refreshSocketSession();
+        resolveOldToken?.("access-token");
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(MockWebSocket.instances).toHaveLength(1);
     });
 
     it("ignores FTP notifications while the directory is being modified", async () => {
@@ -256,6 +321,19 @@ describe("ApiUtils", () => {
                 }
             }
         );
+    });
+
+    it("returns API errors from remote copy", async () => {
+        const { apiUtils, remoteFileManager } = createApiUtils();
+        remoteFileManager.copy.mockResolvedValue({
+            success: false,
+            error: { code: "FTP_COPY_FAILED", message: "Error al copiar los archivos" }
+        });
+
+        await expect(apiUtils.copyEntries({ dir: "source", destination: "target", entries: ENTRIES })).resolves.toEqual({
+            success: false,
+            error: { code: "FTP_COPY_FAILED", message: "Error al copiar los archivos" }
+        });
     });
 
     it("rejects a remote move to the source directory", async () => {

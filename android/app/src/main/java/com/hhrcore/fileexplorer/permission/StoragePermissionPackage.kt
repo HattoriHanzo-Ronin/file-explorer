@@ -5,6 +5,11 @@ import com.facebook.react.bridge.NativeModule
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.uimanager.ViewManager
 
+/**
+ * Storage permission package
+ *
+ * @author HattoriHanzo-Ronin
+ */
 class StoragePermissionPackage : ReactPackage {
     override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> {
         return listOf(StoragePermissionModule(reactContext))

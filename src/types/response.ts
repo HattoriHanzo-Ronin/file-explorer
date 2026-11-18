@@ -6,6 +6,7 @@ export interface ResponseError {
     code: string;
 }
 
+/** Validation message and its associated field */
 export interface ValidationErrorDetail {
     field?: string;
     message: string;

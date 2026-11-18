@@ -92,7 +92,7 @@ export default class AuthUtils {
             return;
         }
 
-        UiUtils.showMessage(result.error.message);
+        UiUtils.showMessage({ message: result.error.message });
     }
 
     /**
@@ -114,8 +114,8 @@ export default class AuthUtils {
         if (success) {
             const { user, refreshToken, accessToken } = result.data;
             await Promise.all([
-                this.storage.set<string>(STORAGE_KEYS.accessToken, accessToken),
-                this.storage.set<RefreshTokenRequest>(STORAGE_KEYS.refreshToken, { refreshToken })
+                this.storage.set<string>({ key: STORAGE_KEYS.accessToken, payload: accessToken }),
+                this.storage.set<RefreshTokenRequest>({ key: STORAGE_KEYS.refreshToken, payload: { refreshToken } })
             ]);
             if (AuthUtils.AUTH_INTERCEPTOR_ID !== null) {
                 axios.interceptors.request.eject(AuthUtils.AUTH_INTERCEPTOR_ID);
@@ -137,7 +137,7 @@ export default class AuthUtils {
             }
 
             if (error.code !== "VALIDATION_FAILED") {
-                UiUtils.showMessage(error.message);
+                UiUtils.showMessage({ message: error.message });
             }
         }
 

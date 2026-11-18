@@ -9,6 +9,7 @@ export interface RefreshTokenRequest {
     refreshToken: string;
 }
 
+/** Authenticated user and granted roles */
 export interface AuthUser {
     id: string;
     username: string;
